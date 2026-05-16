@@ -1464,6 +1464,9 @@
         <div class="header-actions">
             <button class="tool-btn" onclick="calculate()" style="background: var(--primary); color: #fff; font-weight: 600;">Run Analysis</button>
             <button class="tool-btn" onclick="refreshView()" title="Recalculate and refresh all views">Refresh</button>
+            <button class="tool-btn" onclick="saveProject()" title="Save current project">Save</button>
+            <button class="tool-btn" id="undoBtn" onclick="undo()" title="Undo last model edit" disabled>Undo</button>
+            <button class="tool-btn" id="redoBtn" onclick="redo()" title="Redo last undone edit" disabled>Redo</button>
             <span class="toolbar-separator"></span>
             <button class="tool-btn" onclick="exportResults()" title="Generate PDF Report">Report</button>
             <button class="tool-btn" onclick="exportToDXF()" title="Export to AutoCAD DXF">DXF</button>
@@ -3193,6 +3196,10 @@
             style="padding:8px 16px; color:#00d4ff; font-weight:bold; border-bottom:1px solid rgba(255,255,255,0.1); margin-bottom:4px;">
             Column A1</div>
         <button class="ctx-menu-btn" onclick="toggleSelectedColumn()">🔄 Toggle Active</button>
+        <button class="ctx-menu-btn" onclick="moveSelectedColumn()">Move / Nudge...</button>
+        <button class="ctx-menu-btn" onclick="resetSelectedColumnPosition()">Reset Position</button>
+        <button class="ctx-menu-btn" onclick="moveAllColumns()">Move All Columns...</button>
+        <button class="ctx-menu-btn" onclick="resetAllColumnPositions()">Reset All Column Positions</button>
         <div style="border-top:1px solid rgba(255,255,255,0.1); margin:4px 0;"></div>
         <div style="padding:4px 16px; font-size:0.7rem; color:#8b949e;">Set as Planted Column:</div>
         <div id="plantedFloorOptions">
@@ -3208,10 +3215,14 @@
         <div id="memberMenuTitle"
             style="padding:8px 16px; color:#00d4ff; font-weight:bold; border-bottom:1px solid rgba(255,255,255,0.1); margin-bottom:4px;">
             Beam B-1</div>
-        <button class="ctx-menu-btn" onclick="deleteMemberFromMenu()" style="color:#ef4444;">🗑️ Delete</button>
+        <button class="ctx-menu-btn" id="memberDeleteBtn" onclick="deleteMemberFromMenu()" style="color:#ef4444;">🗑️ Delete</button>
+        <button class="ctx-menu-btn" id="memberMoveBtn" onclick="moveSelectedBeamAlignment()">Beam Offset...</button>
+        <button class="ctx-menu-btn" id="memberResetOffsetBtn" onclick="resetSelectedBeamAlignment()">Reset Beam Offset</button>
+        <button class="ctx-menu-btn" id="memberMoveAllBtn" onclick="moveAllGeneratedBeamsOnCurrentFloor()">Offset All Beams This Floor...</button>
+        <button class="ctx-menu-btn" id="memberResetAllOffsetBtn" onclick="resetAllGeneratedBeamAlignmentsOnCurrentFloor()">Reset All Beam Offsets This Floor</button>
         <button class="ctx-menu-btn" id="memberLockBtn" onclick="toggleMemberLocked()" style="color:#f59e0b;">🔒
             Lock</button>
-        <button class="ctx-menu-btn" onclick="restoreMemberFromMenu()" style="color:#10b981;">♻️ Restore</button>
+        <button class="ctx-menu-btn" id="memberRestoreBtn" onclick="restoreMemberFromMenu()" style="color:#10b981;">♻️ Restore</button>
         <button class="ctx-menu-btn" onclick="hideMemberMenu()">❌ Cancel</button>
     </div>
 
@@ -3724,6 +3735,9 @@
             defaultBeamB: 250,    // Default beam width (mm), 0 = auto
             defaultBeamH: 0,      // Default beam depth (mm), 0 = auto (L/16 rule)
             beamSizeOverrides: {}, // floorId::beamId -> { webW, webD }
+            columnPositionOverrides: {}, // columnId -> { dx, dy } from grid, meters
+            beamAlignmentOverrides: {},  // floorId::beamId -> transverse offset, meters
+            foundationTieBeamAlignmentOverrides: {}, // foundation tie-beam key -> transverse offset, meters
 
             // v3.0: Custom beams for staircase framing (per floor - stored in floor object)
             addingBeam: false,     // Mode flag for adding beams
@@ -4093,7 +4107,7 @@
         }
 
         function getColumnPlanOffset(col) {
-            if (!col || state.columnAlignment !== 'outer') return { dx: 0, dy: 0 };
+            if (!col) return { dx: 0, dy: 0 };
             const { totalX, totalY } = getPlanBounds();
             const size = getColumnSizeMm(col);
             const bM = size.b / 1000;
@@ -4102,11 +4116,17 @@
             let dx = 0;
             let dy = 0;
 
-            if (Math.abs((Number(col.x) || 0)) < tol) dx = bM / 2;
-            else if (Math.abs((Number(col.x) || 0) - totalX) < tol) dx = -bM / 2;
+            if (state.columnAlignment === 'outer') {
+                if (Math.abs((Number(col.x) || 0)) < tol) dx = bM / 2;
+                else if (Math.abs((Number(col.x) || 0) - totalX) < tol) dx = -bM / 2;
 
-            if (Math.abs((Number(col.y) || 0)) < tol) dy = hM / 2;
-            else if (Math.abs((Number(col.y) || 0) - totalY) < tol) dy = -hM / 2;
+                if (Math.abs((Number(col.y) || 0)) < tol) dy = hM / 2;
+                else if (Math.abs((Number(col.y) || 0) - totalY) < tol) dy = -hM / 2;
+            }
+
+            const manual = state.columnPositionOverrides?.[col.id] || {};
+            dx += Number(manual.dx) || 0;
+            dy += Number(manual.dy) || 0;
 
             return { dx, dy };
         }
@@ -4125,22 +4145,71 @@
             return ((direction === 'X' ? size.b : size.h) / 1000) / 2;
         }
 
-        function getBeamPlanOffset(beam, beamWidthM) {
+        function getBeamAlignmentKey(beamId, floorId) {
+            return `${floorId || state.floors[state.currentFloorIndex]?.id || 'GLOBAL'}::${beamId}`;
+        }
+
+        function getBeamAlignmentOverride(beam, floorId = null) {
+            if (!beam) return 0;
+            const overrides = state.beamAlignmentOverrides || {};
+            const activeFloorId = floorId || state.floors[state.currentFloorIndex]?.id || 'GLOBAL';
+            const raw = overrides[getBeamAlignmentKey(beam.id, activeFloorId)] ?? overrides[beam.id] ?? beam.alignmentOffset ?? 0;
+            const value = Number(raw);
+            return Number.isFinite(value) ? value : 0;
+        }
+
+        function getBeamPlanOffset(beam, beamWidthM, floorId = null) {
             let offsetX = 0;
             let offsetY = 0;
-            if (!beam || state.columnAlignment !== 'outer') return { offsetX, offsetY };
+            if (!beam) return { offsetX, offsetY };
 
             const { totalX, totalY } = getPlanBounds();
             const halfWidth = Number(beamWidthM || 0) / 2;
-            if (beam.direction === 'X') {
-                if (Math.abs((Number(beam.y1) || 0)) < 0.01) offsetY = halfWidth;
-                else if (Math.abs((Number(beam.y1) || 0) - totalY) < 0.01) offsetY = -halfWidth;
-            } else {
-                if (Math.abs((Number(beam.x1) || 0)) < 0.01) offsetX = halfWidth;
-                else if (Math.abs((Number(beam.x1) || 0) - totalX) < 0.01) offsetX = -halfWidth;
+            if (state.columnAlignment === 'outer') {
+                if (beam.direction === 'X') {
+                    if (Math.abs((Number(beam.y1) || 0)) < 0.01) offsetY = halfWidth;
+                    else if (Math.abs((Number(beam.y1) || 0) - totalY) < 0.01) offsetY = -halfWidth;
+                } else {
+                    if (Math.abs((Number(beam.x1) || 0)) < 0.01) offsetX = halfWidth;
+                    else if (Math.abs((Number(beam.x1) || 0) - totalX) < 0.01) offsetX = -halfWidth;
+                }
+            }
+
+            const type = getBeamGovernanceType(beam);
+            const isCantileverSideBeam = (type === 'cantilever' || beam.isCantilever) && type !== 'cantilever_edge' && !beam.isEdgeBeam;
+            const manualOffset = isCantileverSideBeam ? 0 : getBeamAlignmentOverride(beam, floorId);
+            if (beam.direction === 'X') offsetY += manualOffset;
+            else offsetX += manualOffset;
+
+            const mainBeamId = beam.supportingMainBeamId;
+            if (isCantileverSideBeam && mainBeamId && mainBeamId !== beam.id) {
+                const mainBeam = (state.beams || []).find(item =>
+                    item.id === mainBeamId
+                    && !item.isCantilever
+                    && !item.isEdgeBeam
+                    && getBeamGovernanceType(item) === 'regular'
+                );
+                if (mainBeam && mainBeam.direction === beam.direction) {
+                    const inheritedOffset = getBeamAlignmentOverride(mainBeam, floorId);
+                    if (beam.direction === 'X') offsetY += inheritedOffset;
+                    else offsetX += inheritedOffset;
+                }
             }
 
             return { offsetX, offsetY };
+        }
+
+        function getRenderedBeamPlanSegment(beam, startCol, endCol) {
+            const startPos = startCol ? getColumnPlanPosition(startCol) : { x: Number(beam?.x1) || 0, y: Number(beam?.y1) || 0 };
+            const endPos = endCol ? getColumnPlanPosition(endCol) : { x: Number(beam?.x2) || 0, y: Number(beam?.y2) || 0 };
+            return {
+                x1: Number.isFinite(Number(beam?.renderX1)) ? Number(beam.renderX1) : startPos.x,
+                y1: Number.isFinite(Number(beam?.renderY1)) ? Number(beam.renderY1) : startPos.y,
+                x2: Number.isFinite(Number(beam?.renderX2)) ? Number(beam.renderX2) : endPos.x,
+                y2: Number.isFinite(Number(beam?.renderY2)) ? Number(beam.renderY2) : endPos.y,
+                midX: (startPos.x + endPos.x) / 2,
+                midY: (startPos.y + endPos.y) / 2
+            };
         }
 
         function getBeamSizeKey(beamId, floorId) {
@@ -4154,11 +4223,26 @@
         }
 
         function getBeamSizeMm(beam, floorId) {
+            const type = typeof getBeamGovernanceType === 'function' ? getBeamGovernanceType(beam) : 'regular';
+            const isCantileverSideBeam = (type === 'cantilever' || beam?.isCantilever) && type !== 'cantilever_edge' && !beam?.isEdgeBeam;
+            if (isCantileverSideBeam && beam?.supportingMainBeamId && beam.supportingMainBeamId !== beam.id) {
+                const mainBeam = (state.beams || []).find(item =>
+                    item.id === beam.supportingMainBeamId
+                    && !item.isCantilever
+                    && !item.isEdgeBeam
+                    && (typeof getBeamGovernanceType !== 'function' || getBeamGovernanceType(item) === 'regular')
+                );
+                if (mainBeam) {
+                    return getBeamSizeMm(mainBeam, floorId);
+                }
+            }
+
             const override = getBeamSizeOverride(beam?.id, floorId);
             const autoDepth = Math.max(300, Math.ceil(((beam?.span || 4) * 1000) / 16 / 50) * 50);
+            const defaultB = type === 'cantilever_edge' ? 150 : state.defaultBeamB;
             const b = normalizeMemberSizeMm(
-                firstPositive(override?.webW, override?.overrideB, beam?.webW, beam?.overrideB, beam?.b, beam?.suggestedB, state.defaultBeamB),
-                250,
+                firstPositive(override?.webW, override?.overrideB, beam?.webW, beam?.overrideB, beam?.b, beam?.suggestedB, defaultB),
+                defaultB || 250,
                 150,
                 1500
             );
@@ -4195,6 +4279,32 @@
                     const size = getBeamSizeMm(beam, floorId);
                     applyBeamSizeMm(beam, floorId, size.b, size.h);
                 }
+            });
+        }
+
+        function normalizeCantileverInheritedBeamSizes(floorId) {
+            (state.beams || []).forEach(beam => {
+                const type = getBeamGovernanceType(beam);
+                const isCantileverSideBeam = (type === 'cantilever' || beam.isCantilever) && type !== 'cantilever_edge' && !beam.isEdgeBeam;
+                if (!isCantileverSideBeam || !beam.supportingMainBeamId) return;
+                const mainBeam = (state.beams || []).find(item =>
+                    item.id === beam.supportingMainBeamId
+                    && !item.isCantilever
+                    && !item.isEdgeBeam
+                    && getBeamGovernanceType(item) === 'regular'
+                );
+                if (!mainBeam) return;
+                const size = getBeamSizeMm(mainBeam, floorId);
+                beam.webW = size.b;
+                beam.webD = size.h;
+                beam.suggestedB = size.b;
+                beam.suggestedH = size.h;
+                beam.b = size.b;
+                beam.h = size.h;
+                const bM = size.b / 1000;
+                const hM = size.h / 1000;
+                beam.selfWeight = (state.concreteDensity || 24) * bM * hM * (beam.span || 0);
+                beam.selfWeightPerM = (state.concreteDensity || 24) * bM * hM;
             });
         }
 
@@ -4427,7 +4537,12 @@
                 ySpans: [...state.ySpans],
                 cantilevers: JSON.parse(JSON.stringify(state.cantilevers)),
                 gfSuspended: state.gfSuspended,
-                currentFloorIndex: state.currentFloorIndex
+                currentFloorIndex: state.currentFloorIndex,
+                columns: JSON.parse(JSON.stringify(state.columns || [])),
+                beamSizeOverrides: JSON.parse(JSON.stringify(state.beamSizeOverrides || {})),
+                columnPositionOverrides: JSON.parse(JSON.stringify(state.columnPositionOverrides || {})),
+                beamAlignmentOverrides: JSON.parse(JSON.stringify(state.beamAlignmentOverrides || {})),
+                foundationTieBeamAlignmentOverrides: JSON.parse(JSON.stringify(state.foundationTieBeamAlignmentOverrides || {}))
             };
 
             undoHistory.push(snapshot);
@@ -4437,6 +4552,7 @@
 
             // Clear redo stack on new action (standard behavior)
             redoHistory.length = 0;
+            updateUndoRedoButtons();
 
             console.log(`v3.10: State saved (${undoHistory.length}/${MAX_UNDO_HISTORY} in history)`);
         }
@@ -4457,7 +4573,12 @@
                 ySpans: [...state.ySpans],
                 cantilevers: JSON.parse(JSON.stringify(state.cantilevers)),
                 gfSuspended: state.gfSuspended,
-                currentFloorIndex: state.currentFloorIndex
+                currentFloorIndex: state.currentFloorIndex,
+                columns: JSON.parse(JSON.stringify(state.columns || [])),
+                beamSizeOverrides: JSON.parse(JSON.stringify(state.beamSizeOverrides || {})),
+                columnPositionOverrides: JSON.parse(JSON.stringify(state.columnPositionOverrides || {})),
+                beamAlignmentOverrides: JSON.parse(JSON.stringify(state.beamAlignmentOverrides || {})),
+                foundationTieBeamAlignmentOverrides: JSON.parse(JSON.stringify(state.foundationTieBeamAlignmentOverrides || {}))
             };
             redoHistory.push(currentSnapshot);
 
@@ -4469,10 +4590,16 @@
             state.cantilevers = snapshot.cantilevers;
             state.gfSuspended = snapshot.gfSuspended;
             state.currentFloorIndex = snapshot.currentFloorIndex;
+            state.columns = cloneSerializable(snapshot.columns, []);
+            state.beamSizeOverrides = cloneSerializable(snapshot.beamSizeOverrides, {});
+            state.columnPositionOverrides = cloneSerializable(snapshot.columnPositionOverrides, {});
+            state.beamAlignmentOverrides = cloneSerializable(snapshot.beamAlignmentOverrides, {});
+            state.foundationTieBeamAlignmentOverrides = cloneSerializable(snapshot.foundationTieBeamAlignmentOverrides, {});
 
             // Regenerate and refresh
             calculate();
             if (typeof render3DFrame === 'function') render3DFrame();
+            updateUndoRedoButtons();
 
             console.log(`v3.10: Undo completed (${undoHistory.length} remaining)`);
         }
@@ -4493,7 +4620,12 @@
                 ySpans: [...state.ySpans],
                 cantilevers: JSON.parse(JSON.stringify(state.cantilevers)),
                 gfSuspended: state.gfSuspended,
-                currentFloorIndex: state.currentFloorIndex
+                currentFloorIndex: state.currentFloorIndex,
+                columns: JSON.parse(JSON.stringify(state.columns || [])),
+                beamSizeOverrides: JSON.parse(JSON.stringify(state.beamSizeOverrides || {})),
+                columnPositionOverrides: JSON.parse(JSON.stringify(state.columnPositionOverrides || {})),
+                beamAlignmentOverrides: JSON.parse(JSON.stringify(state.beamAlignmentOverrides || {})),
+                foundationTieBeamAlignmentOverrides: JSON.parse(JSON.stringify(state.foundationTieBeamAlignmentOverrides || {}))
             };
             undoHistory.push(currentSnapshot);
 
@@ -4505,12 +4637,31 @@
             state.cantilevers = snapshot.cantilevers;
             state.gfSuspended = snapshot.gfSuspended;
             state.currentFloorIndex = snapshot.currentFloorIndex;
+            state.columns = cloneSerializable(snapshot.columns, []);
+            state.beamSizeOverrides = cloneSerializable(snapshot.beamSizeOverrides, {});
+            state.columnPositionOverrides = cloneSerializable(snapshot.columnPositionOverrides, {});
+            state.beamAlignmentOverrides = cloneSerializable(snapshot.beamAlignmentOverrides, {});
+            state.foundationTieBeamAlignmentOverrides = cloneSerializable(snapshot.foundationTieBeamAlignmentOverrides, {});
 
             // Regenerate and refresh
             calculate();
             if (typeof render3DFrame === 'function') render3DFrame();
+            updateUndoRedoButtons();
 
             console.log(`v3.10: Redo completed (${redoHistory.length} remaining)`);
+        }
+
+        function updateUndoRedoButtons() {
+            const undoBtn = document.getElementById('undoBtn');
+            if (undoBtn) {
+                undoBtn.disabled = undoHistory.length === 0 && state.undoStack.length === 0;
+                undoBtn.textContent = undoHistory.length > 0 ? `Undo (${undoHistory.length})` : 'Undo';
+            }
+            const redoBtn = document.getElementById('redoBtn');
+            if (redoBtn) {
+                redoBtn.disabled = redoHistory.length === 0;
+                redoBtn.textContent = redoHistory.length > 0 ? `Redo (${redoHistory.length})` : 'Redo';
+            }
         }
 
         // v3.10: Global keyboard shortcuts for Undo/Redo
@@ -6152,6 +6303,118 @@
             };
         }
 
+        function getCantileverSupportingBeamId(edge, spanIndex, supportLineIndex) {
+            if (edge === 'top' || edge === 'bottom') {
+                return `BX-${supportLineIndex + 1}-${spanIndex + 1}`;
+            }
+            return `BY-${supportLineIndex + 1}-${spanIndex + 1}`;
+        }
+
+        function isBeamDeletedOnFloor(beamId, floorOrId = null) {
+            const floor = typeof floorOrId === 'string'
+                ? state.floors.find(f => f.id === floorOrId)
+                : (floorOrId || state.floors[state.currentFloorIndex]);
+            return !!floor?.deletedBeams?.includes(beamId);
+        }
+
+        function isColumnAvailableForSupportBeam(col, floorId) {
+            if (!col || col.active === false) return false;
+            return !floorId || isColumnActiveOnFloor(col, floorId);
+        }
+
+        function isCantileverSupportBeamAvailable(edge, spanIndex, supportLineIndex, floorOrId = null) {
+            const floorId = typeof floorOrId === 'string' ? floorOrId : floorOrId?.id;
+            const beamId = getCantileverSupportingBeamId(edge, spanIndex, supportLineIndex);
+            if (isBeamDeletedOnFloor(beamId, floorOrId)) return false;
+
+            let startCol = null;
+            let endCol = null;
+            if (edge === 'top' || edge === 'bottom') {
+                startCol = getColumnAt(spanIndex, supportLineIndex);
+                endCol = getColumnAt(spanIndex + 1, supportLineIndex);
+            } else {
+                startCol = getColumnAt(supportLineIndex, spanIndex);
+                endCol = getColumnAt(supportLineIndex, spanIndex + 1);
+            }
+            return isColumnAvailableForSupportBeam(startCol, floorId) && isColumnAvailableForSupportBeam(endCol, floorId);
+        }
+
+        function resolveCantileverSupport(edge, spanIndex, floorOrId, xCoords, yCoords) {
+            const floor = typeof floorOrId === 'string'
+                ? state.floors.find(f => f.id === floorOrId)
+                : (floorOrId || state.floors[state.currentFloorIndex]);
+            const xLineCount = (xCoords || []).length;
+            const yLineCount = (yCoords || []).length;
+
+            if (edge === 'top') {
+                for (let line = 0; line < yLineCount; line++) {
+                    if (isCantileverSupportBeamAvailable(edge, spanIndex, line, floor)) {
+                        return { beamId: getCantileverSupportingBeamId(edge, spanIndex, line), lineIndex: line, ySupport: yCoords[line] };
+                    }
+                }
+            } else if (edge === 'bottom') {
+                for (let line = yLineCount - 1; line >= 0; line--) {
+                    if (isCantileverSupportBeamAvailable(edge, spanIndex, line, floor)) {
+                        return { beamId: getCantileverSupportingBeamId(edge, spanIndex, line), lineIndex: line, ySupport: yCoords[line] };
+                    }
+                }
+            } else if (edge === 'left') {
+                for (let line = 0; line < xLineCount; line++) {
+                    if (isCantileverSupportBeamAvailable(edge, spanIndex, line, floor)) {
+                        return { beamId: getCantileverSupportingBeamId(edge, spanIndex, line), lineIndex: line, xSupport: xCoords[line] };
+                    }
+                }
+            } else if (edge === 'right') {
+                for (let line = xLineCount - 1; line >= 0; line--) {
+                    if (isCantileverSupportBeamAvailable(edge, spanIndex, line, floor)) {
+                        return { beamId: getCantileverSupportingBeamId(edge, spanIndex, line), lineIndex: line, xSupport: xCoords[line] };
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        function getCantileverSameAxisMainBeamId(edge, boundaryIndex, supportLineIndex) {
+            const maxXi = state.xSpans.length;
+            const maxYi = state.ySpans.length;
+            if (edge === 'top') {
+                if (boundaryIndex < 0 || boundaryIndex > maxXi || supportLineIndex >= maxYi) return null;
+                return `BY-${boundaryIndex + 1}-${supportLineIndex + 1}`;
+            }
+            if (edge === 'bottom') {
+                if (boundaryIndex < 0 || boundaryIndex > maxXi || supportLineIndex <= 0) return null;
+                return `BY-${boundaryIndex + 1}-${supportLineIndex}`;
+            }
+            if (edge === 'left') {
+                if (boundaryIndex < 0 || boundaryIndex > maxYi || supportLineIndex >= maxXi) return null;
+                return `BX-${boundaryIndex + 1}-${supportLineIndex + 1}`;
+            }
+            if (edge === 'right') {
+                if (boundaryIndex < 0 || boundaryIndex > maxYi || supportLineIndex <= 0) return null;
+                return `BX-${boundaryIndex + 1}-${supportLineIndex}`;
+            }
+            return null;
+        }
+
+        function resolveCantileverBoundarySupport(edge, boundaryIndex, cants, floorId, xCoords, yCoords) {
+            const spanCount = (edge === 'top' || edge === 'bottom') ? state.xSpans.length : state.ySpans.length;
+            const candidates = [];
+            const prevSpan = boundaryIndex - 1;
+            const nextSpan = boundaryIndex;
+            if (prevSpan >= 0 && prevSpan < spanCount && Number(cants?.[edge]?.[prevSpan] || 0) > 0) {
+                const support = resolveCantileverSupport(edge, prevSpan, floorId, xCoords, yCoords);
+                if (support) candidates.push({ spanIndex: prevSpan, cantLen: Number(cants[edge][prevSpan]) || 0, support });
+            }
+            if (nextSpan >= 0 && nextSpan < spanCount && Number(cants?.[edge]?.[nextSpan] || 0) > 0) {
+                const support = resolveCantileverSupport(edge, nextSpan, floorId, xCoords, yCoords);
+                if (support) candidates.push({ spanIndex: nextSpan, cantLen: Number(cants[edge][nextSpan]) || 0, support });
+            }
+            if (!candidates.length) return null;
+            candidates.sort((a, b) => b.cantLen - a.cantLen);
+            return candidates[0];
+        }
+
         // v3.0: Generate cantilever slab panels extending beyond the grid
         function generateCantileverSlabs(xCoords, yCoords, floorId) {
             const cants = getCantilevers(floorId);
@@ -6165,20 +6428,22 @@
 
                 const cantLen = cants.top[xi] || 0;
                 if (cantLen > 0) {
+                    const support = resolveCantileverSupport('top', xi, floorId, xCoords, yCoords);
+                    if (!support) continue;
                     const spanWidth = state.xSpans[xi];
                     state.slabs.push({
                         id: `SC-T${xi + 1}`,
                         x1: xCoords[xi],
-                        y1: -cantLen,  // Extends above grid (negative Y)
+                        y1: support.ySupport - cantLen,
                         x2: xCoords[xi + 1],
-                        y2: 0,
+                        y2: support.ySupport,
                         lx: spanWidth,
                         ly: cantLen,
                         area: spanWidth * cantLen,
                         isCantilever: true,
                         cantileverEdge: 'top',
                         spanIndex: xi,
-                        supportingBeamId: `BX-1-${xi + 1}`,  // Top edge beam
+                        supportingBeamId: support.beamId,
                         isVoid: floorVoidSlabs.includes(`SC-T${xi + 1}`)
                     });
                 }
@@ -6190,20 +6455,22 @@
             for (let xi = 0; xi < state.xSpans.length; xi++) {
                 const cantLen = cants.bottom[xi] || 0;
                 if (cantLen > 0) {
+                    const support = resolveCantileverSupport('bottom', xi, floorId, xCoords, yCoords);
+                    if (!support) continue;
                     const spanWidth = state.xSpans[xi];
                     state.slabs.push({
                         id: `SC-B${xi + 1}`,
                         x1: xCoords[xi],
-                        y1: maxY,
+                        y1: support.ySupport,
                         x2: xCoords[xi + 1],
-                        y2: maxY + cantLen,  // Extends below grid
+                        y2: support.ySupport + cantLen,
                         lx: spanWidth,
                         ly: cantLen,
                         area: spanWidth * cantLen,
                         isCantilever: true,
                         cantileverEdge: 'bottom',
                         spanIndex: xi,
-                        supportingBeamId: `BX-${lastYi + 1}-${xi + 1}`,  // Bottom edge beam
+                        supportingBeamId: support.beamId,
                         isVoid: floorVoidSlabs.includes(`SC-B${xi + 1}`)
                     });
                 }
@@ -6213,12 +6480,14 @@
             for (let yi = 0; yi < state.ySpans.length; yi++) {
                 const cantLen = cants.left[yi] || 0;
                 if (cantLen > 0) {
+                    const support = resolveCantileverSupport('left', yi, floorId, xCoords, yCoords);
+                    if (!support) continue;
                     const spanHeight = state.ySpans[yi];
                     state.slabs.push({
                         id: `SC-L${yi + 1}`,
-                        x1: -cantLen,  // Extends left of grid (negative X)
+                        x1: support.xSupport - cantLen,
                         y1: yCoords[yi],
-                        x2: 0,
+                        x2: support.xSupport,
                         y2: yCoords[yi + 1],
                         lx: cantLen,
                         ly: spanHeight,
@@ -6226,7 +6495,7 @@
                         isCantilever: true,
                         cantileverEdge: 'left',
                         spanIndex: yi,
-                        supportingBeamId: `BY-1-${yi + 1}`,  // Left edge beam
+                        supportingBeamId: support.beamId,
                         isVoid: floorVoidSlabs.includes(`SC-L${yi + 1}`)
                     });
                 }
@@ -6238,12 +6507,14 @@
             for (let yi = 0; yi < state.ySpans.length; yi++) {
                 const cantLen = cants.right[yi] || 0;
                 if (cantLen > 0) {
+                    const support = resolveCantileverSupport('right', yi, floorId, xCoords, yCoords);
+                    if (!support) continue;
                     const spanHeight = state.ySpans[yi];
                     state.slabs.push({
                         id: `SC-R${yi + 1}`,
-                        x1: maxX,
+                        x1: support.xSupport,
                         y1: yCoords[yi],
-                        x2: maxX + cantLen,  // Extends right of grid
+                        x2: support.xSupport + cantLen,
                         y2: yCoords[yi + 1],
                         lx: cantLen,
                         ly: spanHeight,
@@ -6251,262 +6522,213 @@
                         isCantilever: true,
                         cantileverEdge: 'right',
                         spanIndex: yi,
-                        supportingBeamId: `BY-${lastXi + 1}-${yi + 1}`,  // Right edge beam
+                        supportingBeamId: support.beamId,
                         isVoid: floorVoidSlabs.includes(`SC-R${yi + 1}`)
                     });
                 }
             }
         }
 
-        // v3.0: Generate cantilever beams (from columns) and edge beams (at cantilever tips)
-        // v3.17: Accept explicit floorCantilevers to avoid global state.cantilevers swap
+        // v3.0: Generate cantilever beams (from resolved support beams) and edge beams.
+        // v3.17: Accept explicit floorCantilevers to avoid global state.cantilevers swap.
         function generateCantileverBeams(xCoords, yCoords, letters, floorCantilevers, floorId = null) {
             const cants = floorCantilevers || state.cantilevers;
             const activeFloorId = floorId || state.floors[state.currentFloorIndex]?.id;
-            const maxX = xCoords[xCoords.length - 1];
-            const maxY = yCoords[yCoords.length - 1];
+            const makeZeroLoad = () => ({
+                tributaryWidth: 0,
+                tributaryArea: 0,
+                slices: [],
+                w: 0,
+                Rleft: 0,
+                Rright: 0
+            });
 
-            // TOP CANTILEVERS: Beams extend from columns at yi=0 upward (negative Y)
             for (let xi = 0; xi <= state.xSpans.length; xi++) {
-                // Check if any adjacent span has a top cantilever
-                const leftCant = xi > 0 ? (cants.top[xi - 1] || 0) : 0;
-                const rightCant = xi < state.xSpans.length ? (cants.top[xi] || 0) : 0;
-                const maxCant = Math.max(leftCant, rightCant);
-
-                if (maxCant > 0) {
-                    const col = getColumnAt(xi, 0);
-                    // v3.0 FIX: Use per-floor check to prevent cascade deletion
-                    if (col && isColumnActiveOnFloor(col, activeFloorId)) {
-                        // Cantilever beam from column to edge
-                        state.beams.push({
-                            id: `BCY-T-${xi + 1}`,
-                            direction: 'Y',
-                            beamType: 'cantilever',
-                            isCantilever: true,
-                            cantileverEdge: 'top',
-                            x1: xCoords[xi],
-                            y1: -maxCant,
-                            x2: xCoords[xi],
-                            y2: 0,
-                            span: maxCant,
-                            startCol: null,  // Free end
-                            endCol: col.id,  // Connected to column
-                            tributaryWidth: 0,
-                            tributaryArea: 0,
-                            slices: [],
-                            w: 0,
-                            Rleft: 0,
-                            Rright: 0
-                        });
-                    }
-                }
-            }
-            // TOP EDGE BEAM: Runs along the top edge of cantilever
-            let topEdgeSegments = [];
-            for (let xi = 0; xi < state.xSpans.length; xi++) {
-                const cantLen = cants.top[xi] || 0;
-                if (cantLen > 0) {
-                    topEdgeSegments.push({ xi, cantLen });
-                }
-            }
-            for (let seg of topEdgeSegments) {
+                const boundary = resolveCantileverBoundarySupport('top', xi, cants, activeFloorId, xCoords, yCoords);
+                if (!boundary) continue;
+                const support = boundary.support;
+                const col = getColumnAt(xi, support.lineIndex);
+                if (!col || !isColumnActiveOnFloor(col, activeFloorId)) continue;
                 state.beams.push({
-                    id: `BEX-T-${seg.xi + 1}`,
+                    id: `BCY-T-${xi + 1}`,
+                    direction: 'Y',
+                    beamType: 'cantilever',
+                    isCantilever: true,
+                    cantileverEdge: 'top',
+                    supportingBeamId: support.beamId,
+                    supportingMainBeamId: getCantileverSameAxisMainBeamId('top', xi, support.lineIndex),
+                    x1: xCoords[xi],
+                    y1: support.ySupport - boundary.cantLen,
+                    x2: xCoords[xi],
+                    y2: support.ySupport,
+                    span: boundary.cantLen,
+                    startCol: null,
+                    endCol: col.id,
+                    ...makeZeroLoad()
+                });
+            }
+
+            for (let xi = 0; xi < state.xSpans.length; xi++) {
+                const cantLen = Number(cants.top?.[xi] || 0);
+                const support = cantLen > 0 ? resolveCantileverSupport('top', xi, activeFloorId, xCoords, yCoords) : null;
+                if (!support) continue;
+                state.beams.push({
+                    id: `BEX-T-${xi + 1}`,
                     direction: 'X',
                     beamType: 'cantilever_edge',
                     isEdgeBeam: true,
                     cantileverEdge: 'top',
-                    x1: xCoords[seg.xi],
-                    y1: -seg.cantLen,
-                    x2: xCoords[seg.xi + 1],
-                    y2: -seg.cantLen,
-                    span: state.xSpans[seg.xi],
-                    tributaryWidth: 0,
-                    tributaryArea: 0,
-                    slices: [],
-                    w: 0,
-                    Rleft: 0,
-                    Rright: 0
+                    supportingBeamId: support.beamId,
+                    x1: xCoords[xi],
+                    y1: support.ySupport - cantLen,
+                    x2: xCoords[xi + 1],
+                    y2: support.ySupport - cantLen,
+                    span: state.xSpans[xi],
+                    suggestedB: 150,
+                    webW: 150,
+                    ...makeZeroLoad()
                 });
             }
 
-            // BOTTOM CANTILEVERS: Beams extend from columns at yi=last downward
-            const lastYi = state.ySpans.length;
             for (let xi = 0; xi <= state.xSpans.length; xi++) {
-                const leftCant = xi > 0 ? (cants.bottom[xi - 1] || 0) : 0;
-                const rightCant = xi < state.xSpans.length ? (cants.bottom[xi] || 0) : 0;
-                const maxCant = Math.max(leftCant, rightCant);
-
-                if (maxCant > 0) {
-                    const col = getColumnAt(xi, lastYi);
-                    // v3.0 FIX: Use per-floor check
-                    if (col && isColumnActiveOnFloor(col, activeFloorId)) {
-                        state.beams.push({
-                            id: `BCY-B-${xi + 1}`,
-                            direction: 'Y',
-                            beamType: 'cantilever',
-                            isCantilever: true,
-                            cantileverEdge: 'bottom',
-                            x1: xCoords[xi],
-                            y1: maxY,
-                            x2: xCoords[xi],
-                            y2: maxY + maxCant,
-                            span: maxCant,
-                            startCol: col.id,
-                            endCol: null,
-                            tributaryWidth: 0,
-                            tributaryArea: 0,
-                            slices: [],
-                            w: 0,
-                            Rleft: 0,
-                            Rright: 0
-                        });
-                    }
-                }
+                const boundary = resolveCantileverBoundarySupport('bottom', xi, cants, activeFloorId, xCoords, yCoords);
+                if (!boundary) continue;
+                const support = boundary.support;
+                const col = getColumnAt(xi, support.lineIndex);
+                if (!col || !isColumnActiveOnFloor(col, activeFloorId)) continue;
+                state.beams.push({
+                    id: `BCY-B-${xi + 1}`,
+                    direction: 'Y',
+                    beamType: 'cantilever',
+                    isCantilever: true,
+                    cantileverEdge: 'bottom',
+                    supportingBeamId: support.beamId,
+                    supportingMainBeamId: getCantileverSameAxisMainBeamId('bottom', xi, support.lineIndex),
+                    x1: xCoords[xi],
+                    y1: support.ySupport,
+                    x2: xCoords[xi],
+                    y2: support.ySupport + boundary.cantLen,
+                    span: boundary.cantLen,
+                    startCol: col.id,
+                    endCol: null,
+                    ...makeZeroLoad()
+                });
             }
 
-            // BOTTOM EDGE BEAM
             for (let xi = 0; xi < state.xSpans.length; xi++) {
-                const cantLen = cants.bottom[xi] || 0;
-                if (cantLen > 0) {
-                    state.beams.push({
-                        id: `BEX-B-${xi + 1}`,
-                        direction: 'X',
-                        beamType: 'cantilever_edge',
-                        isEdgeBeam: true,
-                        cantileverEdge: 'bottom',
-                        x1: xCoords[xi],
-                        y1: maxY + cantLen,
-                        x2: xCoords[xi + 1],
-                        y2: maxY + cantLen,
-                        span: state.xSpans[xi],
-                        tributaryWidth: 0,
-                        tributaryArea: 0,
-                        slices: [],
-                        w: 0,
-                        Rleft: 0,
-                        Rright: 0
-                    });
-                }
+                const cantLen = Number(cants.bottom?.[xi] || 0);
+                const support = cantLen > 0 ? resolveCantileverSupport('bottom', xi, activeFloorId, xCoords, yCoords) : null;
+                if (!support) continue;
+                state.beams.push({
+                    id: `BEX-B-${xi + 1}`,
+                    direction: 'X',
+                    beamType: 'cantilever_edge',
+                    isEdgeBeam: true,
+                    cantileverEdge: 'bottom',
+                    supportingBeamId: support.beamId,
+                    x1: xCoords[xi],
+                    y1: support.ySupport + cantLen,
+                    x2: xCoords[xi + 1],
+                    y2: support.ySupport + cantLen,
+                    span: state.xSpans[xi],
+                    suggestedB: 150,
+                    webW: 150,
+                    ...makeZeroLoad()
+                });
             }
 
-            // LEFT CANTILEVERS: Beams extend from columns at xi=0 leftward
             for (let yi = 0; yi <= state.ySpans.length; yi++) {
-                const topCant = yi > 0 ? (cants.left[yi - 1] || 0) : 0;
-                const bottomCant = yi < state.ySpans.length ? (cants.left[yi] || 0) : 0;
-                const maxCant = Math.max(topCant, bottomCant);
-
-                if (maxCant > 0) {
-                    const col = getColumnAt(0, yi);
-                    // v3.0 FIX: Use per-floor check
-                    if (col && isColumnActiveOnFloor(col, activeFloorId)) {
-                        state.beams.push({
-                            id: `BCX-L-${yi + 1}`,
-                            direction: 'X',
-                            beamType: 'cantilever',
-                            isCantilever: true,
-                            cantileverEdge: 'left',
-                            x1: -maxCant,
-                            y1: yCoords[yi],
-                            x2: 0,
-                            y2: yCoords[yi],
-                            span: maxCant,
-                            startCol: null,
-                            endCol: col.id,
-                            tributaryWidth: 0,
-                            tributaryArea: 0,
-                            slices: [],
-                            w: 0,
-                            Rleft: 0,
-                            Rright: 0
-                        });
-                    }
-                }
+                const boundary = resolveCantileverBoundarySupport('left', yi, cants, activeFloorId, xCoords, yCoords);
+                if (!boundary) continue;
+                const support = boundary.support;
+                const col = getColumnAt(support.lineIndex, yi);
+                if (!col || !isColumnActiveOnFloor(col, activeFloorId)) continue;
+                state.beams.push({
+                    id: `BCX-L-${yi + 1}`,
+                    direction: 'X',
+                    beamType: 'cantilever',
+                    isCantilever: true,
+                    cantileverEdge: 'left',
+                    supportingBeamId: support.beamId,
+                    supportingMainBeamId: getCantileverSameAxisMainBeamId('left', yi, support.lineIndex),
+                    x1: support.xSupport - boundary.cantLen,
+                    y1: yCoords[yi],
+                    x2: support.xSupport,
+                    y2: yCoords[yi],
+                    span: boundary.cantLen,
+                    startCol: null,
+                    endCol: col.id,
+                    ...makeZeroLoad()
+                });
             }
 
-            // LEFT EDGE BEAM
             for (let yi = 0; yi < state.ySpans.length; yi++) {
-                const cantLen = cants.left[yi] || 0;
-                if (cantLen > 0) {
-                    state.beams.push({
-                        id: `BEY-L-${yi + 1}`,
-                        direction: 'Y',
-                        beamType: 'cantilever_edge',
-                        isEdgeBeam: true,
-                        cantileverEdge: 'left',
-                        x1: -cantLen,
-                        y1: yCoords[yi],
-                        x2: -cantLen,
-                        y2: yCoords[yi + 1],
-                        span: state.ySpans[yi],
-                        tributaryWidth: 0,
-                        tributaryArea: 0,
-                        slices: [],
-                        w: 0,
-                        Rleft: 0,
-                        Rright: 0
-                    });
-                }
+                const cantLen = Number(cants.left?.[yi] || 0);
+                const support = cantLen > 0 ? resolveCantileverSupport('left', yi, activeFloorId, xCoords, yCoords) : null;
+                if (!support) continue;
+                state.beams.push({
+                    id: `BEY-L-${yi + 1}`,
+                    direction: 'Y',
+                    beamType: 'cantilever_edge',
+                    isEdgeBeam: true,
+                    cantileverEdge: 'left',
+                    supportingBeamId: support.beamId,
+                    x1: support.xSupport - cantLen,
+                    y1: yCoords[yi],
+                    x2: support.xSupport - cantLen,
+                    y2: yCoords[yi + 1],
+                    span: state.ySpans[yi],
+                    suggestedB: 150,
+                    webW: 150,
+                    ...makeZeroLoad()
+                });
             }
 
-            // RIGHT CANTILEVERS: Beams extend from columns at xi=last rightward
-            const lastXi = state.xSpans.length;
             for (let yi = 0; yi <= state.ySpans.length; yi++) {
-                const topCant = yi > 0 ? (cants.right[yi - 1] || 0) : 0;
-                const bottomCant = yi < state.ySpans.length ? (cants.right[yi] || 0) : 0;
-                const maxCant = Math.max(topCant, bottomCant);
-
-                if (maxCant > 0) {
-                    const col = getColumnAt(lastXi, yi);
-                    // v3.0 FIX: Use per-floor check
-                    if (col && isColumnActiveOnFloor(col, activeFloorId)) {
-                        state.beams.push({
-                            id: `BCX-R-${yi + 1}`,
-                            direction: 'X',
-                            beamType: 'cantilever',
-                            isCantilever: true,
-                            cantileverEdge: 'right',
-                            x1: maxX,
-                            y1: yCoords[yi],
-                            x2: maxX + maxCant,
-                            y2: yCoords[yi],
-                            span: maxCant,
-                            startCol: col.id,
-                            endCol: null,
-                            tributaryWidth: 0,
-                            tributaryArea: 0,
-                            slices: [],
-                            w: 0,
-                            Rleft: 0,
-                            Rright: 0
-                        });
-                    }
-                }
+                const boundary = resolveCantileverBoundarySupport('right', yi, cants, activeFloorId, xCoords, yCoords);
+                if (!boundary) continue;
+                const support = boundary.support;
+                const col = getColumnAt(support.lineIndex, yi);
+                if (!col || !isColumnActiveOnFloor(col, activeFloorId)) continue;
+                state.beams.push({
+                    id: `BCX-R-${yi + 1}`,
+                    direction: 'X',
+                    beamType: 'cantilever',
+                    isCantilever: true,
+                    cantileverEdge: 'right',
+                    supportingBeamId: support.beamId,
+                    supportingMainBeamId: getCantileverSameAxisMainBeamId('right', yi, support.lineIndex),
+                    x1: support.xSupport,
+                    y1: yCoords[yi],
+                    x2: support.xSupport + boundary.cantLen,
+                    y2: yCoords[yi],
+                    span: boundary.cantLen,
+                    startCol: col.id,
+                    endCol: null,
+                    ...makeZeroLoad()
+                });
             }
 
-            // RIGHT EDGE BEAM
             for (let yi = 0; yi < state.ySpans.length; yi++) {
-                const cantLen = cants.right[yi] || 0;
-                if (cantLen > 0) {
-                    state.beams.push({
-                        id: `BEY-R-${yi + 1}`,
-                        direction: 'Y',
-                        beamType: 'cantilever_edge',
-                        isEdgeBeam: true,
-                        cantileverEdge: 'right',
-                        x1: maxX + cantLen,
-                        y1: yCoords[yi],
-                        x2: maxX + cantLen,
-                        y2: yCoords[yi + 1],
-                        span: state.ySpans[yi],
-                        tributaryWidth: 0,
-                        tributaryArea: 0,
-                        slices: [],
-                        w: 0,
-                        Rleft: 0,
-                        Rright: 0
-                    });
-                }
+                const cantLen = Number(cants.right?.[yi] || 0);
+                const support = cantLen > 0 ? resolveCantileverSupport('right', yi, activeFloorId, xCoords, yCoords) : null;
+                if (!support) continue;
+                state.beams.push({
+                    id: `BEY-R-${yi + 1}`,
+                    direction: 'Y',
+                    beamType: 'cantilever_edge',
+                    isEdgeBeam: true,
+                    cantileverEdge: 'right',
+                    supportingBeamId: support.beamId,
+                    x1: support.xSupport + cantLen,
+                    y1: yCoords[yi],
+                    x2: support.xSupport + cantLen,
+                    y2: yCoords[yi + 1],
+                    span: state.ySpans[yi],
+                    suggestedB: 150,
+                    webW: 150,
+                    ...makeZeroLoad()
+                });
             }
         }
 
@@ -6601,6 +6823,10 @@
 
             // v3.0: Add custom (intermediate framing) beams to state.beams
             const floor = targetFloor || state.floors[state.currentFloorIndex];
+            const deletedBeamIds = new Set(floor?.deletedBeams || []);
+            if (deletedBeamIds.size) {
+                state.beams = state.beams.filter(beam => !deletedBeamIds.has(beam.id));
+            }
 
             // v3.17: Resolve floor cantilevers explicitly and pass to beam generation
             const floorCantilevers = getCantilevers(floor?.id);
@@ -6921,6 +7147,7 @@
             }
 
             applyBeamSizeOverridesToBeams(floor?.id);
+            normalizeCantileverInheritedBeamSizes(floor?.id);
         }
 
         /**
@@ -7017,6 +7244,8 @@
             const result = EngineLoads.sizeMembers(state.columns, state.beams, getLoadParams());
             state.totalColumnSelfWeight = result.totalColumnSelfWeight;
             state.totalBeamSelfWeight = result.totalBeamSelfWeight;
+            normalizeCantileverInheritedBeamSizes(state.floors[state.currentFloorIndex]?.id);
+            state.totalBeamSelfWeight = (state.beams || []).reduce((sum, beam) => sum + (beam.selfWeight || 0), 0);
         }
 
         // ========== UI UPDATES ==========
@@ -7842,23 +8071,26 @@
                 // v3.0 FIX: Skip custom beams - they are drawn separately below
                 if (beam.isCustom) continue;
 
-                const x1 = beam.x1 * state.scale + state.offsetX;
-                const y1 = beam.y1 * state.scale + state.offsetY;
-                const x2 = beam.x2 * state.scale + state.offsetX;
-                const y2 = beam.y2 * state.scale + state.offsetY;
-                const beamBpx = ((beam.suggestedB || 250) / 1000) * state.scale; // scaled width
-
                 // v3.0: Check if beam is deleted on THIS floor
                 const isDeleted = deletedBeams.includes(beam.id);
+                if (isDeleted) continue;
+
+                const startCol = state.columns.find(c => c.id === beam.startCol);
+                const endCol = state.columns.find(c => c.id === beam.endCol);
+                const segment = getRenderedBeamPlanSegment(beam, startCol, endCol);
+                const beamSize = getBeamSizeMm(beam, currentFloor?.id);
+                const beamWidthM = beamSize.b / 1000;
+                const beamOffset = getBeamPlanOffset(beam, beamWidthM, currentFloor?.id);
+                const x1 = (segment.x1 + beamOffset.offsetX) * state.scale + state.offsetX;
+                const y1 = (segment.y1 + beamOffset.offsetY) * state.scale + state.offsetY;
+                const x2 = (segment.x2 + beamOffset.offsetX) * state.scale + state.offsetX;
+                const y2 = (segment.y2 + beamOffset.offsetY) * state.scale + state.offsetY;
+                const beamBpx = beamWidthM * state.scale;
+
                 // v3.2: Check if beam is locked on THIS floor
                 const isLocked = lockedBeams.includes(beam.id);
 
-                if (isDeleted) {
-                    // Draw deleted beam as red dashed outline
-                    ctx.fillStyle = 'rgba(239, 68, 68, 0.3)';  // Red transparent
-                    ctx.strokeStyle = '#ef4444';
-                    ctx.setLineDash([6, 4]);
-                } else if (isLocked) {
+                if (isLocked) {
                     // v3.2: Locked beam - blue fill
                     ctx.fillStyle = 'rgba(59, 130, 246, 0.6)';
                     ctx.strokeStyle = '#3b82f6';
@@ -8291,22 +8523,18 @@
                     if (beam.isCustom) continue;
 
                     const isDeleted = deletedBeams.includes(beam.id);
-                    // v3.9: Draw deleted beams as red dashed so they can be restored
-                    if (isDeleted) {
-                        ctx.strokeStyle = '#ef4444';
-                        ctx.setLineDash([4, 4]);
-                    } else {
-                        ctx.strokeStyle = COLOR_BEAM;
-                        ctx.setLineDash([]);
-                    }
+                    if (isDeleted) continue;
+                    ctx.strokeStyle = COLOR_BEAM;
+                    ctx.setLineDash([]);
                     const beamSize = getBeamSizeMm(beam, currentFloorId);
                     const beamWidthM = beamSize.b / 1000;
                     const beamWidthPx = beamWidthM * state.scale;
-                    const beamAlignOffset = getBeamAlignmentOffset(beam, beamWidthM);
+                    const beamAlignOffset = getBeamPlanOffset(beam, beamWidthM, currentFloorId);
                     const startCol = state.columns.find(c => c.id === beam.startCol);
                     const endCol = state.columns.find(c => c.id === beam.endCol);
-                    const startPos = startCol ? getColumnPlanPosition(startCol) : { x: beam.x1, y: beam.y1 };
-                    const endPos = endCol ? getColumnPlanPosition(endCol) : { x: beam.x2, y: beam.y2 };
+                    const segment = getRenderedBeamPlanSegment(beam, startCol, endCol);
+                    const startPos = { x: segment.x1, y: segment.y1 };
+                    const endPos = { x: segment.x2, y: segment.y2 };
                     const startTrim = getColumnHalfAlongBeam(startCol, beam.direction);
                     const endTrim = getColumnHalfAlongBeam(endCol, beam.direction);
 
@@ -8331,7 +8559,7 @@
                     // v3.2: Account for column alignment offset when in Flush mode
                     if (beam.direction === 'X') {
                         // Horizontal beam
-                        let y1 = (beam.y1 + beamAlignOffset.offsetY) * state.scale + state.offsetY;
+                        let y1 = (((segment.y1 + segment.y2) / 2) + beamAlignOffset.offsetY) * state.scale + state.offsetY;
                         let x1 = (startPos.x + startTrim) * state.scale + state.offsetX;
                         let x2 = (endPos.x - endTrim) * state.scale + state.offsetX;
 
@@ -8383,7 +8611,7 @@
                         ctx.fillText(beamLabel, (x1 + x2) / 2, labelY);
                     } else {
                         // Vertical beam
-                        let x1 = (beam.x1 + beamAlignOffset.offsetX) * state.scale + state.offsetX;
+                        let x1 = (((segment.x1 + segment.x2) / 2) + beamAlignOffset.offsetX) * state.scale + state.offsetX;
                         let y1 = (startPos.y + startTrim) * state.scale + state.offsetY;
                         let y2 = (endPos.y - endTrim) * state.scale + state.offsetY;
 
@@ -8588,6 +8816,156 @@
             }
         }
 
+        function getFoundationPlanTotalX() {
+            return (state.xSpans || []).reduce((sum, span) => sum + Number(span || 0), 0);
+        }
+
+        function getFoundationPlanTotalY() {
+            return (state.ySpans || []).reduce((sum, span) => sum + Number(span || 0), 0);
+        }
+
+        function getFoundationColumnAlignmentOffset(col) {
+            return typeof getColumnPlanOffset === 'function' ? getColumnPlanOffset(col) : { dx: 0, dy: 0 };
+        }
+
+        function isFoundationColumnForPlan(col, currentFloorId = null) {
+            if (!col || col.active === false) return false;
+            const floor = currentFloorId ? state.floors.find(f => f.id === currentFloorId) : state.floors[state.currentFloorIndex];
+            if (floor?.deletedColumns?.includes(col.id)) return false;
+            if (floor?.id && !isColumnActiveOnFloor(col, floor.id)) return false;
+            if (col.startFloor && col.startFloor !== 'GND' && col.startFloor !== '1F') return false;
+            return true;
+        }
+
+        function getFoundationColumnRectForPlan(col) {
+            const size = getColumnSizeMm(col);
+            const offset = getFoundationColumnAlignmentOffset(col);
+            const x = (Number(col?.x) || 0) + offset.dx;
+            const y = (Number(col?.y) || 0) + offset.dy;
+            const halfB = (size.b / 1000) / 2;
+            const halfH = (size.h / 1000) / 2;
+            return {
+                left: x - halfB,
+                right: x + halfB,
+                top: y - halfH,
+                bottom: y + halfH,
+                cx: x,
+                cy: y
+            };
+        }
+
+        function makeFoundationTieBeamKey(direction, x1, y1, x2, y2) {
+            const fmt = value => (Number(value) || 0).toFixed(3);
+            return `FTB-${direction}-${fmt(x1)}-${fmt(y1)}-${fmt(x2)}-${fmt(y2)}`;
+        }
+
+        function getFoundationTieBeamAlignmentOffset(key) {
+            const value = Number((state.foundationTieBeamAlignmentOverrides || {})[key] || 0);
+            return Number.isFinite(value) ? value : 0;
+        }
+
+        function isFoundationBeamDeletedForPlan(direction, x1, y1, x2, y2) {
+            const floor = state.floors[state.currentFloorIndex];
+            const deletedBeams = floor?.deletedBeams || [];
+            const beam = (state.beams || []).find(b =>
+                !b.isCustom &&
+                b.direction === direction &&
+                Math.abs((Number(b.x1) || 0) - x1) < 0.01 &&
+                Math.abs((Number(b.y1) || 0) - y1) < 0.01 &&
+                Math.abs((Number(b.x2) || 0) - x2) < 0.01 &&
+                Math.abs((Number(b.y2) || 0) - y2) < 0.01
+            );
+            return beam ? deletedBeams.includes(beam.id) : false;
+        }
+
+        function getFoundationTieBeamSegmentsForPlan() {
+            const currentFloorId = state.floors[state.currentFloorIndex]?.id;
+            const totalX = getFoundationPlanTotalX();
+            const totalY = getFoundationPlanTotalY();
+            const tieBeamWidthM = (state.tieBeamWidth || 200) / 1000;
+            const activeColumns = (state.columns || []).filter(col => isFoundationColumnForPlan(col, currentFloorId));
+            const gridXPositions = [0];
+            (state.xSpans || []).forEach(span => gridXPositions.push(gridXPositions[gridXPositions.length - 1] + span));
+            const gridYPositions = [0];
+            (state.ySpans || []).forEach(span => gridYPositions.push(gridYPositions[gridYPositions.length - 1] + span));
+            const segments = [];
+
+            gridYPositions.forEach(gridY => {
+                const colsOnRow = activeColumns.filter(c => Math.abs((Number(c.y) || 0) - gridY) < 0.01).sort((a, b) => a.x - b.x);
+                for (let i = 0; i < colsOnRow.length - 1; i++) {
+                    const col1 = colsOnRow[i];
+                    const col2 = colsOnRow[i + 1];
+                    if (isFoundationBeamDeletedForPlan('X', col1.x, gridY, col2.x, gridY)) continue;
+                    const key = makeFoundationTieBeamKey('X', col1.x, gridY, col2.x, gridY);
+                    let tieY = gridY;
+                    if (state.columnAlignment === 'outer') {
+                        if (Math.abs(gridY) < 0.01) tieY = tieBeamWidthM / 2;
+                        else if (Math.abs(gridY - totalY) < 0.01) tieY = totalY - tieBeamWidthM / 2;
+                    }
+                    tieY += getFoundationTieBeamAlignmentOffset(key);
+                    const r1 = getFoundationColumnRectForPlan(col1);
+                    const r2 = getFoundationColumnRectForPlan(col2);
+                    segments.push({
+                        key,
+                        id: key,
+                        direction: 'X',
+                        x1: r1.right,
+                        x2: r2.left,
+                        y1: tieY - tieBeamWidthM / 2,
+                        y2: tieY + tieBeamWidthM / 2,
+                        cx: (r1.right + r2.left) / 2,
+                        cy: tieY
+                    });
+                }
+            });
+
+            gridXPositions.forEach(gridX => {
+                const colsOnCol = activeColumns.filter(c => Math.abs((Number(c.x) || 0) - gridX) < 0.01).sort((a, b) => a.y - b.y);
+                for (let i = 0; i < colsOnCol.length - 1; i++) {
+                    const col1 = colsOnCol[i];
+                    const col2 = colsOnCol[i + 1];
+                    if (isFoundationBeamDeletedForPlan('Y', gridX, col1.y, gridX, col2.y)) continue;
+                    const key = makeFoundationTieBeamKey('Y', gridX, col1.y, gridX, col2.y);
+                    let tieX = gridX;
+                    if (state.columnAlignment === 'outer') {
+                        if (Math.abs(gridX) < 0.01) tieX = tieBeamWidthM / 2;
+                        else if (Math.abs(gridX - totalX) < 0.01) tieX = totalX - tieBeamWidthM / 2;
+                    }
+                    tieX += getFoundationTieBeamAlignmentOffset(key);
+                    const r1 = getFoundationColumnRectForPlan(col1);
+                    const r2 = getFoundationColumnRectForPlan(col2);
+                    segments.push({
+                        key,
+                        id: key,
+                        direction: 'Y',
+                        x1: tieX - tieBeamWidthM / 2,
+                        x2: tieX + tieBeamWidthM / 2,
+                        y1: r1.bottom,
+                        y2: r2.top,
+                        cx: tieX,
+                        cy: (r1.bottom + r2.top) / 2
+                    });
+                }
+            });
+
+            return segments;
+        }
+
+        function getFoundationTieBeamHit(worldX, worldY) {
+            const tolerance = 0.08;
+            return getFoundationTieBeamSegmentsForPlan().find(segment =>
+                worldX >= Math.min(segment.x1, segment.x2) - tolerance &&
+                worldX <= Math.max(segment.x1, segment.x2) + tolerance &&
+                worldY >= Math.min(segment.y1, segment.y2) - tolerance &&
+                worldY <= Math.max(segment.y1, segment.y2) + tolerance
+            ) || null;
+        }
+
+        function getFoundationTieBeamMemberDirection(memberId) {
+            const match = String(memberId || '').match(/^FTB-(X|Y)-/);
+            return match ? match[1] : null;
+        }
+
         // ========== v3.2: FOUNDATION PLAN DRAWING ==========
         // Draws footings, tie beams, and column stubs - CAD style (white on black)
         function drawFoundationPlan() {
@@ -8626,24 +9004,7 @@
             // When Flush mode is on, edge columns/footings align inner face to grid
             // NOTE: Positive offset = kick INWARD (toward building center)
             function getColumnAlignmentOffset(col) {
-                if (state.columnAlignment !== 'outer') return { dx: 0, dy: 0 };
-
-                const colSize = getColumnSizeMm(col);
-                const colBM = colSize.b / 1000;
-                const colHM = colSize.h / 1000;
-                const isLeftEdge = Math.abs(col.x) < 0.01;
-                const isRightEdge = Math.abs(col.x - totalX) < 0.01;
-                const isTopEdge = Math.abs(col.y) < 0.01;
-                const isBottomEdge = Math.abs(col.y - totalY) < 0.01;
-
-                let dx = 0, dy = 0;
-                // Invert signs: kick INWARD (toward building center)
-                if (isLeftEdge) dx = colBM / 2;    // Left edge → kick RIGHT
-                if (isRightEdge) dx = -colBM / 2;  // Right edge → kick LEFT
-                if (isTopEdge) dy = colHM / 2;     // Top edge → kick DOWN
-                if (isBottomEdge) dy = -colHM / 2; // Bottom edge → kick UP
-
-                return { dx, dy };
+                return getFoundationColumnAlignmentOffset(col);
             }
 
             const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -8667,13 +9028,7 @@
             }
 
             // v3.2: Get active columns (non-planted or ground-floor planted)
-            const activeColumns = state.columns.filter(col => {
-                if (col.active === false) return false;
-                if (currentFloorId && deletedColumns.includes(col.id)) return false;
-                if (currentFloorId && !isColumnActiveOnFloor(col, currentFloorId)) return false;
-                if (col.startFloor && col.startFloor !== 'GND' && col.startFloor !== '1F') return false;
-                return true;
-            });
+            const activeColumns = state.columns.filter(col => isFoundationColumnForPlan(col, currentFloorId));
 
             // v3.2: Group footings by size for type naming (F1, F2, etc.)
             const footingTypes = {};
@@ -8776,7 +9131,8 @@
                 for (let i = 0; i < colsOnRow.length - 1; i++) {
                     const col1 = colsOnRow[i];
                     const col2 = colsOnRow[i + 1];
-                    if (isFoundationBeamDeleted('X', col1.x, gridY, col2.x, gridY)) continue;
+                    if (isFoundationBeamDeletedForPlan('X', col1.x, gridY, col2.x, gridY)) continue;
+                    const tieBeamKey = makeFoundationTieBeamKey('X', col1.x, gridY, col2.x, gridY);
 
                     // Determine edge position for this row in Flush mode
                     const isTopEdge = Math.abs(gridY) < 0.01;
@@ -8793,6 +9149,7 @@
                             tieY = totalY - tieBeamWidthM / 2;
                         }
                     }
+                    tieY += getFoundationTieBeamAlignmentOffset(tieBeamKey);
 
                     // X positions: from column edge to column edge (avoid overlapping column stubs)
                     const offset1 = getColumnAlignmentOffset(col1);
@@ -8815,7 +9172,8 @@
                 for (let i = 0; i < colsOnCol.length - 1; i++) {
                     const col1 = colsOnCol[i];
                     const col2 = colsOnCol[i + 1];
-                    if (isFoundationBeamDeleted('Y', gridX, col1.y, gridX, col2.y)) continue;
+                    if (isFoundationBeamDeletedForPlan('Y', gridX, col1.y, gridX, col2.y)) continue;
+                    const tieBeamKey = makeFoundationTieBeamKey('Y', gridX, col1.y, gridX, col2.y);
 
                     // Determine edge position for this column in Flush mode
                     const isLeftEdge = Math.abs(gridX) < 0.01;
@@ -8832,6 +9190,7 @@
                             tieX = totalX - tieBeamWidthM / 2;
                         }
                     }
+                    tieX += getFoundationTieBeamAlignmentOffset(tieBeamKey);
 
                     // Y positions: from column edge to column edge (avoid overlapping column stubs)
                     const offset1 = getColumnAlignmentOffset(col1);
@@ -9233,6 +9592,10 @@
 
         // v3.0: Update undo button state
         function updateUndoButton() {
+            if (typeof updateUndoRedoButtons === 'function') {
+                updateUndoRedoButtons();
+                return;
+            }
             const btn = document.getElementById('undoBtn');
             if (btn) {
                 const count = state.undoStack.length;
@@ -9417,11 +9780,13 @@
                 const worldY = (clickY - state.offsetY) / state.scale;
 
                 const currentFloorId = state.floors[state.currentFloorIndex]?.id;
+                if (currentPlanTab === 'foundation') return;
 
                 // 1. Check columns (highest priority - small targets) - v3.0: Show context menu
                 for (let col of state.columns) {
-                    const dx = Math.abs(worldX - col.x);
-                    const dy = Math.abs(worldY - col.y);
+                    const pos = getColumnPlanPosition(col);
+                    const dx = Math.abs(worldX - pos.x);
+                    const dy = Math.abs(worldY - pos.y);
                     const hitRadius = 0.5; // 0.5m hit area
 
                     if (dx < hitRadius && dy < hitRadius) {
@@ -9462,11 +9827,21 @@
 
                 // 3. Check structural beams
                 for (let beam of state.beams) {
+                    if (beam.isCustom) continue;
                     const tolerance = 0.3;
-                    const minX = Math.min(beam.x1, beam.x2) - tolerance;
-                    const maxX = Math.max(beam.x1, beam.x2) + tolerance;
-                    const minY = Math.min(beam.y1, beam.y2) - tolerance;
-                    const maxY = Math.max(beam.y1, beam.y2) + tolerance;
+                    const startCol = state.columns.find(c => c.id === beam.startCol);
+                    const endCol = state.columns.find(c => c.id === beam.endCol);
+                    const segment = getRenderedBeamPlanSegment(beam, startCol, endCol);
+                    const beamSize = getBeamSizeMm(beam, currentFloorId);
+                    const beamOffset = getBeamPlanOffset(beam, (beamSize.b || 250) / 1000, currentFloorId);
+                    const bx1 = segment.x1 + beamOffset.offsetX;
+                    const bx2 = segment.x2 + beamOffset.offsetX;
+                    const by1 = segment.y1 + beamOffset.offsetY;
+                    const by2 = segment.y2 + beamOffset.offsetY;
+                    const minX = Math.min(bx1, bx2) - tolerance;
+                    const maxX = Math.max(bx1, bx2) + tolerance;
+                    const minY = Math.min(by1, by2) - tolerance;
+                    const maxY = Math.max(by1, by2) + tolerance;
 
                     // Check if click is within beam bounds and near the line
                     if (worldX >= minX && worldX <= maxX && worldY >= minY && worldY <= maxY) {
@@ -9474,11 +9849,11 @@
                         let distToBeam;
                         if (beam.direction === 'X') {
                             // Horizontal beam - check Y distance
-                            const beamY = (beam.y1 + beam.y2) / 2;
+                            const beamY = (by1 + by2) / 2;
                             distToBeam = Math.abs(worldY - beamY);
                         } else {
                             // Vertical beam - check X distance
-                            const beamX = (beam.x1 + beam.x2) / 2;
+                            const beamX = (bx1 + bx2) / 2;
                             distToBeam = Math.abs(worldX - beamX);
                         }
 
@@ -9546,11 +9921,13 @@
                 // Convert to world coordinates
                 const worldX = (clickX - state.offsetX) / state.scale;
                 const worldY = (clickY - state.offsetY) / state.scale;
+                const currentFloorId = state.floors[state.currentFloorIndex]?.id;
 
                 // 1. Check columns first
                 for (let col of state.columns) {
-                    const dx = Math.abs(worldX - col.x);
-                    const dy = Math.abs(worldY - col.y);
+                    const pos = getColumnPlanPosition(col);
+                    const dx = Math.abs(worldX - pos.x);
+                    const dy = Math.abs(worldY - pos.y);
                     const hitRadius = 0.5;
 
                     if (dx < hitRadius && dy < hitRadius) {
@@ -9559,20 +9936,46 @@
                     }
                 }
 
+                if (currentPlanTab === 'foundation') {
+                    const tieBeamHit = getFoundationTieBeamHit(worldX, worldY);
+                    if (tieBeamHit) {
+                        showMemberMenu('foundationTieBeam', tieBeamHit.key, e.clientX, e.clientY);
+                    }
+                    return;
+                }
+
+                for (let slab of state.slabs.filter(s => s.isCantilever)) {
+                    if (worldX >= slab.x1 && worldX <= slab.x2 &&
+                        worldY >= slab.y1 && worldY <= slab.y2) {
+                        showMemberMenu('slab', slab.id, e.clientX, e.clientY);
+                        return;
+                    }
+                }
+
                 // 2. Check beams
                 for (let beam of state.beams) {
+                    if (beam.isCustom) continue;
                     const tolerance = 0.4;
-                    const minX = Math.min(beam.x1, beam.x2) - tolerance;
-                    const maxX = Math.max(beam.x1, beam.x2) + tolerance;
-                    const minY = Math.min(beam.y1, beam.y2) - tolerance;
-                    const maxY = Math.max(beam.y1, beam.y2) + tolerance;
+                    const startCol = state.columns.find(c => c.id === beam.startCol);
+                    const endCol = state.columns.find(c => c.id === beam.endCol);
+                    const segment = getRenderedBeamPlanSegment(beam, startCol, endCol);
+                    const beamSize = getBeamSizeMm(beam, currentFloorId);
+                    const beamOffset = getBeamPlanOffset(beam, (beamSize.b || 250) / 1000, currentFloorId);
+                    const bx1 = segment.x1 + beamOffset.offsetX;
+                    const bx2 = segment.x2 + beamOffset.offsetX;
+                    const by1 = segment.y1 + beamOffset.offsetY;
+                    const by2 = segment.y2 + beamOffset.offsetY;
+                    const minX = Math.min(bx1, bx2) - tolerance;
+                    const maxX = Math.max(bx1, bx2) + tolerance;
+                    const minY = Math.min(by1, by2) - tolerance;
+                    const maxY = Math.max(by1, by2) + tolerance;
 
                     if (worldX >= minX && worldX <= maxX && worldY >= minY && worldY <= maxY) {
                         let distToBeam;
                         if (beam.direction === 'X') {
-                            distToBeam = Math.abs(worldY - (beam.y1 + beam.y2) / 2);
+                            distToBeam = Math.abs(worldY - (by1 + by2) / 2);
                         } else {
-                            distToBeam = Math.abs(worldX - (beam.x1 + beam.x2) / 2);
+                            distToBeam = Math.abs(worldX - (bx1 + bx2) / 2);
                         }
 
                         if (distToBeam < tolerance * 2) {
@@ -11015,6 +11418,9 @@
                     overrideH: b.overrideH
                 })).filter(b => b.overrideB || b.overrideH),
                 beamSizeOverrides: state.beamSizeOverrides || {},
+                columnPositionOverrides: state.columnPositionOverrides || {},
+                beamAlignmentOverrides: state.beamAlignmentOverrides || {},
+                foundationTieBeamAlignmentOverrides: state.foundationTieBeamAlignmentOverrides || {},
                 gfSuspended: state.gfSuspended,
                 fc: state.fc,
                 fy: state.fy,
@@ -11108,6 +11514,9 @@
             if (projectData.defaultBeamB != null) state.defaultBeamB = projectData.defaultBeamB;
             if (projectData.defaultBeamH != null) state.defaultBeamH = projectData.defaultBeamH;
             state.beamSizeOverrides = projectData.beamSizeOverrides || {};
+            state.columnPositionOverrides = projectData.columnPositionOverrides || {};
+            state.beamAlignmentOverrides = projectData.beamAlignmentOverrides || {};
+            state.foundationTieBeamAlignmentOverrides = projectData.foundationTieBeamAlignmentOverrides || {};
             if (projectData.tieBeamWidth != null) state.tieBeamWidth = projectData.tieBeamWidth;
             if (projectData.tieBeamDepth != null) state.tieBeamDepth = projectData.tieBeamDepth;
             state.tieBeamW = (state.tieBeamWidth || Math.round((state.tieBeamW || 0.25) * 1000)) / 1000;
@@ -11290,6 +11699,9 @@
             state.slabs = [];
             state.nextCustomBeamId = 1;
             state.beamSizeOverrides = {};
+            state.columnPositionOverrides = {};
+            state.beamAlignmentOverrides = {};
+            state.foundationTieBeamAlignmentOverrides = {};
             state.tieBeamWidth = 200;
             state.tieBeamDepth = 350;
             state.tieBeamW = 0.2;
@@ -15280,12 +15692,20 @@ function populateBOM() {
             const menu = document.getElementById('memberContextMenu');
             const title = document.getElementById('memberMenuTitle');
             const lockBtn = document.getElementById('memberLockBtn');
+            const deleteBtn = document.getElementById('memberDeleteBtn');
+            const moveBtn = document.getElementById('memberMoveBtn');
+            const resetOffsetBtn = document.getElementById('memberResetOffsetBtn');
+            const moveAllBtn = document.getElementById('memberMoveAllBtn');
+            const resetAllOffsetBtn = document.getElementById('memberResetAllOffsetBtn');
+            const restoreBtn = document.getElementById('memberRestoreBtn');
 
             // Set title based on type
             if (type === 'beam') {
                 title.textContent = `Beam ${ memberId } `;
             } else if (type === 'slab') {
                 title.textContent = `Slab ${ memberId } `;
+            } else if (type === 'foundationTieBeam') {
+                title.textContent = `Tie Beam ${ memberId } `;
             }
 
             // v3.2: Update lock button text based on current lock state
@@ -15297,6 +15717,24 @@ function populateBOM() {
                 isLocked = true;
             }
             lockBtn.innerHTML = isLocked ? '🔓 Unlock' : '🔒 Lock';
+
+            const selectedBeam = type === 'beam'
+                ? (state.beams || []).find(beam => beam.id === memberId)
+                : null;
+            const canOffset = type === 'foundationTieBeam' || (type === 'beam' && isGeneratedBeamAlignmentCandidate(selectedBeam));
+            if (deleteBtn) deleteBtn.style.display = type === 'foundationTieBeam' ? 'none' : '';
+            if (lockBtn) lockBtn.style.display = type === 'foundationTieBeam' ? 'none' : '';
+            if (restoreBtn) restoreBtn.style.display = type === 'foundationTieBeam' ? 'none' : '';
+            if (moveBtn) {
+                moveBtn.style.display = canOffset ? '' : 'none';
+                moveBtn.textContent = type === 'foundationTieBeam' ? 'Tie Beam Offset...' : 'Beam Offset...';
+            }
+            if (resetOffsetBtn) {
+                resetOffsetBtn.style.display = canOffset ? '' : 'none';
+                resetOffsetBtn.textContent = type === 'foundationTieBeam' ? 'Reset Tie Beam Offset' : 'Reset Beam Offset';
+            }
+            if (moveAllBtn) moveAllBtn.style.display = (type === 'beam' && canOffset) ? '' : 'none';
+            if (resetAllOffsetBtn) resetAllOffsetBtn.style.display = (type === 'beam' && canOffset) ? '' : 'none';
 
             // Position and show menu
             menu.style.left = screenX + 'px';
@@ -15314,6 +15752,187 @@ function populateBOM() {
          */
         function hideMemberMenu() {
             document.getElementById('memberContextMenu').style.display = 'none';
+        }
+
+        function promptNumberMm(message, currentValueM = 0) {
+            const currentMm = Math.round((Number(currentValueM) || 0) * 1000);
+            const raw = prompt(message, String(currentMm));
+            if (raw === null) return null;
+            const value = Number(raw);
+            if (!Number.isFinite(value)) {
+                alert('Please enter a valid numeric offset in mm.');
+                return null;
+            }
+            return value;
+        }
+
+        function moveSelectedColumn() {
+            if (!selectedColumnId) return;
+            const col = state.columns.find(c => c.id === selectedColumnId);
+            if (!col) return;
+            hideColumnMenu();
+
+            const current = state.columnPositionOverrides?.[col.id] || {};
+            const dxMm = promptNumberMm(`Column ${col.id} X nudge in mm (+ right, - left)`, Number(current.dx) || 0);
+            if (dxMm === null) return;
+            const dyCurrentUserM = -(Number(current.dy) || 0);
+            const dyMm = promptNumberMm(`Column ${col.id} Y nudge in mm (+ up, - down)`, dyCurrentUserM);
+            if (dyMm === null) return;
+
+            saveStateSnapshot();
+            if (!state.columnPositionOverrides) state.columnPositionOverrides = {};
+            state.columnPositionOverrides[col.id] = {
+                dx: dxMm / 1000,
+                dy: -dyMm / 1000
+            };
+            calculate();
+        }
+
+        function resetSelectedColumnPosition() {
+            if (!selectedColumnId) return;
+            hideColumnMenu();
+            if (!state.columnPositionOverrides?.[selectedColumnId]) return;
+            saveStateSnapshot();
+            delete state.columnPositionOverrides[selectedColumnId];
+            calculate();
+        }
+
+        function moveAllColumns() {
+            hideColumnMenu();
+            const dxMm = promptNumberMm('All columns X nudge in mm (+ right, - left)', 0);
+            if (dxMm === null) return;
+            const dyMm = promptNumberMm('All columns Y nudge in mm (+ up, - down)', 0);
+            if (dyMm === null) return;
+            saveStateSnapshot();
+            if (!state.columnPositionOverrides) state.columnPositionOverrides = {};
+            (state.columns || []).forEach(col => {
+                state.columnPositionOverrides[col.id] = {
+                    dx: dxMm / 1000,
+                    dy: -dyMm / 1000
+                };
+            });
+            calculate();
+        }
+
+        function resetAllColumnPositions() {
+            hideColumnMenu();
+            if (!Object.keys(state.columnPositionOverrides || {}).length) return;
+            saveStateSnapshot();
+            state.columnPositionOverrides = {};
+            calculate();
+        }
+
+        function getSelectedBeamForAlignment() {
+            if (!selectedMemberId) return null;
+            return (state.beams || []).find(beam => beam.id === selectedMemberId) || null;
+        }
+
+        function isGeneratedBeamAlignmentCandidate(beam) {
+            if (!beam || beam.isCustom) return false;
+            const type = getBeamGovernanceType(beam);
+            return type === 'regular' && !beam.isCantilever && !beam.isEdgeBeam;
+        }
+
+        function getBeamUserTransverseOffsetM(beam, floorId) {
+            const offset = getBeamAlignmentOverride(beam, floorId);
+            return beam?.direction === 'X' ? -offset : offset;
+        }
+
+        function setBeamUserTransverseOffset(beam, floorId, offsetMm) {
+            if (!beam) return;
+            if (!state.beamAlignmentOverrides) state.beamAlignmentOverrides = {};
+            const modelOffsetM = beam.direction === 'X' ? -(offsetMm / 1000) : (offsetMm / 1000);
+            state.beamAlignmentOverrides[getBeamAlignmentKey(beam.id, floorId)] = modelOffsetM;
+        }
+
+        function moveSelectedBeamAlignment() {
+            hideMemberMenu();
+            const floorId = state.floors[state.currentFloorIndex]?.id;
+
+            if (selectedMemberType === 'foundationTieBeam') {
+                const direction = getFoundationTieBeamMemberDirection(selectedMemberId);
+                if (!direction) return;
+                const currentModelOffset = getFoundationTieBeamAlignmentOffset(selectedMemberId);
+                const currentUserOffset = direction === 'X' ? -currentModelOffset : currentModelOffset;
+                const offsetMm = promptNumberMm(
+                    direction === 'X'
+                        ? 'Foundation tie beam offset in mm (+Y up, -Y down)'
+                        : 'Foundation tie beam offset in mm (+X right, -X left)',
+                    currentUserOffset
+                );
+                if (offsetMm === null) return;
+                saveStateSnapshot();
+                if (!state.foundationTieBeamAlignmentOverrides) state.foundationTieBeamAlignmentOverrides = {};
+                state.foundationTieBeamAlignmentOverrides[selectedMemberId] =
+                    direction === 'X' ? -(offsetMm / 1000) : (offsetMm / 1000);
+                draw();
+                return;
+            }
+
+            const beam = getSelectedBeamForAlignment();
+            if (!isGeneratedBeamAlignmentCandidate(beam)) {
+                alert('Only generated regular beams can be offset directly. Cantilever beams follow their supporting main beam.');
+                return;
+            }
+
+            const offsetMm = promptNumberMm(
+                beam.direction === 'X'
+                    ? `Beam ${beam.id} offset in mm (+Y up, -Y down)`
+                    : `Beam ${beam.id} offset in mm (+X right, -X left)`,
+                getBeamUserTransverseOffsetM(beam, floorId)
+            );
+            if (offsetMm === null) return;
+
+            saveStateSnapshot();
+            setBeamUserTransverseOffset(beam, floorId, offsetMm);
+            calculate();
+        }
+
+        function resetSelectedBeamAlignment() {
+            hideMemberMenu();
+            const floorId = state.floors[state.currentFloorIndex]?.id;
+
+            if (selectedMemberType === 'foundationTieBeam') {
+                if (!state.foundationTieBeamAlignmentOverrides?.[selectedMemberId]) return;
+                saveStateSnapshot();
+                delete state.foundationTieBeamAlignmentOverrides[selectedMemberId];
+                draw();
+                return;
+            }
+
+            const beam = getSelectedBeamForAlignment();
+            if (!beam) return;
+            const key = getBeamAlignmentKey(beam.id, floorId);
+            if (!state.beamAlignmentOverrides?.[key] && !state.beamAlignmentOverrides?.[beam.id]) return;
+            saveStateSnapshot();
+            delete state.beamAlignmentOverrides[key];
+            delete state.beamAlignmentOverrides[beam.id];
+            calculate();
+        }
+
+        function moveAllGeneratedBeamsOnCurrentFloor() {
+            hideMemberMenu();
+            const floorId = state.floors[state.currentFloorIndex]?.id;
+            const offsetMm = promptNumberMm('Offset all generated regular beams on this floor in mm. X-beams: + up. Y-beams: + right.', 0);
+            if (offsetMm === null) return;
+            const beams = (state.beams || []).filter(isGeneratedBeamAlignmentCandidate);
+            if (!beams.length) return;
+            saveStateSnapshot();
+            beams.forEach(beam => setBeamUserTransverseOffset(beam, floorId, offsetMm));
+            calculate();
+        }
+
+        function resetAllGeneratedBeamAlignmentsOnCurrentFloor() {
+            hideMemberMenu();
+            const floorId = state.floors[state.currentFloorIndex]?.id;
+            const beams = (state.beams || []).filter(isGeneratedBeamAlignmentCandidate);
+            if (!beams.length || !state.beamAlignmentOverrides) return;
+            saveStateSnapshot();
+            beams.forEach(beam => {
+                delete state.beamAlignmentOverrides[getBeamAlignmentKey(beam.id, floorId)];
+                delete state.beamAlignmentOverrides[beam.id];
+            });
+            calculate();
         }
 
         /**
@@ -15347,23 +15966,6 @@ function populateBOM() {
                 }
             }
 
-            // v3.9: Helper for compatibility or direct toggle
-            function toggleBeamDeleted(beamId) {
-                const floor = state.floors[state.currentFloorIndex];
-                const idx = floor.deletedBeams.indexOf(beamId);
-                if (idx > -1) {
-                    floor.deletedBeams.splice(idx, 1); // Restore
-                    console.log(`Restored beam ${ beamId } `);
-                } else {
-                    floor.deletedBeams.push(beamId); // Delete
-                    console.log(`Deleted beam ${ beamId } `);
-                }
-                draw();
-                render3DFrame();
-                // Hide menu if open
-                const menu = document.getElementById('planContextMenu');
-                if (menu) menu.style.display = 'none';
-            }
         }
 
         /**
