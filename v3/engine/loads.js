@@ -1,6 +1,6 @@
 /**
  * engine/loads.js — Structural Load Calculation Module
- * Extracted from FutolStructure / Tributary Pro v3
+ * Extracted from FutolStructure v3
  *
  * All functions accept explicit parameters instead of reading global state.
  * This module has zero DOM dependencies and can be tested standalone.

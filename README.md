@@ -1,4 +1,4 @@
-# Tributary Pro v3.10
+# FutolStructure v3.10
 
 > Professional structural engineering web application for reinforced concrete buildings with tributary area analysis, 3D visualization, and load distribution calculations.
 
@@ -43,15 +43,15 @@
 3. No build step required - works offline!
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/tributary-pro.git
-cd tributary-pro
+git clone https://github.com/michaelfutol/FutolStructure.git
+cd FutolStructure
 # Open v3/index.html in browser
 ```
 
 ## 📁 Project Structure
 
 ```
-tributary-pro/
+FutolStructure/
 ├── v3/
 │   ├── index.html      # Main application (single-file)
 │   ├── _logs/          # Development logs
@@ -66,6 +66,22 @@ tributary-pro/
 - **3D Engine:** Three.js (CDN)
 - **Dependencies:** None (works offline)
 - **Size:** ~565KB single file
+
+## ✅ Local Checks
+
+Run the recovery smoke check before and after geometry/rendering changes:
+
+```bash
+node v3/tools/check-fs.js
+```
+
+Syntax-only mode:
+
+```bash
+node v3/tools/check-fs.js --no-browser
+```
+
+The full smoke check parses the inline app scripts, checks engine syntax, opens the app through Chrome/Edge CDP, verifies default and 4x3 model initialization, checks column/slab counts, confirms cantilever input panels follow the active grid after undo/redo, legacy `.fstr` root-cantilever loads, and browser reload autosave restore, confirms column/beam/slab delete undo recovery, confirms void slabs are not drawn as red ghosts in normal canvas view, confirms plain slab left-click does not delete slabs, and verifies hidden geometry from loaded `.fstr` files is quarantined.
 
 ## 📋 Keyboard Shortcuts
 
