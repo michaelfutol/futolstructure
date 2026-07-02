@@ -212,3 +212,11 @@ This log tracks ALL changes, tasks, and decisions made to the project.
 - **Current Working File:** `index.html` (551KB, v3.8 with tabbed schedules)
 - **Backups Location:** `_archive/backups_20260121.zip`
 - **This Log:** `_logs/PROGRESS.md`
+
+---
+
+## 2026-07-03 - FutolStructure Application Icon
+
+- Added `v3/assets/futolstructure-icon.png` as the canonical product icon.
+- Wired the icon into the v3 browser favicon and application header.
+- Added the logo and a direct asset link to the GitHub README.
