@@ -1,4 +1,10 @@
-# Tributary Pro v3.10
+<p align="center">
+  <img src="v3/assets/futolstructure-icon.png" alt="FutolStructure logo" width="128">
+</p>
+
+# FutolStructure v3.10
+
+[Download the FutolStructure app icon](v3/assets/futolstructure-icon.png)
 
 > Professional structural engineering web application for reinforced concrete buildings with tributary area analysis, 3D visualization, and load distribution calculations.
 
@@ -43,15 +49,15 @@
 3. No build step required - works offline!
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/tributary-pro.git
-cd tributary-pro
+git clone https://github.com/michaelfutol/futolstructure.git
+cd futolstructure
 # Open v3/index.html in browser
 ```
 
 ## 📁 Project Structure
 
 ```
-tributary-pro/
+futolstructure/
 ├── v3/
 │   ├── index.html      # Main application (single-file)
 │   ├── _logs/          # Development logs
