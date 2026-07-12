@@ -1,0 +1,49 @@
+name: Bug report
+description: Report a reproducible modeling, persistence, rendering, or export defect.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not attach confidential project files or client information to a public issue.
+  - type: input
+    id: build
+    attributes:
+      label: FutolStructure build
+      placeholder: v3.16.115
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Project save/load or recovery
+        - Plan geometry or annotations
+        - Tributary loads or schedules
+        - 3D rendering
+        - DXF export
+        - IFC export
+        - STAAD export
+        - ETABS or SAFE handoff
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Use a minimal non-confidential model when possible.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual result
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or diagnostics
+      description: Remove names, addresses, credentials, and other private data.

@@ -24,7 +24,25 @@ node_modules/
 .vscode/
 *.swp
 *.swo
+.vercel/
 
 # Temporary files
 *.tmp
 *.temp
+
+# FutolStructure private project and solver/export artifacts
+*.fstr
+*.edb
+*.e2k
+*.std
+*.sdb
+*.ifc
+*.dxf
+*.xlsx
+output/
+tmp/
+
+# Local personal/recovery notes
+kira_diary/
+
+.vercel

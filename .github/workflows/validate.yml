@@ -1,0 +1,35 @@
+name: Validate FutolStructure
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Static and engine smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate application source and engine
+        run: node v3/tools/check-fs.js --no-browser
+
+      - name: Validate deployment configuration
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('vercel.json', 'utf8')); console.log('vercel.json: valid')"

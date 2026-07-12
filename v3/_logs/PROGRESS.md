@@ -1,8 +1,26 @@
-# Tributary Pro v3.0 - Progress Log
+# FutolStructure v3.0 - Progress Log
 
 ## Purpose
 This log tracks ALL changes, tasks, and decisions made to the project.
 **Rule:** Every code change must be logged here with timestamp and description.
+
+## July 2, 2026
+
+### 20:50 - Automatic ETABS Analysis and Modal Reporting
+
+**Summary:** Extended the generated ETABS 22 OAPI builder from model creation into a complete gravity/modal validation handoff.
+
+**Implementation:**
+1. Runs ETABS analysis after saving a dated working EDB.
+2. Preserves the governed mass source: element self-mass once, `FS_SDL`, and `FS_WALL`; live-load mass remains excluded pending occupancy confirmation.
+3. Exports modal participation ratios to CSV with modes numbered 1-12.
+4. Adds the actual mass-source table, diaphragm mass summary, analysis return, and modal rows to the audit JSON.
+5. Handles ETABS' existing default `D1` diaphragm without a duplicate-definition failure.
+6. Updates Model Readiness text to distinguish validated diaphragm/mass/modal baselines from pending wind/seismic design.
+
+**Native Validation:** ETABS 22.6 returned 0 for the saved Olango model, exported 32 columns / 80 beams / 42 slabs, reported two diaphragm mass rows, reached cumulative UX/UY/RZ = 1.0, and logged zero negative eigenvalues.
+
+**Files Modified:** `v3/index.html`, `v3/tools/check-fs.js`, `v3/_logs/AGENT_RAG.md`, `v3/_logs/PROGRESS.md`
 
 ---
 
@@ -194,3 +212,11 @@ This log tracks ALL changes, tasks, and decisions made to the project.
 - **Current Working File:** `index.html` (551KB, v3.8 with tabbed schedules)
 - **Backups Location:** `_archive/backups_20260121.zip`
 - **This Log:** `_logs/PROGRESS.md`
+
+---
+
+## 2026-07-03 - FutolStructure Application Icon
+
+- Added `v3/assets/futolstructure-icon.png` as the canonical product icon.
+- Wired the icon into the v3 browser favicon and application header.
+- Added the logo and a direct asset link to the GitHub README.

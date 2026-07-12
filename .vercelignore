@@ -1,0 +1,45 @@
+# Development and recovery files not needed by the hosted static app
+.git
+.gitignore
+.github/
+.vercel
+.env
+.env.*
+docs/
+README.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+LICENSE
+kira_diary/
+output/
+tmp/
+
+# Local scripts and generated repair tools
+*.py
+inject_*.py
+repair_*.py
+upgrade_*.py
+fix_rendering.py
+
+# Internal logs/tests
+v3/_logs/
+v3/tools/
+
+# Private engineering/project artifacts
+*.fstr
+*.edb
+*.e2k
+*.std
+*.sdb
+*.ifc
+*.dxf
+*.xlsx
+*.pdf
+*.docx
+
+# Local OS/editor noise
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
