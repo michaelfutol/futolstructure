@@ -583,6 +583,25 @@
             border-color: var(--primary);
         }
 
+        .tool-btn.secondary-action {
+            color: var(--text-muted);
+            border-color: rgba(139, 148, 158, 0.22);
+        }
+
+        .export-validation-badge {
+            align-self: center;
+            padding: 2px 5px;
+            border: 1px solid rgba(63, 185, 80, 0.42);
+            border-radius: 3px;
+            color: var(--success);
+            background: rgba(63, 185, 80, 0.10);
+            font-size: 0.58rem;
+            line-height: 1;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+        }
+
         .canvas-wrapper {
             flex: 1;
             position: relative;
@@ -910,6 +929,149 @@
 
         #container3D.active {
             display: block;
+        }
+
+        .display-3d-trigger {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 31;
+            height: 30px;
+            padding: 0 10px;
+            border: 1px solid rgba(148, 163, 184, 0.48);
+            border-radius: 4px;
+            background: rgba(15, 23, 42, 0.88);
+            color: #e5e7eb;
+            font: 600 0.68rem var(--font-main);
+            cursor: pointer;
+        }
+
+        .display-3d-trigger:hover,
+        .display-3d-trigger[aria-expanded="true"] {
+            border-color: #60a5fa;
+            background: rgba(30, 41, 59, 0.96);
+        }
+
+        .display-3d-panel {
+            position: absolute;
+            top: 46px;
+            right: 10px;
+            z-index: 31;
+            width: 270px;
+            max-height: calc(100% - 58px);
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            border-radius: 6px;
+            background: rgba(15, 23, 42, 0.96);
+            color: #e5e7eb;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
+            font-family: var(--font-main);
+        }
+
+        .display-3d-panel[hidden] {
+            display: none;
+        }
+
+        .display-3d-header,
+        .display-3d-footer,
+        .display-3d-toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .display-3d-header {
+            margin-bottom: 9px;
+            font-size: 0.74rem;
+            font-weight: 700;
+        }
+
+        .display-3d-close {
+            width: 26px;
+            height: 26px;
+            padding: 0;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            background: transparent;
+            color: #cbd5e1;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        .display-3d-close:hover {
+            border-color: rgba(148, 163, 184, 0.45);
+            background: rgba(148, 163, 184, 0.12);
+        }
+
+        .display-3d-field {
+            display: grid;
+            grid-template-columns: 76px 34px minmax(80px, 1fr) 34px;
+            align-items: center;
+            gap: 7px;
+            min-height: 34px;
+            font-size: 0.67rem;
+        }
+
+        .display-3d-field input[type="color"] {
+            width: 30px;
+            height: 24px;
+            padding: 1px;
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            border-radius: 3px;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        .display-3d-field input[type="range"] {
+            width: 100%;
+            accent-color: #60a5fa;
+        }
+
+        .display-3d-value {
+            color: #cbd5e1;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .display-3d-scheme {
+            width: 100%;
+            height: 30px;
+            margin-bottom: 7px;
+            padding: 0 8px;
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            border-radius: 4px;
+            background: #1e293b;
+            color: #f8fafc;
+            font: 600 0.68rem var(--font-main);
+        }
+
+        .display-3d-toggle-row {
+            min-height: 34px;
+            border-top: 1px solid rgba(148, 163, 184, 0.22);
+            margin-top: 6px;
+            padding-top: 7px;
+            font-size: 0.68rem;
+        }
+
+        .display-3d-footer {
+            margin-top: 8px;
+        }
+
+        .display-3d-reset {
+            width: 100%;
+            height: 29px;
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            border-radius: 4px;
+            background: #273449;
+            color: #e5e7eb;
+            font: 600 0.67rem var(--font-main);
+            cursor: pointer;
+        }
+
+        .display-3d-reset:hover {
+            background: #334155;
         }
 
         .member-info-3d {
@@ -1383,6 +1545,142 @@
             justify-content: flex-end;
         }
 
+        .stair-builder-layout {
+            display: grid;
+            grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+            gap: 18px;
+            align-items: start;
+        }
+
+        .stair-builder-form {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px 12px;
+            padding-right: 18px;
+            border-right: 1px solid var(--border);
+        }
+
+        #panelStaircase .schedule-header {
+            border-bottom-color: var(--primary);
+        }
+
+        #panelStaircase .schedule-header h3 {
+            color: var(--text-primary);
+        }
+
+        .stair-builder-field {
+            display: grid;
+            gap: 4px;
+            color: var(--text-secondary);
+            font-size: 0.68rem;
+            font-weight: 700;
+        }
+
+        .stair-builder-field.wide {
+            grid-column: 1 / -1;
+        }
+
+        .stair-builder-field input,
+        .stair-builder-field select {
+            min-width: 0;
+            height: 32px;
+            padding: 5px 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font: 600 0.75rem var(--font-mono);
+        }
+
+        .stair-builder-field input:focus,
+        .stair-builder-field select:focus {
+            outline: 2px solid rgba(37, 99, 235, 0.2);
+            border-color: #2563eb;
+        }
+
+        .stair-builder-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 8px;
+            padding-top: 4px;
+        }
+
+        .stair-builder-primary {
+            height: 34px;
+            padding: 0 14px;
+            border: 1px solid #1d4ed8;
+            border-radius: 4px;
+            background: #2563eb;
+            color: #fff;
+            font-size: 0.72rem;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .stair-builder-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .stair-builder-status {
+            grid-column: 1 / -1;
+            min-height: 34px;
+            padding: 8px 10px;
+            border-left: 3px solid #d97706;
+            background: #fff7ed;
+            color: #7c2d12;
+            font: 600 0.68rem/1.35 var(--font-main);
+        }
+
+        .stair-builder-status.ready {
+            border-left-color: #059669;
+            background: #ecfdf5;
+            color: #065f46;
+        }
+
+        .stair-builder-summary {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(90px, 1fr));
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .stair-builder-metric {
+            border-top: 2px solid #1e3a5f;
+            padding: 7px 2px 0;
+        }
+
+        .stair-builder-metric span {
+            display: block;
+            color: var(--text-muted);
+            font-size: 0.62rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .stair-builder-metric strong {
+            display: block;
+            margin-top: 3px;
+            color: var(--text-primary);
+            font: 700 0.82rem var(--font-mono);
+        }
+
+        @media (max-width: 900px) {
+            .stair-builder-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .stair-builder-form {
+                padding-right: 0;
+                padding-bottom: 14px;
+                border-right: 0;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .stair-builder-summary {
+                grid-template-columns: repeat(2, minmax(90px, 1fr));
+            }
+        }
+
         /* Oblong action buttons */
         .action-btn.oblong {
             padding: 7px 18px;
@@ -1440,6 +1738,45 @@
                 grid-template-columns: 260px 1fr 260px;
             }
         }
+
+        @media (max-width: 800px) {
+            .header {
+                padding: 0 8px;
+            }
+
+            .header-actions {
+                display: none;
+            }
+
+            .app-container {
+                grid-template-columns: minmax(0, 1fr);
+                height: calc(100vh - 44px - 24px);
+            }
+
+            .app-container > .panel {
+                display: none;
+            }
+
+            .canvas-container {
+                width: 100%;
+                min-width: 0;
+            }
+
+            .canvas-toolbar {
+                max-height: 148px;
+                overflow-y: auto;
+            }
+
+            .display-3d-panel {
+                width: calc(100% - 20px);
+                max-width: 300px;
+            }
+
+            .status-bar {
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+        }
     </style>
 
     <!-- v2.4: Three.js for 3D View -->
@@ -1475,12 +1812,12 @@
             </div>
             <img class="logo-icon" src="assets/futolstructure-icon.png" alt="FutolStructure">
             <span style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary); letter-spacing: -0.01em;">FutolStructure</span>
-            <span style="font-size: 0.58rem; color: var(--text-muted); font-weight: 500; padding: 1px 5px; background: var(--surface); border: 1px solid var(--border); border-radius: 3px;">v3.16</span>
+            <span title="Build FS-115" style="font-size: 0.58rem; color: var(--text-muted); font-weight: 500; padding: 1px 5px; background: var(--surface); border: 1px solid var(--border); border-radius: 3px;">v3.16.115</span>
         </div>
         <!-- Action Toolbar -->
         <div class="header-actions">
             <button class="tool-btn" onclick="calculate()" style="background: var(--primary); color: #fff; font-weight: 600;">Run Analysis</button>
-            <button class="tool-btn" onclick="refreshView()" title="Recalculate and refresh all views">Refresh</button>
+            <button class="tool-btn secondary-action" onclick="refreshView()" title="Recalculate model data and rebuild the current view">Rebuild</button>
             <button class="tool-btn" onclick="saveProject()" title="Save current project">Save</button>
             <button class="tool-btn" id="undoBtn" onclick="undo()" title="Undo last model edit" disabled>Undo</button>
             <button class="tool-btn" id="redoBtn" onclick="redo()" title="Redo last undone edit" disabled>Redo</button>
@@ -1490,6 +1827,7 @@
             <button class="tool-btn" onclick="exportToIFC()" title="Export to IFC (BIM)">IFC</button>
             <button class="tool-btn" onclick="exportToSTAAD()" title="Export to STAAD.Pro">STAAD</button>
             <button class="tool-btn" onclick="exportToETABS()" title="Export ETABS 22 OAPI model builder">ETABS</button>
+            <span class="export-validation-badge" title="Gravity/modal ETABS baseline is validated; lateral design still requires engineer review.">QA</span>
             <button class="tool-btn" onclick="exportToSAFEViaETABS()" title="Prepare CSI SAFE V12 handoff through ETABS">SAFE</button>
         </div>
     </header>
@@ -1687,7 +2025,7 @@
                         <label>Foundation Mode</label>
                         <button type="button" class="action-btn" id="foundationModeBtn" onclick="toggleFoundationMode()"
                             title="Plan mode generates footings and tie beams. Base reaction mode removes foundation plan members for external SAFE/STAAD Foundation workflows.">
-                            Foundation: Plan
+                            Mode: Footings
                         </button>
                         <div id="foundationModeStatus"
                             style="font-size:0.6rem;color:#8b949e;margin-top:4px;line-height:1.25;">
@@ -1783,7 +2121,7 @@
                     <button class="plan-tab" id="tabColDesign" onclick="setPlanTab('colDesign')">Column</button>
                     <button class="plan-tab" id="tabSlabDesign" onclick="setPlanTab('slabDesign')">Slab</button>
                     <button class="plan-tab" id="tabBlockwall" onclick="setPlanTab('blockwall')">Blockwall</button>
-                    <button class="plan-tab" id="tabStaircase" onclick="setPlanTab('staircase')">Staircase</button>
+                    <button class="plan-tab" id="tabStaircase" onclick="setPlanTab('staircase')">Stair Builder</button>
                     <button class="plan-tab" id="tabWaterTank" onclick="setPlanTab('waterTank')">Tank</button>
                     <button class="plan-tab" id="tabRetainingWall" onclick="setPlanTab('retainingWall')">Ret. Wall</button>
                     <button class="plan-tab" id="tabCombinedFtg" onclick="setPlanTab('combinedFtg')">Comb. Ftg</button>
@@ -1833,7 +2171,7 @@
                 <span class="toolbar-separator"></span>
                 <!-- Modeling Tools -->
                 <button class="tool-btn" id="addBeamBtn" onclick="toggleBeamMode()" title="Add framing beam">+ Beam</button>
-                <button class="tool-btn" id="addCustomBeamBtn" onclick="showCustomBeamDialog()" title="Add stair framing beam">Stair Beam</button>
+                <button class="tool-btn" id="addCustomBeamBtn" onclick="showCustomBeamDialog()" title="Legacy custom/stair beam tool retained for compatibility. Use Stair Builder for new stairs." hidden aria-hidden="true" tabindex="-1">Stair Beam</button>
                 <button class="tool-btn" id="addPlantedColBtn" onclick="togglePlantedColumnMode(event)" title="Add planted column">+ Column</button>
                 <button class="tool-btn" id="colAlignBtn" onclick="toggleColumnAlignment()" title="Toggle column alignment">Col: Flush</button>
                 <button class="tool-btn" id="columnLockBtn" onclick="toggleColumnPositionLock()" title="Lock all columns against nudge, move, planted edits, and deletion">Cols Free</button>
@@ -1842,7 +2180,35 @@
             <div class="canvas-wrapper">
                 <canvas id="mainCanvas"></canvas>
                 <!-- v2.4: 3D Container -->
-                <div id="container3D"></div>
+                <div id="container3D">
+                    <button class="display-3d-trigger" id="display3DTrigger" type="button"
+                        onclick="toggle3DDisplayPanel()" aria-expanded="false" aria-controls="display3DPanel">
+                        Display
+                    </button>
+                    <div class="display-3d-panel" id="display3DPanel" role="dialog" aria-label="3D display settings" hidden>
+                        <div class="display-3d-header">
+                            <span>3D Display</span>
+                            <button class="display-3d-close" type="button" onclick="toggle3DDisplayPanel(false)"
+                                title="Close display settings" aria-label="Close display settings">&times;</button>
+                        </div>
+                        <select class="display-3d-scheme" id="display3DScheme" aria-label="Visual scheme"
+                            onchange="apply3DDisplayPreset(this.value)">
+                            <option value="professional">Professional</option>
+                            <option value="concrete">Concrete</option>
+                            <option value="contrast">High Contrast</option>
+                            <option value="blueprint">Blueprint</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                        <div id="display3DMemberControls"></div>
+                        <label class="display-3d-toggle-row" for="display3DOutlines">
+                            <span>Member outlines</span>
+                            <input type="checkbox" id="display3DOutlines" onchange="update3DOutlineSetting(this.checked)">
+                        </label>
+                        <div class="display-3d-footer">
+                            <button class="display-3d-reset" type="button" onclick="reset3DDisplaySettings()">Reset display</button>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- v3.8: Schedule Panels (hidden by default) -->
                 <!-- Column Schedule Panel -->
@@ -2394,29 +2760,73 @@
                 </div>
             </div>
 
-            <!-- v3.12: Staircase Panel -->
+            <!-- FS-113: Persistent Stair Builder -->
             <div id="panelStaircase" class="schedule-panel" style="display:none;">
                 <div class="schedule-header">
-                    <h3>Staircase Loading</h3>
+                    <h3>Stair Builder</h3>
                 </div>
-                <div style="padding:12px;">
-                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:12px;">
-                        <label style="font-size:0.75rem;">Rise (mm):
-                            <input type="number" id="stairRise" value="175" min="150" max="200" step="5"
-                                onchange="calculateStaircase()" style="width:100%; padding:4px; margin-top:4px;">
+                <div class="stair-builder-layout">
+                    <div class="stair-builder-form">
+                        <label class="stair-builder-field wide">Connect levels
+                            <select id="stairLevelPair" onchange="refreshStairBuilderPreview()"></select>
                         </label>
-                        <label style="font-size:0.75rem;">Tread (mm):
-                            <input type="number" id="stairTread" value="275" min="250" max="300" step="5"
-                                onchange="calculateStaircase()" style="width:100%; padding:4px; margin-top:4px;">
+                        <label class="stair-builder-field">X bay
+                            <select id="stairBayX" onchange="refreshStairBuilderPreview()"></select>
                         </label>
-                        <label style="font-size:0.75rem;">Waist (mm):
-                            <input type="number" id="stairWaist" value="150" min="100" max="250" step="10"
-                                onchange="calculateStaircase()" style="width:100%; padding:4px; margin-top:4px;">
+                        <label class="stair-builder-field">Y bay
+                            <select id="stairBayY" onchange="refreshStairBuilderPreview()"></select>
                         </label>
+                        <label class="stair-builder-field">Configuration
+                            <select id="stairType" onchange="refreshStairBuilderPreview()">
+                                <option value="dogleg">Dog-leg</option>
+                                <option value="straight">Straight flight</option>
+                            </select>
+                        </label>
+                        <label class="stair-builder-field">Run axis
+                            <select id="stairAxis" onchange="refreshStairBuilderPreview()">
+                                <option value="X">Along X</option>
+                                <option value="Y">Along Y</option>
+                            </select>
+                        </label>
+                        <label class="stair-builder-field">Clear width (mm)
+                            <input type="number" id="stairWidth" value="1000" min="750" max="2500" step="50" oninput="refreshStairBuilderPreview()">
+                        </label>
+                        <label class="stair-builder-field">Landing (mm)
+                            <input type="number" id="stairLanding" value="1100" min="750" max="3000" step="50" oninput="refreshStairBuilderPreview()">
+                        </label>
+                        <label class="stair-builder-field">Preferred rise (mm)
+                            <input type="number" id="stairRise" value="175" min="140" max="210" step="5" oninput="refreshStairBuilderPreview()">
+                        </label>
+                        <label class="stair-builder-field">Tread (mm)
+                            <input type="number" id="stairTread" value="275" min="230" max="350" step="5" oninput="refreshStairBuilderPreview()">
+                        </label>
+                        <label class="stair-builder-field">Waist (mm)
+                            <input type="number" id="stairWaist" value="150" min="100" max="250" step="10" oninput="refreshStairBuilderPreview()">
+                        </label>
+                        <label class="stair-builder-field">Well gap (mm)
+                            <input type="number" id="stairGap" value="150" min="0" max="600" step="25" oninput="refreshStairBuilderPreview()">
+                        </label>
+                        <div class="stair-builder-actions">
+                            <button type="button" class="stair-builder-primary" onclick="createStairFromBuilder()">Create Stair</button>
+                        </div>
+                        <div id="stairBuilderStatus" class="stair-builder-status"></div>
                     </div>
-                    <table class="schedule-table" style="width:100%;">
-                        <tbody id="staircaseBody"></tbody>
-                    </table>
+                    <div>
+                        <div class="stair-builder-summary">
+                            <div class="stair-builder-metric"><span>Risers</span><strong id="stairMetricRisers">-</strong></div>
+                            <div class="stair-builder-metric"><span>Actual rise</span><strong id="stairMetricRise">-</strong></div>
+                            <div class="stair-builder-metric"><span>Footprint</span><strong id="stairMetricFootprint">-</strong></div>
+                            <div class="stair-builder-metric"><span>Factored load</span><strong id="stairMetricLoad">-</strong></div>
+                        </div>
+                        <div class="schedule-table-wrapper" style="max-height:52vh;">
+                            <table class="schedule-table">
+                                <thead>
+                                    <tr><th>ID</th><th>Levels</th><th>Bay</th><th>Type</th><th>Size</th><th>Opening</th><th>Action</th></tr>
+                                </thead>
+                                <tbody id="staircaseBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -3296,6 +3706,7 @@
         <div id="memberMenuTitle"
             style="padding:8px 16px; color:#00d4ff; font-weight:bold; border-bottom:1px solid rgba(255,255,255,0.1); margin-bottom:4px;">
             Beam B-1</div>
+        <button class="ctx-menu-btn" id="memberCornerSlabBtn" onclick="toggleSelectedCornerSlab()">Create Corner Slab</button>
         <button class="ctx-menu-btn" id="memberDeleteBtn" onclick="deleteMemberFromMenu()" style="color:#ef4444;">🗑️ Delete</button>
         <button class="ctx-menu-btn" id="memberMoveBtn" onclick="moveSelectedBeamAlignment()">Beam Offset...</button>
         <button class="ctx-menu-btn" id="memberResetOffsetBtn" onclick="resetSelectedBeamAlignment()">Reset Beam Offset</button>
@@ -3308,7 +3719,7 @@
     </div>
 
     <!-- v3.0: Schedules Modal (Updated Excel Style - SOLID PAPER MATTE) -->
-    <div id="schedulesModal"
+    <div id="schedulesModal" aria-hidden="true" data-legacy-disabled="true"
         style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#1a1a2e; z-index:20000; justify-content:center; align-items:center;">
         <div
             style="background:#ffffff; border:2px solid #333; border-radius:4px; padding:24px; width:95%; max-width:1000px; max-height:85vh; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);">
@@ -3496,7 +3907,7 @@
         const FSTR_FILE_TYPE = 'FutolStructure.StructuralModel';
         const FSTR_SCHEMA_VERSION = '0.1.0';
         const FSTR_HIDDEN_GEOMETRY_POLICY = 'preserve-intentional-hidden-geometry';
-        const FSTR_AUTOSAVE_STATE_REVISION = 'FS-069-trusted-hidden-geometry-autosave';
+        const FSTR_AUTOSAVE_STATE_REVISION = 'FS-107-floor-aware-autosave';
 
         const PLOT_PAPER_SIZES = Object.freeze({
             A4: { label: 'A4', css: 'A4', widthMm: 210, heightMm: 297 },
@@ -3542,6 +3953,7 @@
                 floorHeight: state.floors[0]?.height || 3.0,
                 soilBearing: state.soilBearing,
                 numFloors: state.floors.length,
+                floors: state.floors,
                 xSpans: state.xSpans,
                 ySpans: state.ySpans,
                 tieBeamWidth: state.tieBeamWidth,
@@ -3681,6 +4093,25 @@
             }).filter(Boolean);
         }
 
+        function normalizeCornerSlabList(cornerSlabs) {
+            const seen = new Set();
+            return (Array.isArray(cornerSlabs) ? cornerSlabs : []).map((item) => {
+                const sourceIds = Array.from(new Set(
+                    (item?.sourceSlabIds || item?.slabIds || [])
+                        .map(id => String(id || '').trim())
+                        .filter(Boolean)
+                )).sort();
+                if (sourceIds.length !== 2) return null;
+                const key = sourceIds.join('|');
+                if (seen.has(key)) return null;
+                seen.add(key);
+                return {
+                    id: String(item?.id || `CORNER-${key}`),
+                    sourceSlabIds: sourceIds
+                };
+            }).filter(Boolean);
+        }
+
         /**
          * Floor factory — single source of truth for floor object shape.
          * @param {string} id - Floor ID (e.g. 'GF', '2F', 'RF')
@@ -3711,6 +4142,7 @@
                 },
                 customBeams: [],
                 voidSlabs: [],
+                cornerSlabs: normalizeCornerSlabList(o.cornerSlabs),
                 slabOpenings: cloneSerializable(o.slabOpenings, []),
                 wallLoads: normalizeWallLoadList(cloneSerializable(o.wallLoads, []), { floorId: id, floorHeight }),
                 pointLoads: cloneSerializable(o.pointLoads, []),
@@ -3724,6 +4156,42 @@
 
         function cloneSerializable(value, fallback) {
             return JSON.parse(JSON.stringify(value != null ? value : fallback));
+        }
+
+        function normalizeStairList(stairs) {
+            const seen = new Set();
+            return (Array.isArray(stairs) ? stairs : []).map((stair, index) => {
+                const id = String(stair?.id || `ST-${index + 1}`).trim();
+                if (!id || seen.has(id)) return null;
+                seen.add(id);
+                const bounds = stair?.bounds || {};
+                const x1 = Number(bounds.x1 ?? stair?.x1);
+                const y1 = Number(bounds.y1 ?? stair?.y1);
+                const x2 = Number(bounds.x2 ?? stair?.x2);
+                const y2 = Number(bounds.y2 ?? stair?.y2);
+                if (![x1, y1, x2, y2].every(Number.isFinite) || x2 <= x1 || y2 <= y1) return null;
+                return {
+                    id,
+                    type: stair?.type === 'straight' ? 'straight' : 'dogleg',
+                    fromFloorId: String(stair?.fromFloorId || ''),
+                    toFloorId: String(stair?.toFloorId || ''),
+                    bayX: Math.max(0, Math.floor(Number(stair?.bayX) || 0)),
+                    bayY: Math.max(0, Math.floor(Number(stair?.bayY) || 0)),
+                    axis: stair?.axis === 'Y' ? 'Y' : 'X',
+                    widthM: Math.max(0.75, Number(stair?.widthM) || 1),
+                    landingM: Math.max(0.75, Number(stair?.landingM) || 1.1),
+                    gapM: Math.max(0, Number(stair?.gapM) || 0),
+                    treadMm: Math.max(230, Number(stair?.treadMm) || 275),
+                    preferredRiseMm: Math.max(140, Number(stair?.preferredRiseMm) || 175),
+                    actualRiseMm: Math.max(1, Number(stair?.actualRiseMm) || Number(stair?.preferredRiseMm) || 175),
+                    waistMm: Math.max(100, Number(stair?.waistMm) || 150),
+                    risers: Math.max(2, Math.round(Number(stair?.risers) || 18)),
+                    flightRunM: Math.max(0.5, Number(stair?.flightRunM) || 2.2),
+                    bounds: { x1, y1, x2, y2 },
+                    opening: stair?.opening ? cloneSerializable(stair.opening, null) : null,
+                    analysisExport: 'pending-validation'
+                };
+            }).filter(Boolean);
         }
 
         function normalizeCantileverSpec(value) {
@@ -3785,7 +4253,8 @@
                 typicalFromLower: data.typicalFromLower,
                 slabOpenings: data.slabOpenings,
                 wallLoads: data.wallLoads,
-                pointLoads: data.pointLoads
+                pointLoads: data.pointLoads,
+                cornerSlabs: data.cornerSlabs
             });
 
             const cantileverSource = Object.prototype.hasOwnProperty.call(data, 'cantilevers')
@@ -3794,6 +4263,7 @@
             floor.cantilevers = normalizeCantileverSet(cantileverSource, numX, numY);
             floor.customBeams = cloneSerializable(data.customBeams, []);
             floor.voidSlabs = cloneSerializable(data.voidSlabs, []);
+            floor.cornerSlabs = normalizeCornerSlabList(data.cornerSlabs);
             floor.slabOpenings = cloneSerializable(data.slabOpenings, []);
             floor.wallLoads = normalizeWallLoadList(data.wallLoads, { floorId: floor.id, floorHeight: floor.height });
             floor.pointLoads = cloneSerializable(data.pointLoads, []);
@@ -3836,6 +4306,8 @@
                 createFloor('2F', '2nd Floor', 2, 2),
                 createFloor('RF', 'Roof', 2, 2, { dlSuper: 1.5, liveLoad: 1.0, slabThickness: 120, wallLoad: 0, isRoof: true })
             ],
+            stairs: [],             // FS-113: inter-storey stair objects
+            nextStairId: 1,
             currentFloorIndex: 0,    // Which floor is selected
 
             // Generated data
@@ -4214,6 +4686,15 @@
                 );
             }
 
+            const stairCount = normalizeStairList(state.stairs).length;
+            if (stairCount > 0) {
+                addModelReadinessWarning(
+                    warnings,
+                    'Stairs',
+                    `${stairCount} stair(s) have persistent plan/3D geometry and destination-floor openings. Sloped flight and landing shell export remains blocked until native ETABS/STAAD connectivity and load validation passes.`
+                );
+            }
+
             const loadGovernance = typeof collectLoadGovernanceSummary === 'function' ? collectLoadGovernanceSummary() : [];
             loadGovernance.forEach(entry => {
                 (entry.warnings || []).forEach(warning => {
@@ -4232,7 +4713,7 @@
                 addModelReadinessWarning(
                     warnings,
                     'Slab Openings',
-                    `${openingCount} slab opening(s) are modeled as area deductions only. Local edge beams, lintels, and trimming design are still manual checks.`
+                    `${openingCount} slab opening(s) are included in net area. Stair openings split exported floor geometry; local edge beams, lintels, and trimming design remain manual checks.`
                 );
             }
 
@@ -4807,6 +5288,19 @@
             return startColID && endColID ? `B-${floorId}-${startColID}${endColID}` : `B-${floorId}-${cleanId}`;
         }
 
+        function formatBeamTagForPlanTable(scheduleId) {
+            const raw = String(scheduleId || '-').trim();
+            const match = raw.match(/^B-([^-]+)-(.+)$/);
+            return match ? `B - ${match[1]} - ${match[2]}` : raw;
+        }
+
+        function getBeamPlanTableTag(beam, floorId, rowNum) {
+            const scheduleId = typeof getBeamScheduleId === 'function'
+                ? getBeamScheduleId(beam, floorId, rowNum)
+                : String(beam?.id || rowNum || '-');
+            return formatBeamTagForPlanTable(scheduleId);
+        }
+
         function escapeJsString(value) {
             return String(value ?? '')
                 .replace(/\\/g, '\\\\')
@@ -4849,7 +5343,7 @@
             ];
 
             if (btn) {
-                btn.textContent = planEnabled ? 'Foundation: Plan' : 'Foundation: Base Rxn';
+                btn.textContent = planEnabled ? 'Mode: Footings' : 'Mode: Base Rxn';
                 btn.classList.toggle('active', !planEnabled);
                 btn.title = planEnabled
                     ? 'Footings and tie beams are generated in the foundation plan.'
@@ -4866,7 +5360,7 @@
                 foundationTab.title = planEnabled ? 'Foundation plan' : 'Base reaction plan';
             }
             if (footingTab) {
-                footingTab.textContent = planEnabled ? 'Footings' : 'Base Rxn';
+                footingTab.textContent = planEnabled ? 'Footings' : 'Reactions';
                 footingTab.title = planEnabled ? 'Footing schedule' : 'Base reaction schedule/export';
             }
             controls.forEach(control => {
@@ -4931,8 +5425,9 @@
         }
 
         function clearFoundationDesignState() {
+            const foundationFloorId = state.floors[0]?.id;
             state.columns.forEach(col => {
-                const isBaseColumn = col.active !== false && !col.startFloor;
+                const isBaseColumn = (!foundationFloorId || isColumnActiveOnFloor(col, foundationFloorId)) && !col.startFloor;
                 const columnDL = isBaseColumn ? getColumnFactoredSelfWeight(col) : 0;
                 const baseReaction = isBaseColumn ? (Number(col.totalLoad || 0) + columnDL) : Number(col.totalLoad || 0);
 
@@ -5026,6 +5521,8 @@
         function createStateSnapshot() {
             return {
                 floors: JSON.parse(JSON.stringify(state.floors)),
+                stairs: cloneSerializable(state.stairs, []),
+                nextStairId: state.nextStairId || 1,
                 xSpans: [...state.xSpans],
                 ySpans: [...state.ySpans],
                 cantilevers: JSON.parse(JSON.stringify(state.cantilevers)),
@@ -5046,6 +5543,8 @@
             state.xSpans = [...(snapshot.xSpans || state.xSpans || [])];
             state.ySpans = [...(snapshot.ySpans || state.ySpans || [])];
             state.floors = hydrateFloors(snapshot.floors, state.xSpans, state.ySpans, snapshot.cantilevers || null);
+            state.stairs = normalizeStairList(snapshot.stairs);
+            state.nextStairId = Math.max(Number(snapshot.nextStairId) || 1, getNextStairSequence(state.stairs));
             state.cantilevers = normalizeCantileverSet(snapshot.cantilevers, state.xSpans.length, state.ySpans.length);
             state.gfSuspended = !!snapshot.gfSuspended;
 
@@ -5719,6 +6218,7 @@
             targetFloor.cantilevers = normalizeCantileverSet(sourceFloor.cantilevers, state.xSpans.length, state.ySpans.length);
             targetFloor.customBeams = cloneSerializable(sourceFloor.customBeams, []);
             targetFloor.voidSlabs = cloneSerializable(sourceFloor.voidSlabs, []);
+            targetFloor.cornerSlabs = normalizeCornerSlabList(sourceFloor.cornerSlabs);
             targetFloor.slabOpenings = cloneSerializable(sourceFloor.slabOpenings, []);
             targetFloor.planDimensions = normalizePlanDimensionList(sourceFloor.planDimensions);
             targetFloor.deletedBeams = cloneSerializable(sourceFloor.deletedBeams, []);
@@ -5756,12 +6256,14 @@
         function syncTypicalColumnVisibility(targetFloor, sourceFloor) {
             if (!targetFloor || !sourceFloor || !Array.isArray(state.columns)) return;
             state.columns.forEach(col => {
-                if (!col.activePerFloor) {
+                if (!col.activePerFloor || typeof col.activePerFloor !== 'object') {
                     col.activePerFloor = {};
-                    state.floors.forEach(floor => {
-                        col.activePerFloor[floor.id] = col.active !== false;
-                    });
                 }
+                state.floors.forEach(floor => {
+                    if (!Object.prototype.hasOwnProperty.call(col.activePerFloor, floor.id)) {
+                        col.activePerFloor[floor.id] = col.active !== false;
+                    }
+                });
                 if (Object.prototype.hasOwnProperty.call(col.activePerFloor, sourceFloor.id)) {
                     col.activePerFloor[targetFloor.id] = col.activePerFloor[sourceFloor.id] !== false;
                 }
@@ -6140,6 +6642,22 @@
                 }
             });
 
+            state.stairs = normalizeStairList(state.stairs).map(stair => ({
+                ...stair,
+                fromFloorId: floorIdMap.get(stair.fromFloorId) || stair.fromFloorId,
+                toFloorId: floorIdMap.get(stair.toFloorId) || stair.toFloorId
+            })).filter(stair => {
+                const fromIndex = state.floors.findIndex(floor => floor.id === stair.fromFloorId);
+                const toIndex = state.floors.findIndex(floor => floor.id === stair.toFloorId);
+                return fromIndex >= 0 && toIndex === fromIndex + 1;
+            });
+            const validStairIds = new Set(state.stairs.map(stair => stair.id));
+            state.floors.forEach(floor => {
+                floor.slabOpenings = (floor.slabOpenings || []).filter(opening =>
+                    opening.source !== 'stair' || validStairIds.has(opening.stairId)
+                );
+            });
+
             state.beamSizeOverrides = migrateFloorScopedOverrideKeys(state.beamSizeOverrides, floorIdMap);
             state.beamAlignmentOverrides = migrateFloorScopedOverrideKeys(state.beamAlignmentOverrides, floorIdMap);
         }
@@ -6371,13 +6889,13 @@
             const targetFloor = floorId || state.floors[state.currentFloorIndex].id;
             if (options.ignoreBeamLock !== true && columnEditWouldMoveLockedBeams(colId, `Column ${colId} toggle/delete`, targetFloor)) return;
 
-            // Initialize activePerFloor if not exists (migrate from old boolean)
-            if (!col.activePerFloor) {
-                col.activePerFloor = {};
-                state.floors.forEach(f => {
+            // Initialize missing floor keys too; older/reloaded models may contain an empty object.
+            if (!col.activePerFloor) col.activePerFloor = {};
+            state.floors.forEach(f => {
+                if (!Object.prototype.hasOwnProperty.call(col.activePerFloor, f.id)) {
                     col.activePerFloor[f.id] = col.active !== false;
-                });
-            }
+                }
+            });
 
             if (options.snapshot !== false && typeof saveStateSnapshot === 'function') {
                 saveStateSnapshot();
@@ -6819,11 +7337,21 @@
             writeProjectAutosave('floor-add');
         }
 
-        function removeFloor() {
+        function removeFloor(options = {}) {
             if (state.floors.length <= 1) return;
 
-            saveStateSnapshot();
             const removeIndex = Math.max(0, Math.min(state.currentFloorIndex, state.floors.length - 1));
+            const floor = state.floors[removeIndex];
+            if (options.confirm !== false) {
+                const confirmed = confirm(
+                    `Remove floor ${floor?.id || removeIndex + 1}?\n\n` +
+                    'This removes its floor-specific slabs, beams, locks, offsets, and loads. ' +
+                    'Use Undo immediately if this was accidental.'
+                );
+                if (!confirmed) return false;
+            }
+
+            saveStateSnapshot();
             const removed = state.floors.splice(removeIndex, 1)[0];
             if (removed?.id === 'GF') state.gfSuspended = false;
 
@@ -6835,6 +7363,7 @@
             renderCantileverInputs();
             calculate();
             writeProjectAutosave('floor-remove');
+            return true;
         }
 
         // ========== CORE CALCULATIONS ==========
@@ -7602,6 +8131,12 @@
         }
 
         function getRecoveryReviewStatus() {
+            if (startupAutosaveWarning) {
+                return {
+                    label: 'Autosave Blocked',
+                    detail: startupAutosaveWarning.detail
+                };
+            }
             const quarantinedTotal = getQuarantinedHiddenGeometryTotal();
             if (quarantinedTotal > 0) {
                 return {
@@ -7823,6 +8358,201 @@
             }
         }
 
+        function getCornerSlabGeneratedId(join) {
+            const parts = (join?.sourceSlabIds || [])
+                .map(id => String(id || '').replace(/^SC-/, '').replace(/[^A-Za-z0-9-]/g, ''))
+                .filter(Boolean)
+                .sort();
+            return parts.length === 2 ? `SC-C-${parts.join('-')}` : '';
+        }
+
+        function getFloorCornerSlabJoins(floorOrId = null) {
+            const floor = typeof floorOrId === 'string'
+                ? state.floors.find(item => item.id === floorOrId)
+                : (floorOrId || state.floors[state.currentFloorIndex]);
+            if (!floor) return [];
+            floor.cornerSlabs = normalizeCornerSlabList(floor.cornerSlabs);
+            return floor.cornerSlabs;
+        }
+
+        function getCantileverCornerPatchGeometry(firstSlab, secondSlab, options = {}) {
+            const slabs = [firstSlab, secondSlab].filter(Boolean);
+            if (slabs.length !== 2 || slabs.some(slab => !slab.isCantilever || slab.isCornerSlab || slab.isVoid)) return null;
+            const horizontal = slabs.find(slab => slab.cantileverEdge === 'top' || slab.cantileverEdge === 'bottom');
+            const vertical = slabs.find(slab => slab.cantileverEdge === 'left' || slab.cantileverEdge === 'right');
+            if (!horizontal || !vertical) return null;
+
+            const tolerance = options.tolerance ?? 0.01;
+            const hx1 = Math.min(horizontal.x1, horizontal.x2);
+            const hx2 = Math.max(horizontal.x1, horizontal.x2);
+            const hy1 = Math.min(horizontal.y1, horizontal.y2);
+            const hy2 = Math.max(horizontal.y1, horizontal.y2);
+            const vx1 = Math.min(vertical.x1, vertical.x2);
+            const vx2 = Math.max(vertical.x1, vertical.x2);
+            const vy1 = Math.min(vertical.y1, vertical.y2);
+            const vy2 = Math.max(vertical.y1, vertical.y2);
+            const supportX = vertical.cantileverEdge === 'left' ? vx2 : vx1;
+            const supportY = horizontal.cantileverEdge === 'top' ? hy2 : hy1;
+            const horizontalTouchesCorner = vertical.cantileverEdge === 'left'
+                ? Math.abs(hx1 - supportX) <= tolerance
+                : Math.abs(hx2 - supportX) <= tolerance;
+            const verticalTouchesCorner = horizontal.cantileverEdge === 'top'
+                ? Math.abs(vy1 - supportY) <= tolerance
+                : Math.abs(vy2 - supportY) <= tolerance;
+            if (!horizontalTouchesCorner || !verticalTouchesCorner) return null;
+
+            const x1 = vx1;
+            const x2 = vx2;
+            const y1 = hy1;
+            const y2 = hy2;
+            if (x2 - x1 <= tolerance || y2 - y1 <= tolerance) return null;
+
+            const sourceIds = new Set([horizontal.id, vertical.id]);
+            const overlapsExistingSlab = (state.slabs || []).some(slab => {
+                if (!slab || slab.isVoid || slab.isCornerSlab || sourceIds.has(slab.id)) return false;
+                const overlapX = Math.min(x2, Math.max(slab.x1, slab.x2)) - Math.max(x1, Math.min(slab.x1, slab.x2));
+                const overlapY = Math.min(y2, Math.max(slab.y1, slab.y2)) - Math.max(y1, Math.min(slab.y1, slab.y2));
+                return overlapX > tolerance && overlapY > tolerance;
+            });
+            if (overlapsExistingSlab) return null;
+
+            return {
+                horizontal,
+                vertical,
+                junctionX: supportX,
+                junctionY: supportY,
+                x1,
+                y1,
+                x2,
+                y2,
+                lx: x2 - x1,
+                ly: y2 - y1,
+                area: (x2 - x1) * (y2 - y1)
+            };
+        }
+
+        function getCornerSlabJoinForMember(floorOrId, slabId) {
+            return getFloorCornerSlabJoins(floorOrId).find(join =>
+                join.sourceSlabIds.includes(slabId) || getCornerSlabGeneratedId(join) === slabId
+            ) || null;
+        }
+
+        function getCornerSlabJoinForPair(floorOrId, firstSlabId, secondSlabId) {
+            const pairKey = [firstSlabId, secondSlabId].map(String).sort().join('|');
+            return getFloorCornerSlabJoins(floorOrId).find(join => join.sourceSlabIds.join('|') === pairKey) || null;
+        }
+
+        function getCantileverCornerPairOptions(slab, floorId = null) {
+            if (!slab?.isCantilever || slab.isCornerSlab) return [];
+            return (state.slabs || [])
+                .filter(other => other && other.id !== slab.id && other.isCantilever && !other.isCornerSlab && !other.isVoid)
+                .map(other => {
+                    const geometry = getCantileverCornerPatchGeometry(slab, other);
+                    return geometry ? {
+                        other,
+                        geometry,
+                        join: getCornerSlabJoinForPair(floorId, slab.id, other.id)
+                    } : null;
+                })
+                .filter(Boolean)
+                .sort((a, b) => b.geometry.area - a.geometry.area);
+        }
+
+        function getCantileverCornerCandidates(slab, floorId = null) {
+            return getCantileverCornerPairOptions(slab, floorId).filter(option => !option.join);
+        }
+
+        function getCantileverCornerAction(slab, floorId = null, worldPoint = null) {
+            if (!slab?.isCantilever) return null;
+            if (slab.isCornerSlab) {
+                const join = getCornerSlabJoinForMember(floorId, slab.id);
+                return join ? { mode: 'remove', join, slab } : null;
+            }
+            const options = getCantileverCornerPairOptions(slab, floorId);
+            if (!options.length) return null;
+            if (worldPoint && Number.isFinite(worldPoint.x) && Number.isFinite(worldPoint.y)) {
+                options.sort((a, b) => {
+                    const distanceA = Math.hypot(worldPoint.x - a.geometry.junctionX, worldPoint.y - a.geometry.junctionY);
+                    const distanceB = Math.hypot(worldPoint.x - b.geometry.junctionX, worldPoint.y - b.geometry.junctionY);
+                    return distanceA - distanceB;
+                });
+            } else {
+                options.sort((a, b) => Number(!!a.join) - Number(!!b.join));
+            }
+            const selected = options[0];
+            return selected.join
+                ? { mode: 'remove', join: selected.join, slab, candidate: selected }
+                : { mode: 'create', slab, candidate: selected };
+        }
+
+        function generateConfiguredCornerSlabs(floorId) {
+            const floor = state.floors.find(item => item.id === floorId);
+            for (const join of getFloorCornerSlabJoins(floor)) {
+                const sourceSlabs = join.sourceSlabIds
+                    .map(id => (state.slabs || []).find(slab => slab.id === id && slab.isCantilever && !slab.isCornerSlab && !slab.isVoid))
+                    .filter(Boolean);
+                if (sourceSlabs.length !== 2) continue;
+                const geometry = getCantileverCornerPatchGeometry(sourceSlabs[0], sourceSlabs[1]);
+                if (!geometry) continue;
+                state.slabs.push({
+                    id: getCornerSlabGeneratedId(join),
+                    x1: geometry.x1,
+                    y1: geometry.y1,
+                    x2: geometry.x2,
+                    y2: geometry.y2,
+                    lx: geometry.lx,
+                    ly: geometry.ly,
+                    width: geometry.lx,
+                    height: geometry.ly,
+                    area: geometry.area,
+                    isCantilever: true,
+                    isCornerSlab: true,
+                    cantileverEdge: 'corner',
+                    cornerJoinId: join.id,
+                    sourceSlabIds: join.sourceSlabIds.slice(),
+                    isVoid: false
+                });
+            }
+        }
+
+        function getCornerSlabSupportSegments(cornerSlab) {
+            if (!cornerSlab?.isCornerSlab) return [];
+            const sourceSlabs = (cornerSlab.sourceSlabIds || [])
+                .map(id => (state.slabs || []).find(slab => slab.id === id))
+                .filter(Boolean);
+            const segments = [];
+            for (const cornerEdge of getSlabRectEdges(cornerSlab)) {
+                for (const sourceSlab of sourceSlabs) {
+                    for (const sourceEdge of getSlabRectEdges(sourceSlab)) {
+                        if (cornerEdge.direction !== sourceEdge.direction || Math.abs(cornerEdge.line - sourceEdge.line) > 0.01) continue;
+                        const overlap = getIntervalOverlap(cornerEdge.start, cornerEdge.end, sourceEdge.start, sourceEdge.end, 0.01);
+                        if (overlap) segments.push({ direction: cornerEdge.direction, line: cornerEdge.line, ...overlap });
+                    }
+                }
+            }
+            return segments;
+        }
+
+        function getCornerSlabSupportBeams(cornerSlab, floorId = null) {
+            const beams = [];
+            const seen = new Set();
+            for (const segment of getCornerSlabSupportSegments(cornerSlab)) {
+                const beam = findActiveBeamOccupyingCenterlineSegment(segment, floorId);
+                if (!beam || seen.has(beam.id)) continue;
+                seen.add(beam.id);
+                beams.push(beam);
+            }
+            return beams;
+        }
+
+        function getCornerSlabHiddenBeamIds(floorId = null) {
+            const ids = new Set();
+            getActiveCantileverSlabs({ floorId })
+                .filter(slab => slab.isCornerSlab)
+                .forEach(slab => getCornerSlabSupportBeams(slab, floorId).forEach(beam => ids.add(beam.id)));
+            return ids;
+        }
+
         function resolveCantileverSlabOverlaps() {
             const tol = 0.001;
             const activeCantileverSlabs = (state.slabs || [])
@@ -8014,6 +8744,7 @@
             }
 
             resolveCantileverSlabOverlaps();
+            generateConfiguredCornerSlabs(floorId);
         }
 
         // v3.0: Generate cantilever beams (from resolved support beams) and edge beams.
@@ -8439,6 +9170,14 @@
                     const beam = beamMap[beamId];
                     if (!beam) return;
 
+                    // Openings reduce the panel load uniformly until opening-edge
+                    // tributary remeshing is introduced. This keeps load and area
+                    // totals conservative and prevents gross-area duplication.
+                    const grossArea = Math.max(0, Number(slab.area) || 0);
+                    const netArea = Math.max(0, Number(slab.netArea ?? grossArea) || 0);
+                    const openingScale = grossArea > 0 ? Math.min(1, netArea / grossArea) : 1;
+                    areaSide *= openingScale;
+
                     beam.tributaryArea += areaSide;
                     beam.slices.push(EngineTributary.createBeamSlice({
                         slabId: slab.id,
@@ -8562,7 +9301,10 @@
 
                     // Calculate the portion of slab area that loads this custom beam
                     // Simplified: the custom beam gets a strip of width = MIN(span_in_direction, half_slab_dimension)
-                    const tributaryArea = EngineTributary.calculateCustomBeamTributaryArea(cb, slab);
+                    const grossArea = Math.max(0, Number(slab.area) || 0);
+                    const netArea = Math.max(0, Number(slab.netArea ?? grossArea) || 0);
+                    const openingScale = grossArea > 0 ? Math.min(1, netArea / grossArea) : 1;
+                    const tributaryArea = EngineTributary.calculateCustomBeamTributaryArea(cb, slab) * openingScale;
 
                     customBeam.tributaryArea += tributaryArea;
                     customBeam.slices.push(EngineTributary.createBeamSlice({
@@ -8589,6 +9331,32 @@
             // v3.0 FIX: Skip voided cantilever slabs - they shouldn't contribute load
             for (let slab of getActiveCantileverSlabs()) {
                 const slabArea = slab.area;
+                if (slab.isCornerSlab) {
+                    const cornerSupportBeams = getCornerSlabSupportBeams(slab, floor?.id);
+                    if (!cornerSupportBeams.length) {
+                        console.warn(`FutolStructure: corner slab ${slab.id} has no active support beam; its ${slabArea.toFixed(3)} m² is not assigned.`);
+                        continue;
+                    }
+                    const areaPerBeam = slabArea / cornerSupportBeams.length;
+                    cornerSupportBeams.forEach(cornerBeam => {
+                        cornerBeam.tributaryArea += areaPerBeam;
+                        cornerBeam.slices.push(EngineTributary.createBeamSlice({
+                            slabId: slab.id,
+                            side: 'corner-cantilever',
+                            area: areaPerBeam,
+                            pu: pu,
+                            span: cornerBeam.span,
+                            extra: { isCantilever: true, isCornerSlab: true },
+                            poly: [
+                                { x: slab.x1, y: slab.y1 },
+                                { x: slab.x2, y: slab.y1 },
+                                { x: slab.x2, y: slab.y2 },
+                                { x: slab.x1, y: slab.y2 }
+                            ]
+                        }));
+                    });
+                    continue;
+                }
                 const supportBeamIds = EngineTributary.getCantileverSupportBeamIds(slab, {
                     xSpanCount: state.xSpans.length,
                     ySpanCount: state.ySpans.length
@@ -8792,42 +9560,8 @@
             // v3.1: Use grid-based beam naming convention (B-2F-A1B1)
             const beamBody = document.getElementById('beamResultsBody');
 
-            // v3.1: Helper to get grid-based beam label
-            const GRID_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-            function getBeamGridCol(x) {
-                let cumX = 0;
-                for (let i = 0; i < state.xSpans.length; i++) {
-                    if (Math.abs(x - cumX) < 0.1) return GRID_LETTERS[i];
-                    cumX += state.xSpans[i];
-                }
-                if (Math.abs(x - cumX) < 0.1) return GRID_LETTERS[state.xSpans.length];
-                return '?';
-            }
-            function getBeamGridRow(y) {
-                let cumY = 0;
-                for (let i = 0; i < state.ySpans.length; i++) {
-                    if (Math.abs(y - cumY) < 0.1) return (i + 1).toString();
-                    cumY += state.ySpans[i];
-                }
-                if (Math.abs(y - cumY) < 0.1) return (state.ySpans.length + 1).toString();
-                return '?';
-            }
-            function getBeamLabel(beam) {
-                const floorId = state.floors[state.currentFloorIndex]?.id || '2F';
-                if (beam.direction === 'X') {
-                    const row = getBeamGridRow(beam.y1);
-                    const startCol = getBeamGridCol(beam.x1);
-                    const endCol = getBeamGridCol(beam.x2);
-                    return `B - ${ floorId } -${ startCol }${ row }${ endCol }${ row } `;
-                } else {
-                    const col = getBeamGridCol(beam.x1);
-                    const startRow = getBeamGridRow(beam.y1);
-                    const endRow = getBeamGridRow(beam.y2);
-                    return `B - ${ floorId } -${ col }${ startRow }${ col }${ endRow } `;
-                }
-            }
-
-            beamBody.innerHTML = state.beams.slice(0, 30).map(beam => {
+            const currentFloorId = state.floors[state.currentFloorIndex]?.id || '2F';
+            beamBody.innerHTML = state.beams.slice(0, 30).map((beam, beamIdx) => {
                 const isSelected = state.selectedMemberId === beam.id;
                 // v3.0: For cantilevers, show the support reaction (non-zero one)
                 const displayR = beam.isCantilever
@@ -8839,14 +9573,14 @@
                     : (beam.isEdgeBeam ? 'color:#ec4899;' : '');
                 // v3.0: Editable beam size with override indicator
                 const hasOverride = beam.overrideB || beam.overrideH;
-                // v3.1: Use grid-based beam label
-                const beamLabel = getBeamLabel(beam);
+                // Use the same user-facing member tag as Layout/Schedules.
+                const beamLabel = getBeamPlanTableTag(beam, currentFloorId, beamIdx + 1);
                 return `
-                < tr onclick = "selectMember('${beam.id}')" style = "cursor:pointer;${isSelected ? 'background:rgba(239,68,68,0.3);' : ''}" title = "Click to highlight in 3D" >
-                    <td style="${beamStyle}">${beamLabel}</td>
+                <tr onclick="selectMember('${escapeJsString(beam.id)}')" style="cursor:pointer;${isSelected ? 'background:rgba(239,68,68,0.3);' : ''}" title="Click to highlight in 3D">
+                    <td style="${beamStyle}">${escapeInfoText(beamLabel)}</td>
                     <td>${beam.w.toFixed(1)}</td>
                     <td>${displayR.toFixed(1)}</td>
-                </tr >
+                </tr>
                 `;
             }).join('');
 
@@ -9536,6 +10270,7 @@
             const currentFloor = state.floors[state.currentFloorIndex];
             const deletedBeams = currentFloor?.deletedBeams || [];
             const lockedBeams = currentFloor?.lockedBeams || [];  // v3.2: Get locked beams
+            const cornerHiddenBeamIds = getCornerSlabHiddenBeamIds(currentFloor?.id);
             ctx.lineWidth = Math.max(1, 1.2 * textScaleFactor);
             ctx.textBaseline = 'alphabetic';
 
@@ -9558,8 +10293,13 @@
 
                 // v3.2: Check if beam is locked on THIS floor
                 const isLocked = lockedBeams.includes(beam.id);
+                const isHiddenByCornerSlab = cornerHiddenBeamIds.has(beam.id);
 
-                if (isLocked) {
+                if (isHiddenByCornerSlab) {
+                    ctx.fillStyle = 'rgba(30, 41, 59, 0.06)';
+                    ctx.strokeStyle = isLocked ? '#64748b' : '#475569';
+                    ctx.setLineDash([Math.max(4, 6 * textScaleFactor), Math.max(2, 3 * textScaleFactor)]);
+                } else if (isLocked) {
                     // Locked beam - muted gray fill
                     ctx.fillStyle = 'rgba(100, 116, 139, 0.42)';
                     ctx.strokeStyle = '#64748b';
@@ -9572,12 +10312,13 @@
 
                 // v3.10: Draw as filled rectangle with actual beam width
                 if (beam.direction === 'X') {
-                    ctx.fillRect(rect.left * state.scale + state.offsetX, rect.top * state.scale + state.offsetY, (rect.right - rect.left) * state.scale, beamBpx);
+                    if (!isHiddenByCornerSlab) ctx.fillRect(rect.left * state.scale + state.offsetX, rect.top * state.scale + state.offsetY, (rect.right - rect.left) * state.scale, beamBpx);
                     ctx.strokeRect(rect.left * state.scale + state.offsetX, rect.top * state.scale + state.offsetY, (rect.right - rect.left) * state.scale, beamBpx);
                 } else {
-                    ctx.fillRect(rect.left * state.scale + state.offsetX, rect.top * state.scale + state.offsetY, beamBpx, (rect.bottom - rect.top) * state.scale);
+                    if (!isHiddenByCornerSlab) ctx.fillRect(rect.left * state.scale + state.offsetX, rect.top * state.scale + state.offsetY, beamBpx, (rect.bottom - rect.top) * state.scale);
                     ctx.strokeRect(rect.left * state.scale + state.offsetX, rect.top * state.scale + state.offsetY, beamBpx, (rect.bottom - rect.top) * state.scale);
                 }
+                ctx.setLineDash([]);
 
                 // v3.2: Draw lock icon for locked beams
                 if (isLocked && state.showLabels) {
@@ -10391,6 +11132,8 @@
                 ctx.restore();
             }
 
+            drawStairPlanObjects(currentFloorId);
+
             // ===== BEAMS (wireframe outlines - terminate at column faces) =====
             if (layerVisibility.beams) {
                 // v3.1: Scale-relative sizing for beam labels
@@ -10434,6 +11177,7 @@
 
                 ctx.strokeStyle = COLOR_BEAM;
                 ctx.lineWidth = 1 * beamScaleFactor;
+                const cornerHiddenBeamIds = getCornerSlabHiddenBeamIds(currentFloorId);
 
                 for (let beam of state.beams) {
                     if (beam.isCustom) continue;
@@ -10442,6 +11186,7 @@
                     if (isDeleted) continue;
                     planTextLayout.drawBeamCount += 1;
                     const isLocked = (currentFloor?.lockedBeams || []).includes(beam.id);
+                    const isHiddenByCornerSlab = cornerHiddenBeamIds.has(beam.id);
                     const beamStrokeColor = isLocked ? '#64748b' : COLOR_BEAM;
                     ctx.strokeStyle = beamStrokeColor;
                     ctx.setLineDash([]);
@@ -10480,7 +11225,10 @@
                         // Edge beams: SOLID outside, DASHED inside
                         ctx.beginPath();
 
-                        if (isTopEdge) {
+                        if (isHiddenByCornerSlab) {
+                            ctx.setLineDash([dashLength, gapLength]);
+                            ctx.strokeRect(x1, beamTop, x2 - x1, beamWidthPx);
+                        } else if (isTopEdge) {
                             // Top edge beam: TOP line = SOLID, BOTTOM line = DASHED
                             ctx.setLineDash([]);  // Solid for outer edge
                             ctx.moveTo(x1, beamTop); ctx.lineTo(x2, beamTop);  // Top (outer)
@@ -10550,7 +11298,10 @@
                         // v3.2: Draw beam with proper line styles
                         ctx.beginPath();
 
-                        if (isLeftEdge) {
+                        if (isHiddenByCornerSlab) {
+                            ctx.setLineDash([dashLength, gapLength]);
+                            ctx.strokeRect(beamLeft, y1, beamWidthPx, y2 - y1);
+                        } else if (isLeftEdge) {
                             // Left edge beam: LEFT line = SOLID, RIGHT line = DASHED
                             ctx.setLineDash([]);  // Solid for outer edge
                             ctx.moveTo(beamLeft, y1); ctx.lineTo(beamLeft, y2);  // Left (outer)
@@ -10619,7 +11370,8 @@
                     shrinkCount: planTextLayout.shrinkCount,
                     drawBeamCount: planTextLayout.drawBeamCount,
                     layerBeamsVisible: planTextLayout.layerBeamsVisible,
-                    currentPlanTab: planTextLayout.currentPlanTab
+                    currentPlanTab: planTextLayout.currentPlanTab,
+                    cornerHiddenBeamIds: Array.from(cornerHiddenBeamIds)
                 };
             }
 
@@ -12393,7 +13145,7 @@
                 for (let slab of getActiveCantileverSlabs()) {
                     if (worldX >= slab.x1 && worldX <= slab.x2 &&
                         worldY >= slab.y1 && worldY <= slab.y2) {
-                        showMemberMenu('slab', slab.id, e.clientX, e.clientY);
+                        showMemberMenu('slab', slab.id, e.clientX, e.clientY, worldX, worldY);
                         return;
                     }
                 }
@@ -12435,7 +13187,7 @@
                 for (let slab of getActiveSlabs()) {
                     if (worldX >= slab.x1 && worldX <= slab.x2 &&
                         worldY >= slab.y1 && worldY <= slab.y2) {
-                        showMemberMenu('slab', slab.id, e.clientX, e.clientY);
+                        showMemberMenu('slab', slab.id, e.clientX, e.clientY, worldX, worldY);
                         return;
                     }
                 }
@@ -12488,18 +13240,234 @@
             groundLight: 0xe5e7eb,
             gridLine: 0x94a3b8,
             gridBubble: 0x334155,
-            column: 0x334155,
-            plantedColumn: 0x5b6472,
-            beam: 0x475569,
-            cantileverBeam: 0x64748b,
-            edgeBeam: 0x3f6f7a,
-            customBeam: 0x8a6f3d,
-            slab: 0x7dd3fc,
-            oneWaySlab: 0xa5b4fc,
-            footing: 0x9ca3af,
-            pedestal: 0x6b7280,
-            tieBeam: 0x70757f
+            column: 0x8b98a8,
+            plantedColumn: 0x737f8f,
+            beam: 0x4f83b5,
+            cantileverBeam: 0xc89638,
+            edgeBeam: 0x4d948e,
+            customBeam: 0x8e7d60,
+            slab: 0x8ec5d9,
+            oneWaySlab: 0xa8b5d3,
+            footing: 0xb3a89a,
+            pedestal: 0x8c8177,
+            tieBeam: 0x687681,
+            structuralEdge: 0x263444,
+            slabEdge: 0x3d7186,
+            foundationEdge: 0x50483f
         };
+
+        const VIEW3D_DISPLAY_STORAGE_KEY = 'FutolStructure.3dDisplay.v1';
+        const VIEW3D_DISPLAY_CATEGORIES = [
+            { key: 'columns', label: 'Columns' },
+            { key: 'beams', label: 'Beams' },
+            { key: 'cantilevers', label: 'Cantilevers' },
+            { key: 'stairs', label: 'Stairs' },
+            { key: 'slabs', label: 'Slabs' },
+            { key: 'foundations', label: 'Foundations' }
+        ];
+        const VIEW3D_DISPLAY_PRESETS = {
+            professional: {
+                outlines: true,
+                categories: {
+                    columns: { color: '#8b98a8', opacity: 1 },
+                    beams: { color: '#4f83b5', opacity: 1 },
+                    cantilevers: { color: '#c89638', opacity: 1 },
+                    stairs: { color: '#4d948e', opacity: 1 },
+                    slabs: { color: '#6fb7c8', opacity: 0.48 },
+                    foundations: { color: '#b3a89a', opacity: 1 }
+                }
+            },
+            concrete: {
+                outlines: true,
+                categories: {
+                    columns: { color: '#a7adb4', opacity: 1 },
+                    beams: { color: '#939ba4', opacity: 1 },
+                    cantilevers: { color: '#b19b72', opacity: 1 },
+                    stairs: { color: '#7d9290', opacity: 1 },
+                    slabs: { color: '#9db9c2', opacity: 0.56 },
+                    foundations: { color: '#8e8780', opacity: 1 }
+                }
+            },
+            contrast: {
+                outlines: true,
+                categories: {
+                    columns: { color: '#d1d5db', opacity: 1 },
+                    beams: { color: '#2563eb', opacity: 1 },
+                    cantilevers: { color: '#e59a22', opacity: 1 },
+                    stairs: { color: '#0d9488', opacity: 1 },
+                    slabs: { color: '#2dd4bf', opacity: 0.5 },
+                    foundations: { color: '#a78b6d', opacity: 1 }
+                }
+            },
+            blueprint: {
+                outlines: true,
+                categories: {
+                    columns: { color: '#dbeafe', opacity: 0.94 },
+                    beams: { color: '#60a5fa', opacity: 0.96 },
+                    cantilevers: { color: '#fbbf24', opacity: 0.98 },
+                    stairs: { color: '#5eead4', opacity: 0.96 },
+                    slabs: { color: '#93c5fd', opacity: 0.34 },
+                    foundations: { color: '#cbd5e1', opacity: 0.92 }
+                }
+            }
+        };
+
+        function clone3DDisplayPreset(name = 'professional') {
+            const preset = VIEW3D_DISPLAY_PRESETS[name] || VIEW3D_DISPLAY_PRESETS.professional;
+            return {
+                scheme: VIEW3D_DISPLAY_PRESETS[name] ? name : 'professional',
+                outlines: preset.outlines !== false,
+                categories: Object.fromEntries(VIEW3D_DISPLAY_CATEGORIES.map(category => {
+                    const values = preset.categories[category.key] || VIEW3D_DISPLAY_PRESETS.professional.categories[category.key];
+                    return [category.key, { color: values.color, opacity: values.opacity }];
+                }))
+            };
+        }
+
+        function normalize3DDisplaySettings(value) {
+            const normalized = clone3DDisplayPreset(value?.scheme);
+            normalized.scheme = VIEW3D_DISPLAY_PRESETS[value?.scheme] ? value.scheme : 'custom';
+            normalized.outlines = value?.outlines !== false;
+            VIEW3D_DISPLAY_CATEGORIES.forEach(category => {
+                const fallback = VIEW3D_DISPLAY_PRESETS.professional.categories[category.key];
+                const source = value?.categories?.[category.key] || fallback;
+                const color = /^#[0-9a-f]{6}$/i.test(String(source.color || ''))
+                    ? String(source.color).toLowerCase()
+                    : fallback.color;
+                const opacity = Math.min(1, Math.max(0.05, Number(source.opacity) || fallback.opacity));
+                normalized.categories[category.key] = { color, opacity };
+            });
+            return normalized;
+        }
+
+        function load3DDisplaySettings() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(VIEW3D_DISPLAY_STORAGE_KEY) || 'null');
+                return saved ? normalize3DDisplaySettings(saved) : clone3DDisplayPreset('professional');
+            } catch (err) {
+                return clone3DDisplayPreset('professional');
+            }
+        }
+
+        let view3DDisplaySettings = load3DDisplaySettings();
+        let view3DDisplayRenderRequest = 0;
+
+        function save3DDisplaySettings() {
+            try {
+                localStorage.setItem(VIEW3D_DISPLAY_STORAGE_KEY, JSON.stringify(view3DDisplaySettings));
+            } catch (err) {
+                console.warn('FutolStructure: 3D display preferences could not be saved.');
+            }
+        }
+
+        function get3DDisplayAppearance(category) {
+            return view3DDisplaySettings.categories[category] ||
+                VIEW3D_DISPLAY_PRESETS.professional.categories[category] ||
+                { color: '#94a3b8', opacity: 1 };
+        }
+
+        function get3DDisplayColor(category) {
+            return Number.parseInt(get3DDisplayAppearance(category).color.slice(1), 16);
+        }
+
+        function get3DDisplayMaterialOptions(category, extra = {}) {
+            const appearance = get3DDisplayAppearance(category);
+            return {
+                color: get3DDisplayColor(category),
+                transparent: appearance.opacity < 0.995,
+                opacity: appearance.opacity,
+                depthWrite: appearance.opacity >= 0.72,
+                ...extra
+            };
+        }
+
+        function schedule3DDisplayRender() {
+            if (!view3DInitialized || view3DDisplayRenderRequest) return;
+            view3DDisplayRenderRequest = requestAnimationFrame(() => {
+                view3DDisplayRenderRequest = 0;
+                render3DFrame();
+            });
+        }
+
+        function sync3DDisplayControls() {
+            const scheme = document.getElementById('display3DScheme');
+            const outlines = document.getElementById('display3DOutlines');
+            if (scheme) scheme.value = view3DDisplaySettings.scheme;
+            if (outlines) outlines.checked = view3DDisplaySettings.outlines;
+            VIEW3D_DISPLAY_CATEGORIES.forEach(category => {
+                const appearance = get3DDisplayAppearance(category.key);
+                const color = document.getElementById(`display3D${category.key}Color`);
+                const opacity = document.getElementById(`display3D${category.key}Opacity`);
+                const value = document.getElementById(`display3D${category.key}Value`);
+                if (color) color.value = appearance.color;
+                if (opacity) opacity.value = Math.round(appearance.opacity * 100);
+                if (value) value.textContent = `${Math.round(appearance.opacity * 100)}%`;
+            });
+        }
+
+        function init3DDisplayControls() {
+            const host = document.getElementById('display3DMemberControls');
+            if (!host) return;
+            host.innerHTML = VIEW3D_DISPLAY_CATEGORIES.map(category => `
+                <div class="display-3d-field">
+                    <span>${category.label}</span>
+                    <input type="color" id="display3D${category.key}Color" aria-label="${category.label} color"
+                        oninput="update3DCategorySetting('${category.key}', 'color', this.value)">
+                    <input type="range" id="display3D${category.key}Opacity" min="5" max="100" step="1"
+                        aria-label="${category.label} opacity"
+                        oninput="update3DCategorySetting('${category.key}', 'opacity', Number(this.value) / 100)">
+                    <span class="display-3d-value" id="display3D${category.key}Value"></span>
+                </div>
+            `).join('');
+            sync3DDisplayControls();
+        }
+
+        function toggle3DDisplayPanel(forceOpen = null) {
+            const panel = document.getElementById('display3DPanel');
+            const trigger = document.getElementById('display3DTrigger');
+            if (!panel || !trigger) return;
+            const open = forceOpen === null ? panel.hidden : !!forceOpen;
+            panel.hidden = !open;
+            trigger.setAttribute('aria-expanded', String(open));
+        }
+
+        function apply3DDisplayPreset(name) {
+            if (!VIEW3D_DISPLAY_PRESETS[name]) return;
+            view3DDisplaySettings = clone3DDisplayPreset(name);
+            save3DDisplaySettings();
+            sync3DDisplayControls();
+            schedule3DDisplayRender();
+        }
+
+        function update3DCategorySetting(category, field, value) {
+            if (!view3DDisplaySettings.categories[category]) return;
+            if (field === 'color' && /^#[0-9a-f]{6}$/i.test(String(value))) {
+                view3DDisplaySettings.categories[category].color = String(value).toLowerCase();
+            } else if (field === 'opacity') {
+                view3DDisplaySettings.categories[category].opacity = Math.min(1, Math.max(0.05, Number(value) || 0.05));
+            } else {
+                return;
+            }
+            view3DDisplaySettings.scheme = 'custom';
+            save3DDisplaySettings();
+            sync3DDisplayControls();
+            schedule3DDisplayRender();
+        }
+
+        function update3DOutlineSetting(checked) {
+            view3DDisplaySettings.outlines = !!checked;
+            view3DDisplaySettings.scheme = 'custom';
+            save3DDisplaySettings();
+            sync3DDisplayControls();
+            schedule3DDisplayRender();
+        }
+
+        function reset3DDisplaySettings() {
+            view3DDisplaySettings = clone3DDisplayPreset('professional');
+            save3DDisplaySettings();
+            sync3DDisplayControls();
+            schedule3DDisplayRender();
+        }
 
         function get3DThemeBackground() {
             const theme = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -12508,11 +13476,106 @@
             return VIEW3D_COLORS.backgroundDark;
         }
 
+        function add3DMeshEdges(mesh, color, opacity = 0.45) {
+            if (!mesh?.isMesh || !mesh.geometry) return;
+            const edgeGeometry = new THREE.EdgesGeometry(mesh.geometry, 24);
+            const edgeMaterial = new THREE.LineBasicMaterial({
+                color,
+                transparent: true,
+                opacity,
+                depthWrite: false
+            });
+            const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+            edges.renderOrder = (mesh.renderOrder || 0) + 1;
+            edges.raycast = () => {};
+            mesh.add(edges);
+        }
+
+        function apply3DMeshPresentation(mesh) {
+            const type = mesh?.userData?.type;
+            if (!mesh?.isMesh || !type) return;
+
+            mesh.castShadow = type !== 'slab';
+            mesh.receiveShadow = true;
+
+            if (!view3DDisplaySettings.outlines) return;
+
+            if (type === 'slab') {
+                add3DMeshEdges(mesh, VIEW3D_COLORS.slabEdge, 0.68);
+            } else if (type === 'footing' || type === 'pedestal' || type === 'tieBeam') {
+                add3DMeshEdges(mesh, VIEW3D_COLORS.foundationEdge, 0.55);
+            } else {
+                add3DMeshEdges(mesh, VIEW3D_COLORS.structuralEdge, 0.42);
+            }
+        }
+
         function clone3DArray(items) {
             return (items || []).map(item => ({
                 ...item,
                 slices: Array.isArray(item.slices) ? item.slices.map(slice => ({ ...slice })) : item.slices
             }));
+        }
+
+        function getStairOpeningsForFloor(floorId) {
+            return normalizeStairList(state.stairs)
+                .filter(stair => stair.toFloorId === floorId && stair.opening)
+                .map(stair => ({ stairId: stair.id, ...stair.opening }));
+        }
+
+        function splitSlabRectByOpening(slab, opening, suffix = 'OP') {
+            if (!slab || slab.isCantilever || !opening) return [slab];
+            const sx1 = Math.min(Number(slab.x1) || 0, Number(slab.x2) || 0);
+            const sy1 = Math.min(Number(slab.y1) || 0, Number(slab.y2) || 0);
+            const sx2 = Math.max(Number(slab.x1) || 0, Number(slab.x2) || 0);
+            const sy2 = Math.max(Number(slab.y1) || 0, Number(slab.y2) || 0);
+            const ox1 = Math.max(sx1, Math.min(Number(opening.x1) || 0, Number(opening.x2) || 0));
+            const oy1 = Math.max(sy1, Math.min(Number(opening.y1) || 0, Number(opening.y2) || 0));
+            const ox2 = Math.min(sx2, Math.max(Number(opening.x1) || 0, Number(opening.x2) || 0));
+            const oy2 = Math.min(sy2, Math.max(Number(opening.y1) || 0, Number(opening.y2) || 0));
+            if (ox2 - ox1 <= 0.01 || oy2 - oy1 <= 0.01) return [slab];
+
+            const rectangles = [
+                [sx1, sy1, sx2, oy1],
+                [sx1, oy2, sx2, sy2],
+                [sx1, oy1, ox1, oy2],
+                [ox2, oy1, sx2, oy2]
+            ].filter(rect => rect[2] - rect[0] > 0.01 && rect[3] - rect[1] > 0.01);
+
+            return rectangles.map((rect, index) => {
+                const lx = rect[2] - rect[0];
+                const ly = rect[3] - rect[1];
+                return {
+                    ...slab,
+                    id: `${slab.id}-${suffix}-${index + 1}`,
+                    parentId: slab.parentId || slab.id,
+                    sourceSlabId: slab.sourceSlabId || slab.id,
+                    x1: rect[0],
+                    y1: rect[1],
+                    x2: rect[2],
+                    y2: rect[3],
+                    lx,
+                    ly,
+                    width: lx,
+                    height: ly,
+                    area: lx * ly,
+                    netArea: lx * ly,
+                    openingW: 0,
+                    openingH: 0,
+                    isStairOpeningFragment: true
+                };
+            });
+        }
+
+        function splitSlabsAroundStairOpenings(slabs, floorId) {
+            const openings = getStairOpeningsForFloor(floorId);
+            if (!openings.length) return slabs || [];
+            return (slabs || []).flatMap(slab => {
+                let fragments = [slab];
+                openings.forEach((opening, index) => {
+                    fragments = fragments.flatMap(fragment => splitSlabRectByOpening(fragment, opening, `ST${index + 1}`));
+                });
+                return fragments;
+            });
         }
 
         function collect3DFloorGeometry() {
@@ -12536,7 +13599,7 @@
 
                     floorGeometry.set(floor.id, {
                         beams: clone3DArray(state.beams).filter(beam => !deletedBeams.has(beam.id)),
-                        slabs: clone3DArray(getActiveSlabs({ floorId: floor.id }))
+                        slabs: clone3DArray(splitSlabsAroundStairOpenings(getActiveSlabs({ floorId: floor.id }), floor.id))
                     });
                 });
             } finally {
@@ -12638,6 +13701,13 @@
                 rows.push(['Panel', `${format3DMetric(member.lx, 'm', 2)} x ${format3DMetric(member.ly, 'm', 2)}`]);
                 rows.push(['Area', format3DMetric(member.netArea || member.area, 'm2', 2)]);
                 rows.push(['Thickness', `${member.thicknessMm || 150} mm`]);
+            } else if (data.type === 'stair') {
+                rows.push(['Levels', `${member.fromFloorId || '-'} to ${member.toFloorId || '-'}`]);
+                rows.push(['Part', member.part || member.type || 'flight']);
+                rows.push(['Configuration', member.type === 'straight' ? 'straight' : 'dog-leg']);
+                rows.push(['Width', format3DMetric(member.widthM, 'm', 2)]);
+                rows.push(['Rise / tread', `${format3DMetric(member.actualRiseMm, 'mm', 1)} / ${format3DMetric(member.treadMm, 'mm', 0)}`]);
+                rows.push(['Waist', format3DMetric(member.waistMm, 'mm', 0)]);
             } else if (data.type === 'footing') {
                 rows.push(['Column', member.columnId || data.id]);
                 rows.push(['Size', format3DMetric(member.size, 'm', 2)]);
@@ -12690,7 +13760,7 @@
             scene3D.background = new THREE.Color(get3DThemeBackground());
 
             // Camera
-            camera3D = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera3D = new THREE.PerspectiveCamera(48, container.clientWidth / container.clientHeight, 0.1, 1000);
             camera3D.position.set(25, 30, 25);
             camera3D.lookAt(0, 5, 0);
 
@@ -12699,6 +13769,10 @@
             renderer3D.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
             renderer3D.setSize(container.clientWidth, container.clientHeight);
             renderer3D.outputEncoding = THREE.sRGBEncoding;
+            renderer3D.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer3D.toneMappingExposure = 1.05;
+            renderer3D.shadowMap.enabled = true;
+            renderer3D.shadowMap.type = THREE.PCFSoftShadowMap;
 
             // v3.0 FIX: Set initial background color based on current theme
             renderer3D.setClearColor(get3DThemeBackground());
@@ -12712,9 +13786,19 @@
             controls3D.target.set(0, 5, 0);
 
             // Lights
-            scene3D.add(new THREE.AmbientLight(0xffffff, 0.72));
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.62);
-            dirLight.position.set(20, 30, 20);
+            scene3D.add(new THREE.AmbientLight(0xffffff, 0.38));
+            scene3D.add(new THREE.HemisphereLight(0xdbeafe, 0x334155, 0.72));
+            const dirLight = new THREE.DirectionalLight(0xfffdf7, 1.05);
+            dirLight.position.set(18, 28, 14);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.set(2048, 2048);
+            dirLight.shadow.camera.left = -24;
+            dirLight.shadow.camera.right = 24;
+            dirLight.shadow.camera.top = 24;
+            dirLight.shadow.camera.bottom = -24;
+            dirLight.shadow.camera.near = 1;
+            dirLight.shadow.camera.far = 80;
+            dirLight.shadow.bias = -0.0002;
             scene3D.add(dirLight);
 
             // v3.0: Raycaster for 3D click detection
@@ -13086,11 +14170,127 @@
             }
         }
 
+        function add3DStairFlight(stair, start, end, widthM, waistM, offsetX, offsetZ, partId) {
+            const vector = new THREE.Vector3(end.x - start.x, end.y - start.y, end.z - start.z);
+            const length = vector.length();
+            if (length <= 0.05) return;
+            const geometry = new THREE.BoxGeometry(length, waistM, widthM);
+            const material = new THREE.MeshStandardMaterial(get3DDisplayMaterialOptions('stairs', {
+                roughness: 0.72,
+                metalness: 0.01
+            }));
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), vector.clone().normalize());
+            mesh.position.set(
+                (start.x + end.x) / 2 + offsetX,
+                (start.y + end.y) / 2 - waistM / 2,
+                (start.z + end.z) / 2 + offsetZ
+            );
+            mesh.userData = {
+                type: 'stair',
+                id: `${stair.id}-${partId}`,
+                floorId: stair.fromFloorId,
+                member: { ...stair, part: partId, span: length }
+            };
+            scene3D.add(mesh);
+            meshes3D.push(mesh);
+        }
+
+        function add3DStairLanding(stair, centerX, centerY, centerZ, sizeX, sizeZ, waistM, offsetX, offsetZ) {
+            const geometry = new THREE.BoxGeometry(Math.max(0.1, sizeX), waistM, Math.max(0.1, sizeZ));
+            const material = new THREE.MeshStandardMaterial(get3DDisplayMaterialOptions('stairs', {
+                roughness: 0.76,
+                metalness: 0.01
+            }));
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(centerX + offsetX, centerY - waistM / 2, centerZ + offsetZ);
+            mesh.userData = {
+                type: 'stair',
+                id: `${stair.id}-LANDING`,
+                floorId: stair.fromFloorId,
+                member: { ...stair, part: 'landing' }
+            };
+            scene3D.add(mesh);
+            meshes3D.push(mesh);
+        }
+
+        function add3DStairMeshes(offsetX, offsetZ) {
+            const elevations = getExportStoryElevations(state.floors || []);
+            normalizeStairList(state.stairs).forEach(stair => {
+                const fromIndex = state.floors.findIndex(floor => floor.id === stair.fromFloorId);
+                const toIndex = state.floors.findIndex(floor => floor.id === stair.toFloorId);
+                if (fromIndex < 0 || toIndex !== fromIndex + 1) return;
+                const lowerY = elevations[fromIndex + 1];
+                const upperY = elevations[toIndex + 1];
+                const midY = (lowerY + upperY) / 2;
+                const waistM = stair.waistMm / 1000;
+                const b = stair.bounds;
+                const isX = stair.axis === 'X';
+                const farRun = isX ? b.x2 - stair.landingM : b.y2 - stair.landingM;
+
+                if (stair.type === 'dogleg') {
+                    if (isX) {
+                        const lane1 = b.y1 + stair.widthM / 2;
+                        const lane2 = b.y2 - stair.widthM / 2;
+                        add3DStairFlight(stair,
+                            { x: b.x1, y: lowerY, z: lane1 },
+                            { x: farRun, y: midY, z: lane1 },
+                            stair.widthM, waistM, offsetX, offsetZ, 'FLIGHT-1');
+                        add3DStairFlight(stair,
+                            { x: farRun, y: midY, z: lane2 },
+                            { x: b.x1, y: upperY, z: lane2 },
+                            stair.widthM, waistM, offsetX, offsetZ, 'FLIGHT-2');
+                        add3DStairLanding(stair, b.x2 - stair.landingM / 2, midY, (b.y1 + b.y2) / 2,
+                            stair.landingM, b.y2 - b.y1, waistM, offsetX, offsetZ);
+                    } else {
+                        const lane1 = b.x1 + stair.widthM / 2;
+                        const lane2 = b.x2 - stair.widthM / 2;
+                        add3DStairFlight(stair,
+                            { x: lane1, y: lowerY, z: b.y1 },
+                            { x: lane1, y: midY, z: farRun },
+                            stair.widthM, waistM, offsetX, offsetZ, 'FLIGHT-1');
+                        add3DStairFlight(stair,
+                            { x: lane2, y: midY, z: farRun },
+                            { x: lane2, y: upperY, z: b.y1 },
+                            stair.widthM, waistM, offsetX, offsetZ, 'FLIGHT-2');
+                        add3DStairLanding(stair, (b.x1 + b.x2) / 2, midY, b.y2 - stair.landingM / 2,
+                            b.x2 - b.x1, stair.landingM, waistM, offsetX, offsetZ);
+                    }
+                } else if (isX) {
+                    const centerZ = (b.y1 + b.y2) / 2;
+                    add3DStairFlight(stair,
+                        { x: b.x1, y: lowerY, z: centerZ },
+                        { x: farRun, y: upperY, z: centerZ },
+                        stair.widthM, waistM, offsetX, offsetZ, 'FLIGHT-1');
+                    add3DStairLanding(stair, b.x2 - stair.landingM / 2, upperY, centerZ,
+                        stair.landingM, stair.widthM, waistM, offsetX, offsetZ);
+                } else {
+                    const centerX = (b.x1 + b.x2) / 2;
+                    add3DStairFlight(stair,
+                        { x: centerX, y: lowerY, z: b.y1 },
+                        { x: centerX, y: upperY, z: farRun },
+                        stair.widthM, waistM, offsetX, offsetZ, 'FLIGHT-1');
+                    add3DStairLanding(stair, centerX, upperY, b.y2 - stair.landingM / 2,
+                        stair.widthM, stair.landingM, waistM, offsetX, offsetZ);
+                }
+            });
+        }
+
         function render3DFrame() {
             if (!scene3D) return;
 
             // Clear previous meshes
-            meshes3D.forEach(m => scene3D.remove(m));
+            meshes3D.forEach(mesh => {
+                scene3D.remove(mesh);
+                mesh.traverse?.(item => {
+                    item.geometry?.dispose?.();
+                    const materials = Array.isArray(item.material) ? item.material : [item.material];
+                    materials.filter(Boolean).forEach(material => {
+                        material.map?.dispose?.();
+                        material.dispose?.();
+                    });
+                });
+            });
             meshes3D = [];
 
             // v3.10: Default member sizes in METERS (fallbacks for undefined properties)
@@ -13108,6 +14308,7 @@
             const offsetX = -totalX / 2;
             const offsetZ = -totalY / 2;
             const floorGeometryById = collect3DFloorGeometry();
+            const foundationPlanEnabled = isFoundationPlanEnabled();
             const showMemberTags = false;
             hide3DMemberInfo();
 
@@ -13115,7 +14316,9 @@
             let cumulativeY = 0;
             const currentViewFloor = state.floors[state.currentFloorIndex];
             const currentViewDeletedBeams = currentViewFloor?.deletedBeams || [];
-            const currentViewDeletedColumns = currentViewFloor?.deletedColumns || [];
+            const foundationFloor = state.floors[0];
+            const foundationFloorId = foundationFloor?.id;
+            const foundationDeletedColumns = foundationFloor?.deletedColumns || [];
 
             // For each floor
             state.floors.forEach((floor, fi) => {
@@ -13146,14 +14349,11 @@
                     const colD = colSizeActual.d;
                     const geo = new THREE.BoxGeometry(colB, floor.height, colD);
 
-                    let colColor = VIEW3D_COLORS.column;
-                    if (col.isPlanted) colColor = VIEW3D_COLORS.plantedColumn;
-
-                    const mat = new THREE.MeshStandardMaterial({
-                        color: colColor,
+                    const colColor = get3DDisplayColor('columns');
+                    const mat = new THREE.MeshStandardMaterial(get3DDisplayMaterialOptions('columns', {
                         roughness: 0.72,
                         metalness: 0.02
-                    });
+                    }));
                     const mesh = new THREE.Mesh(geo, mat);
                     const colPos = getColumnPlanPosition(col);
                     mesh.position.set(colPos.x + offsetX, baseY + floor.height / 2, colPos.y + offsetZ);
@@ -13188,7 +14388,8 @@
                     // v2.7: Skip beams connected to inactive columns
                     const startCol = state.columns.find(c => c.id === beam.startCol);
                     const endCol = state.columns.find(c => c.id === beam.endCol);
-                    if ((startCol && startCol.active === false) || (endCol && endCol.active === false)) {
+                    if ((startCol && !isColumnActiveOnFloor(startCol, floor.id)) ||
+                        (endCol && !isColumnActiveOnFloor(endCol, floor.id))) {
                         continue;
                     }
 
@@ -13207,13 +14408,12 @@
                         ? new THREE.BoxGeometry(length, beamDepth, beamWidth)
                         : new THREE.BoxGeometry(beamWidth, beamDepth, length);
 
-                    const beamColor = beam.isEdgeBeam ? VIEW3D_COLORS.edgeBeam :
-                        beam.isCantilever ? VIEW3D_COLORS.cantileverBeam : VIEW3D_COLORS.beam;
-                    const mat = new THREE.MeshStandardMaterial({
-                        color: beamColor,
+                    const beamCategory = (beam.isEdgeBeam || beam.isCantilever) ? 'cantilevers' : 'beams';
+                    const beamColor = get3DDisplayColor(beamCategory);
+                    const mat = new THREE.MeshStandardMaterial(get3DDisplayMaterialOptions(beamCategory, {
                         roughness: 0.68,
                         metalness: 0.03
-                    });
+                    }));
                     const mesh = new THREE.Mesh(geo, mat);
 
                     // Position at midpoint
@@ -13224,6 +14424,7 @@
                         ? beam.y1 + beamPlanOffset.offsetY
                         : renderedSegment.midY) + offsetZ;
                     mesh.position.set(mx, baseY + floor.height - beamDepth / 2, mz);
+                    mesh.renderOrder = 2;
 
                     // v3.0: Store data for click detection
                     mesh.userData = { type: 'beam', id: beam.id, floorId: floor.id, member: { ...beam, length } };
@@ -13268,11 +14469,10 @@
                         ? new THREE.BoxGeometry(length, cbH, cbW)
                         : new THREE.BoxGeometry(cbW, cbH, length);
 
-                    const mat = new THREE.MeshStandardMaterial({
-                        color: VIEW3D_COLORS.customBeam,
+                    const mat = new THREE.MeshStandardMaterial(get3DDisplayMaterialOptions('beams', {
                         roughness: 0.7,
                         metalness: 0.02
-                    });
+                    }));
                     const mesh = new THREE.Mesh(geo, mat);
                     mesh.position.set(cbX, baseY + floor.height - cbH / 2, cbZ);
                     mesh.userData = {
@@ -13292,28 +14492,23 @@
                 for (let slab of floorGeometry.slabs) {
                     if (!isActiveSlab(slab, { floorId: floor.id })) continue;
 
-                    // v3.9: Use BoxGeometry with actual slab thickness instead of flat plane
-                    const slabInset = Math.min(0.12, Math.min(slab.lx, slab.ly) * 0.06);
+                    // Use the exact slab plan extents and dashboard thickness.
                     const geo = new THREE.BoxGeometry(
-                        Math.max(0.05, slab.lx - slabInset * 2),
+                        Math.max(0.05, slab.lx),
                         slabThickness,
-                        Math.max(0.05, slab.ly - slabInset * 2)
+                        Math.max(0.05, slab.ly)
                     );
-                    const mat = new THREE.MeshStandardMaterial({
-                        color: slab.isTwoWay ? VIEW3D_COLORS.slab : VIEW3D_COLORS.oneWaySlab,
+                    const mat = new THREE.MeshStandardMaterial(get3DDisplayMaterialOptions('slabs', {
                         transparent: true,
-                        opacity: 0.28,
-                        roughness: 0.82,
+                        roughness: 0.74,
                         metalness: 0,
-                        depthWrite: false,
-                        polygonOffset: true,
-                        polygonOffsetFactor: -1,
-                        polygonOffsetUnits: -1
-                    });
+                        side: THREE.DoubleSide,
+                        depthWrite: false
+                    }));
                     const mesh = new THREE.Mesh(geo, mat);
                     mesh.position.set(
                         slab.x1 + slab.lx / 2 + offsetX,
-                        baseY + floor.height - slabThickness / 2 + 0.015,
+                        baseY + floor.height - slabThickness / 2,
                         slab.y1 + slab.ly / 2 + offsetZ
                     );
                     mesh.renderOrder = 1;
@@ -13330,6 +14525,8 @@
                 // Update cumulative height for next floor
                 cumulativeY += floor.height;
             });
+
+            add3DStairMeshes(offsetX, offsetZ);
 
             // v2.6: ELEVATED GF BEAMS - when gfSuspended is checked
             const elevationHeight = state.gfSuspended
@@ -13352,11 +14549,10 @@
                         ? new THREE.BoxGeometry(length, beamH, beamW)
                         : new THREE.BoxGeometry(beamW, beamH, length);
 
-                    const mat = new THREE.MeshStandardMaterial({
-                        color: VIEW3D_COLORS.beam,
+                    const mat = new THREE.MeshStandardMaterial(get3DDisplayMaterialOptions('beams', {
                         roughness: 0.7,
                         metalness: 0.02
-                    });
+                    }));
                     const mesh = new THREE.Mesh(geo, mat);
 
                     const mx = renderedSegment.midX + offsetX;
@@ -13374,34 +14570,33 @@
             const footingDepth = state.footingDepth;
             const residentialFootingThick = RESIDENTIAL_FOOTING_THICKNESS_MM / 1000;
 
-            for (let col of state.columns) {
+            if (foundationPlanEnabled) for (let col of state.columns) {
                 // v2.7: Skip footings for inactive columns
-                if (col.active === false) continue;
-                if (currentViewDeletedColumns.includes(col.id)) continue;
+                if (foundationFloorId && !isColumnActiveOnFloor(col, foundationFloorId)) continue;
+                if (foundationDeletedColumns.includes(col.id)) continue;
 
                 // v3.0 FIX: Skip footings for planted columns (they sit on beams, not ground)
                 if (col.startFloor || col.isPlanted) continue;
 
-                const size = col.footingSize || 0.8;
+                const size = Number(col.footingSize) || 0;
+                if (size <= 0) continue;
                 const adjustedThick = col.footingD || col.footingThick || residentialFootingThick;
 
                 // Footing geometry
                 const geo = new THREE.BoxGeometry(size, adjustedThick, size);
-                const mat = new THREE.MeshStandardMaterial({
-                    color: VIEW3D_COLORS.footing,
-                    transparent: true,
-                    opacity: 0.58,
+                const mat = new THREE.MeshStandardMaterial(get3DDisplayMaterialOptions('foundations', {
                     roughness: 0.86,
                     metalness: 0
-                });
+                }));
                 const mesh = new THREE.Mesh(geo, mat);
+                const colPos = getColumnPlanPosition(col);
 
                 // Position below ground - all tops at same level
                 const footingTopY = -footingDepth + adjustedThick;
                 mesh.position.set(
-                    col.x + offsetX,
+                    colPos.x + offsetX,
                     footingTopY - adjustedThick / 2,
-                    col.y + offsetZ
+                    colPos.y + offsetZ
                 );
                 mesh.userData = {
                     type: 'footing',
@@ -13417,13 +14612,22 @@
                 const pedColB = pedColSize.b;  // v3.10: Match column dimensions
                 const pedColD = pedColSize.d;
                 const pedestalGeo = new THREE.BoxGeometry(pedColB, footingDepth - adjustedThick, pedColD);
-                const pedestalMat = new THREE.MeshStandardMaterial({ color: VIEW3D_COLORS.pedestal, roughness: 0.78 });
+                const pedestalMat = new THREE.MeshStandardMaterial(get3DDisplayMaterialOptions('foundations', {
+                    roughness: 0.78,
+                    metalness: 0
+                }));
                 const pedestal = new THREE.Mesh(pedestalGeo, pedestalMat);
                 pedestal.position.set(
-                    col.x + offsetX,
+                    colPos.x + offsetX,
                     -(footingDepth - adjustedThick) / 2,
-                    col.y + offsetZ
+                    colPos.y + offsetZ
                 );
+                pedestal.userData = {
+                    type: 'pedestal',
+                    id: `P-${col.id}`,
+                    floorId: 'GND',
+                    member: { columnId: col.id, depth: footingDepth - adjustedThick }
+                };
                 scene3D.add(pedestal);
                 meshes3D.push(pedestal);
             }
@@ -13434,7 +14638,7 @@
             const tieBeamTopY = -footingDepth + residentialFootingThick + tieBeamH / 2;  // On top of standard footings
 
             const tieBeamGeometry = floorGeometryById.get(currentViewFloor?.id) || { beams: state.beams || [] };
-            for (let beam of tieBeamGeometry.beams) {
+            if (foundationPlanEnabled) for (let beam of tieBeamGeometry.beams) {
                 // v3.0 FIX: Skip custom beams - they belong to specific floors only
                 if (beam.isCustom) continue;
                 // v3.0 FIX: Skip cantilever and edge beams - tie beams only connect main grid columns
@@ -13450,11 +14654,10 @@
                     ? new THREE.BoxGeometry(length, tieBeamH, tieBeamW)
                     : new THREE.BoxGeometry(tieBeamW, tieBeamH, length);
 
-                const mat = new THREE.MeshStandardMaterial({
-                    color: VIEW3D_COLORS.tieBeam,
+                const mat = new THREE.MeshStandardMaterial(get3DDisplayMaterialOptions('foundations', {
                     roughness: 0.75,
                     metalness: 0.02
-                });
+                }));
                 const mesh = new THREE.Mesh(geo, mat);
 
                 const mx = renderedSegment.midX + offsetX;
@@ -13620,7 +14823,9 @@
             const groundMat = new THREE.MeshStandardMaterial({
                 color: theme === 'dark' ? 0x0f172a : 0xf8fafc,
                 transparent: true,
-                opacity: theme === 'dark' ? 0.72 : 0.96,
+                opacity: foundationPlanEnabled
+                    ? (theme === 'dark' ? 0.12 : 0.22)
+                    : (theme === 'dark' ? 0.72 : 0.96),
                 roughness: 0.88,
                 metalness: 0,
                 side: THREE.DoubleSide,
@@ -13630,13 +14835,120 @@
             ground.rotation.x = -Math.PI / 2;
             ground.position.set(0, -0.025, 0);  // Slightly below Y=0 to avoid z-fighting
             ground.renderOrder = -1;
+            ground.receiveShadow = true;
             scene3D.add(ground);
             meshes3D.push(ground);
 
+            meshes3D.forEach(apply3DMeshPresentation);
+
+            const meshCounts = meshes3D.reduce((counts, mesh) => {
+                const type = mesh?.userData?.type;
+                if (type) counts[type] = (counts[type] || 0) + 1;
+                return counts;
+            }, {});
+            const beamMeshes = meshes3D.filter(mesh => ['beam', 'customBeam'].includes(mesh?.userData?.type));
+            const slabMeshes = meshes3D.filter(mesh => mesh?.userData?.type === 'slab');
+            const foundationMeshes = meshes3D.filter(mesh => ['footing', 'pedestal'].includes(mesh?.userData?.type));
+            const beamTopElevations = beamMeshes.map(mesh =>
+                mesh.position.y + Number(mesh.geometry?.parameters?.height || 0) / 2);
+            const slabTopElevations = slabMeshes.map(mesh =>
+                mesh.position.y + Number(mesh.geometry?.parameters?.height || 0) / 2);
+            const storyElevations = state.floors.map((floor, index) =>
+                state.floors.slice(0, index + 1)
+                    .reduce((sum, item) => sum + (Number(item.height) || 3), 0));
+            const slabTopAtStoryLevel = slabTopElevations.every(value =>
+                storyElevations.some(elevation => Math.abs(value - elevation) < 1e-6));
+            const slabThicknessMatchesFloor = slabMeshes.every(mesh => {
+                const floor = state.floors.find(item => item.id === mesh.userData.floorId);
+                const expected = (Number(floor?.slabThickness) || 150) / 1000;
+                return Math.abs(Number(mesh.geometry?.parameters?.height || 0) - expected) < 1e-9;
+            });
+            const foundationCenterlineDeltas = foundationMeshes.map(mesh => {
+                const columnId = mesh.userData?.member?.columnId;
+                const column = state.columns.find(item => item.id === columnId);
+                if (!column) return Number.POSITIVE_INFINITY;
+                const expected = getColumnPlanPosition(column);
+                return Math.hypot(
+                    mesh.position.x - (expected.x + offsetX),
+                    mesh.position.z - (expected.y + offsetZ)
+                );
+            });
+            const foundationCenterlineMaxDeltaM = foundationCenterlineDeltas.length
+                ? Math.max(...foundationCenterlineDeltas)
+                : 0;
+            window.last3DModelDiagnostics = {
+                foundationMode: normalizeFoundationMode(state.foundationMode),
+                foundationPlanEnabled,
+                meshCounts,
+                structuralCounts: {
+                    beams: beamMeshes.length,
+                    slabs: slabMeshes.length,
+                    columns: meshCounts.column || 0,
+                    footings: meshCounts.footing || 0,
+                    pedestals: meshCounts.pedestal || 0,
+                    tieBeams: meshCounts.tieBeam || 0
+                },
+                calculatedFoundationColumns: state.columns.filter(col =>
+                    (!foundationFloorId || isColumnActiveOnFloor(col, foundationFloorId)) &&
+                    !col.startFloor && !col.isPlanted && Number(col.footingSize) > 0
+                ).length,
+                beamTopElevations,
+                slabTopElevations,
+                slabThicknessMatchesFloor,
+                slabTopAtStoryLevel,
+                beamSlabTopAligned: slabTopAtStoryLevel && beamTopElevations.every(value =>
+                    storyElevations.some(elevation => Math.abs(value - elevation) < 1e-6)),
+                foundationCenterlineMaxDeltaM,
+                beamTopAtStoryLevel: beamTopElevations.every(value =>
+                    storyElevations.some(elevation => Math.abs(value - elevation) < 1e-6)
+                )
+            };
+
             // Update camera target to center (including footings)
-            const centerY = (state.floors.length * 3) / 2 - footingDepth / 2;
+            const totalBuildingHeight = state.floors.reduce(
+                (sum, floor) => sum + (Number(floor.height) || 3),
+                0
+            );
+            const centerY = (totalBuildingHeight - footingDepth) / 2;
+            const planSpan = Math.max(totalX, totalY, 6);
+            const narrowAspectFactor = camera3D.aspect < 1 ? Math.min(1.8, 1 / camera3D.aspect) : 1;
+            const cameraPlanDistance = planSpan * 0.9 * narrowAspectFactor;
             controls3D.target.set(0, centerY, 0);
-            camera3D.position.set(totalX * 1.5, centerY + 15, totalY * 1.5);
+            camera3D.position.set(
+                cameraPlanDistance,
+                centerY + Math.max(7, totalBuildingHeight * 1.25),
+                cameraPlanDistance * 0.84
+            );
+            controls3D.update();
+            renderer3D.render(scene3D, camera3D);
+
+            window.last3DModelDiagnostics.canvasPixels = null;
+            if (window.FS_ENABLE_3D_PIXEL_AUDIT === true) {
+                const gl = renderer3D.getContext();
+                const pixelWidth = gl.drawingBufferWidth;
+                const pixelHeight = gl.drawingBufferHeight;
+                const pixels = new Uint8Array(pixelWidth * pixelHeight * 4);
+                gl.readPixels(0, 0, pixelWidth, pixelHeight, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+                const background = new THREE.Color(get3DThemeBackground());
+                const backgroundRgb = [
+                    Math.round(background.r * 255),
+                    Math.round(background.g * 255),
+                    Math.round(background.b * 255)
+                ];
+                let nonBackgroundPixels = 0;
+                for (let i = 0; i < pixels.length; i += 4) {
+                    const difference = Math.abs(pixels[i] - backgroundRgb[0]) +
+                        Math.abs(pixels[i + 1] - backgroundRgb[1]) +
+                        Math.abs(pixels[i + 2] - backgroundRgb[2]);
+                    if (pixels[i + 3] > 0 && difference > 30) nonBackgroundPixels += 1;
+                }
+                window.last3DModelDiagnostics.canvasPixels = {
+                    width: pixelWidth,
+                    height: pixelHeight,
+                    nonBackgroundPixels,
+                    coverage: pixels.length ? nonBackgroundPixels / (pixels.length / 4) : 0
+                };
+            }
         }
 
         function setView(mode) {
@@ -13795,9 +15107,12 @@
         // ========== v3.0: SAVE/LOAD PROJECT ==========
         let currentProjectFileHandle = null;
         let currentProjectFileName = '';
+        let currentProjectBaselineFloorCount = null;
         const PROJECT_AUTOSAVE_KEY = 'FutolStructure.autosave.v1';
+        const PROJECT_AUTOSAVE_QUARANTINE_KEY = 'FutolStructure.autosave.quarantine.v1';
         let projectAutosaveTimer = null;
         let autosaveSuppressed = false;
+        let startupAutosaveWarning = null;
 
         function withFstrExtension(filename) {
             const clean = String(filename || '').trim() || `FutolStructure_${new Date().toISOString().split('T')[0]}`;
@@ -13854,6 +15169,7 @@
                 ySpans: state.ySpans || [5.0, 5.0],
                 gridBubbleOffsetPx: getGridBubbleOffsetPx(),
                 cantilevers: state.cantilevers || { top: [], bottom: [], left: [], right: [] },
+                stairs: normalizeStairList(state.stairs),
                 floors: (state.floors || []).map(f => ({
                     id: f.id,
                     name: f.name,
@@ -13867,6 +15183,7 @@
                     cantilevers: f.cantilevers || { top: [], bottom: [], left: [], right: [] },
                     customBeams: f.customBeams || [],
                     voidSlabs: collectPersistedVoidSlabIdsForFloor(f),
+                    cornerSlabs: normalizeCornerSlabList(f.cornerSlabs),
                     slabOpenings: f.slabOpenings || [],
                     wallLoads: normalizeWallLoadList(f.wallLoads, { floorId: f.id, floorHeight: f.height }),
                     pointLoads: f.pointLoads || [],
@@ -13938,8 +15255,20 @@
             await writable.close();
         }
 
+        function confirmFloorCountReductionBeforeSave(saveAs = false) {
+            if (saveAs || !Number.isFinite(currentProjectBaselineFloorCount) ||
+                state.floors.length >= currentProjectBaselineFloorCount) return true;
+            const removedCount = currentProjectBaselineFloorCount - state.floors.length;
+            return confirm(
+                `This save will overwrite the current project with ${removedCount} fewer floor(s) ` +
+                `(${currentProjectBaselineFloorCount} -> ${state.floors.length}).\n\n` +
+                'Continue only if the floor deletion was intentional.'
+            );
+        }
+
         async function saveProject(saveAs = false) {
             try {
+                if (!confirmFloorCountReductionBeforeSave(saveAs)) return;
                 const projectData = buildProjectData();
                 const json = JSON.stringify(projectData, null, 2);
 
@@ -13959,6 +15288,7 @@
 
                     currentProjectFileName = currentProjectFileHandle?.name || getDefaultProjectFileName();
                     await writeProjectToHandle(currentProjectFileHandle, json);
+                    currentProjectBaselineFloorCount = state.floors.length;
                     console.log('v3.0: Project saved!', projectData);
                     alert(`Project saved: ${ currentProjectFileName }`);
                     return;
@@ -13966,6 +15296,7 @@
 
                 const fallbackName = getProjectFileNameForSave(saveAs);
                 downloadProjectJson(json, fallbackName);
+                currentProjectBaselineFloorCount = state.floors.length;
                 console.log('v3.0: Project downloaded!', projectData);
                 alert('Project downloaded as .fstr. Browser file-handle save is not available in this session.');
             } catch (err) {
@@ -14005,18 +15336,85 @@
             }
         }
 
+        function auditAutosaveStructuralIntegrity(projectData) {
+            const floors = Array.isArray(projectData?.floors) ? projectData.floors : [];
+            const overrides = Array.isArray(projectData?.columnOverrides) ? projectData.columnOverrides : [];
+            if (!floors.length || !overrides.length) return { valid: true, issues: [] };
+
+            const bayCount = Math.max(0,
+                (projectData.xSpans || []).length * (projectData.ySpans || []).length);
+            const issues = floors.flatMap(floor => {
+                const floorId = floor?.id;
+                const activeColumns = overrides.filter(column => {
+                    const perFloor = column?.activePerFloor;
+                    if (perFloor && Object.prototype.hasOwnProperty.call(perFloor, floorId)) {
+                        return perFloor[floorId] !== false;
+                    }
+                    return column?.active !== false;
+                }).length;
+                const regularVoidCount = (floor?.voidSlabs || [])
+                    .filter(id => /^S\d+$/i.test(String(id))).length;
+                const activeRegularSlabs = Math.max(0, bayCount - regularVoidCount);
+                const activeCantilevers = ['top', 'right', 'bottom', 'left'].reduce((sum, edge) =>
+                    sum + ((floor?.cantilevers?.[edge] || [])
+                        .filter(value => getCantileverProjection(value) > 0).length), 0);
+                if ((activeRegularSlabs > 0 || activeCantilevers > 0) && activeColumns < 2) {
+                    return [{ floorId, activeColumns, activeRegularSlabs, activeCantilevers }];
+                }
+                return [];
+            });
+            return { valid: issues.length === 0, issues };
+        }
+
+        function quarantineStartupAutosave(raw, projectData, reason, detail) {
+            try {
+                localStorage.setItem(PROJECT_AUTOSAVE_QUARANTINE_KEY, raw);
+            } catch (err) {
+                console.warn('Autosave quarantine backup skipped:', err);
+            }
+            startupAutosaveWarning = {
+                reason,
+                detail,
+                savedAt: projectData?.autosaveMeta?.savedAt || projectData?.savedAt || '',
+                sourceName: projectData?.autosaveMeta?.sourceName || ''
+            };
+            console.warn(`Autosave restore blocked (${reason}): ${detail}`);
+        }
+
         function restoreAutosavedProjectOnStartup() {
             try {
                 const raw = localStorage.getItem(PROJECT_AUTOSAVE_KEY);
                 if (!raw) return false;
                 const projectData = validateProjectData(JSON.parse(raw));
-                const isTrustedAutosave = projectData?.hiddenGeometryPolicy === FSTR_HIDDEN_GEOMETRY_POLICY
+                const isCompatibleAutosave = projectData?.hiddenGeometryPolicy === FSTR_HIDDEN_GEOMETRY_POLICY
                     && projectData?.autosaveMeta?.stateRevision === FSTR_AUTOSAVE_STATE_REVISION;
+                if (!isCompatibleAutosave) {
+                    quarantineStartupAutosave(
+                        raw,
+                        projectData,
+                        'incompatible revision',
+                        'The browser snapshot predates the current floor-aware column model. Open the saved .fstr file.'
+                    );
+                    return false;
+                }
+                const integrity = auditAutosaveStructuralIntegrity(projectData);
+                if (!integrity.valid) {
+                    const floors = integrity.issues.map(issue =>
+                        `${issue.floorId}: ${issue.activeColumns} columns / ${issue.activeRegularSlabs + issue.activeCantilevers} slab regions`
+                    ).join('; ');
+                    quarantineStartupAutosave(
+                        raw,
+                        projectData,
+                        'structural integrity',
+                        `Unsupported autosave state (${floors}). Open the saved .fstr file.`
+                    );
+                    return false;
+                }
                 applyLoadedProject(projectData, projectData.autosaveMeta?.sourceName || 'autosave', {
                     silent: true,
                     skipAutosave: true,
                     quarantineHiddenGeometry: true,
-                    forceQuarantineHiddenGeometry: !isTrustedAutosave
+                    forceQuarantineHiddenGeometry: false
                 });
                 return true;
             } catch (err) {
@@ -14089,6 +15487,9 @@
                 if (projectData.floors) {
                     state.floors = hydrateFloors(projectData.floors, state.xSpans, state.ySpans, state.cantilevers);
                 }
+                state.stairs = normalizeStairList(projectData.stairs);
+                state.nextStairId = getNextStairSequence(state.stairs);
+                state.stairs.forEach(stair => syncStairOpening(stair));
                 if (shouldQuarantineLoadedHiddenGeometry(projectData, options)) {
                     const count = quarantineLoadedHiddenGeometry(sourceName);
                     if (count) {
@@ -14225,6 +15626,7 @@
             fitView();
 
             currentProjectFileName = sourceName || currentProjectFileName || getDefaultProjectFileName();
+            currentProjectBaselineFloorCount = state.floors.length;
             console.log('v3.0: Project loaded!', projectData);
             if (!options.silent) {
                 alert(`Project loaded${ currentProjectFileName ? ': ' + currentProjectFileName : ' successfully!' }`);
@@ -14306,6 +15708,8 @@
                 createFloor('2F', '2nd Floor', 2, 2),
                 createFloor('RF', 'Roof', 2, 2, { dlSuper: 1.5, liveLoad: 1.0, slabThickness: 120, wallLoad: 0, isRoof: true })
             ];
+            state.stairs = [];
+            state.nextStairId = 1;
             state.currentFloorIndex = 0;
             state.gfSuspended = false;
             currentProjectFileHandle = null;
@@ -14563,6 +15967,8 @@
         function recoveryClearAutosave() {
             if (!confirm('Clear the local browser autosave snapshot? Saved .fstr files are not touched.')) return;
             clearProjectAutosaveSnapshot();
+            try { localStorage.removeItem(PROJECT_AUTOSAVE_QUARANTINE_KEY); } catch (err) { }
+            startupAutosaveWarning = null;
             populateRecoveryPanel();
         }
 
@@ -16479,10 +17885,19 @@ function designAllBeams() {
     if (!tbody) return;
 
     let html = '';
+    const floorId = state.floors[state.currentFloorIndex]?.id || '2F';
+    let rowNum = 0;
     state.beams.forEach(beam => {
         if (beam.isCustom || beam.isCantilever || beam.deleted) return;
-        const b = beam.suggestedB || 250; // mm
-        const h = beam.suggestedH || 400; // mm
+        rowNum++;
+        const beamTag = typeof getBeamPlanTableTag === 'function'
+            ? getBeamPlanTableTag(beam, floorId, rowNum)
+            : (beam.id || '-');
+        const beamSize = typeof getBeamSizeMm === 'function'
+            ? getBeamSizeMm(beam, floorId)
+            : { b: beam.suggestedB || 250, h: beam.suggestedH || 400 };
+        const b = beamSize.b; // mm
+        const h = beamSize.h; // mm
         const d = h - coverMm - 10; // effective depth
         const L = beam.span || 4.0; // m
         const wu = beam.uniformLoad || beam.totalDistributed || (beam.wallLoad || 0) + 15; // kN/m approx
@@ -16514,7 +17929,7 @@ function designAllBeams() {
         }
 
         html += '<tr>' +
-            '<td>' + (beam.id || '-') + '</td>' +
+            '<td>' + escapeInfoText(beamTag) + '</td>' +
             '<td>' + b + 'x' + h + '</td>' +
             '<td>' + L.toFixed(1) + '</td>' +
             '<td>' + wu.toFixed(1) + '</td>' +
@@ -16649,44 +18064,388 @@ function designAllSlabs() {
     tbody.innerHTML = html || '<tr><td colspan="9">No slabs</td></tr>';
 }
 
-// --- STAIRCASE LOADING ---
-function calculateStaircase() {
-    const rise = parseInt(document.getElementById('stairRise')?.value || 175);
-    const tread = parseInt(document.getElementById('stairTread')?.value || 275);
-    const waist = parseInt(document.getElementById('stairWaist')?.value || 150);
+// --- FS-113: STAIR BUILDER ---
+function getNextStairSequence(stairs = state.stairs) {
+    return Math.max(1, ...(stairs || []).map(stair => {
+        const match = String(stair?.id || '').match(/(\d+)$/);
+        return match ? Number(match[1]) + 1 : 1;
+    }));
+}
 
-    const theta = Math.atan(rise / tread) * 180 / Math.PI;
-    const cosTheta = Math.cos(theta * Math.PI / 180);
-    
-    // Effective slab thickness
-    const hStep = rise / 2; // mm - average step height
-    const tEff = waist / cosTheta + hStep; // mm
+function getStairLevelPairs() {
+    return (state.floors || []).slice(0, -1).map((floor, index) => ({
+        fromFloor: floor,
+        toFloor: state.floors[index + 1],
+        fromIndex: index,
+        toIndex: index + 1
+    }));
+}
 
-    // Dead load
-    const slabDL = (tEff / 1000) * 24; // kN/m2
-    const finishDL = 1.5; // kN/m2 (railing + finish)
-    const totalDL = slabDL + finishDL;
+function getStairGridCoordinates() {
+    const x = [0];
+    const y = [0];
+    (state.xSpans || []).forEach(span => x.push(x[x.length - 1] + Number(span || 0)));
+    (state.ySpans || []).forEach(span => y.push(y[y.length - 1] + Number(span || 0)));
+    return { x, y };
+}
 
-    // Live load
-    const LL = 4.8; // kN/m2 for stairs (NSCP)
+function populateStairBuilderSelectors() {
+    const pairSelect = document.getElementById('stairLevelPair');
+    const bayXSelect = document.getElementById('stairBayX');
+    const bayYSelect = document.getElementById('stairBayY');
+    if (!pairSelect || !bayXSelect || !bayYSelect) return;
 
-    // Factored
-    const wu = 1.2 * totalDL + 1.6 * LL;
+    const previousPair = pairSelect.value;
+    const previousX = bayXSelect.value;
+    const previousY = bayYSelect.value;
+    const pairs = getStairLevelPairs();
+    pairSelect.innerHTML = pairs.map(pair =>
+        `<option value="${pair.fromFloor.id}|${pair.toFloor.id}">${pair.fromFloor.id} to ${pair.toFloor.id}</option>`
+    ).join('');
+    const currentFloor = state.floors[state.currentFloorIndex];
+    const preferredPair = pairs.find(pair => pair.fromFloor.id === currentFloor?.id);
+    pairSelect.value = pairs.some(pair => `${pair.fromFloor.id}|${pair.toFloor.id}` === previousPair)
+        ? previousPair
+        : (preferredPair ? `${preferredPair.fromFloor.id}|${preferredPair.toFloor.id}` : (pairSelect.options[0]?.value || ''));
 
-    let html = '';
-    html += '<tr><td>Rise</td><td>' + rise + ' mm</td><td></td></tr>';
-    html += '<tr><td>Tread</td><td>' + tread + ' mm</td><td></td></tr>';
-    html += '<tr><td>Waist Thickness</td><td>' + waist + ' mm</td><td></td></tr>';
-    html += '<tr><td>Slope Angle</td><td>' + theta.toFixed(1) + '</td><td>degrees</td></tr>';
-    html += '<tr><td>Effective Thickness</td><td>' + tEff.toFixed(0) + '</td><td>mm</td></tr>';
-    html += '<tr style="border-top:1px solid #ccc;"><td>Slab Dead Load</td><td>' + slabDL.toFixed(2) + '</td><td>kN/m2</td></tr>';
-    html += '<tr><td>Finish + Railing</td><td>' + finishDL.toFixed(2) + '</td><td>kN/m2</td></tr>';
-    html += '<tr><td>Total DL</td><td>' + totalDL.toFixed(2) + '</td><td>kN/m2</td></tr>';
-    html += '<tr><td>Live Load (NSCP)</td><td>' + LL.toFixed(2) + '</td><td>kN/m2</td></tr>';
-    html += '<tr style="font-weight:bold; border-top:2px solid #000;"><td>FACTORED wu</td><td>' + wu.toFixed(2) + '</td><td>kN/m2</td></tr>';
+    bayXSelect.innerHTML = (state.xSpans || []).map((span, index) =>
+        `<option value="${index}">${index + 1} (${Number(span).toFixed(2)} m)</option>`
+    ).join('');
+    bayYSelect.innerHTML = (state.ySpans || []).map((span, index) =>
+        `<option value="${index}">${index + 1} (${Number(span).toFixed(2)} m)</option>`
+    ).join('');
+    bayXSelect.value = Number(previousX) < state.xSpans.length ? previousX : '0';
+    bayYSelect.value = Number(previousY) < state.ySpans.length ? previousY : '0';
+}
 
+function calculateStairBuilderPreview() {
+    const pairValue = document.getElementById('stairLevelPair')?.value || '';
+    const [fromFloorId, toFloorId] = pairValue.split('|');
+    const pair = getStairLevelPairs().find(item => item.fromFloor.id === fromFloorId && item.toFloor.id === toFloorId);
+    if (!pair) return { ready: false, message: 'Add at least two floors before creating an inter-storey stair.' };
+
+    const bayX = Math.max(0, Math.min(state.xSpans.length - 1, Number(document.getElementById('stairBayX')?.value) || 0));
+    const bayY = Math.max(0, Math.min(state.ySpans.length - 1, Number(document.getElementById('stairBayY')?.value) || 0));
+    const type = document.getElementById('stairType')?.value === 'straight' ? 'straight' : 'dogleg';
+    const axis = document.getElementById('stairAxis')?.value === 'Y' ? 'Y' : 'X';
+    const widthM = Math.max(0.75, Number(document.getElementById('stairWidth')?.value || 1000) / 1000);
+    const landingM = Math.max(0.75, Number(document.getElementById('stairLanding')?.value || 1100) / 1000);
+    const preferredRiseMm = Math.max(140, Number(document.getElementById('stairRise')?.value || 175));
+    const treadMm = Math.max(230, Number(document.getElementById('stairTread')?.value || 275));
+    const waistMm = Math.max(100, Number(document.getElementById('stairWaist')?.value || 150));
+    const gapM = type === 'dogleg' ? Math.max(0, Number(document.getElementById('stairGap')?.value || 0) / 1000) : 0;
+    const floorHeightM = Math.max(2, Number(pair.toFloor.height) || 3);
+    let risers = Math.max(4, Math.round(floorHeightM * 1000 / preferredRiseMm));
+    if (type === 'dogleg' && risers % 2) risers += 1;
+    const actualRiseMm = floorHeightM * 1000 / risers;
+    const risersPerFlight = type === 'dogleg' ? risers / 2 : risers;
+    const flightRunM = Math.max(0.5, (risersPerFlight - 1) * treadMm / 1000);
+    const longM = flightRunM + landingM;
+    const crossM = type === 'dogleg' ? widthM * 2 + gapM : widthM;
+    const footprintX = axis === 'X' ? longM : crossM;
+    const footprintY = axis === 'X' ? crossM : longM;
+    const { x, y } = getStairGridCoordinates();
+    const bayWidth = x[bayX + 1] - x[bayX];
+    const bayDepth = y[bayY + 1] - y[bayY];
+    const x1 = x[bayX] + (bayWidth - footprintX) / 2;
+    const y1 = y[bayY] + (bayDepth - footprintY) / 2;
+    const x2 = x1 + footprintX;
+    const y2 = y1 + footprintY;
+    const fits = footprintX <= bayWidth - 0.1 && footprintY <= bayDepth - 0.1;
+    const targetSlabId = `S${bayY * state.xSpans.length + bayX + 1}`;
+    const existingOpening = (pair.toFloor.slabOpenings || []).find(opening =>
+        opening.id === targetSlabId && opening.source === 'stair'
+    );
+    const conflict = !!existingOpening;
+    const theta = Math.atan(actualRiseMm / treadMm);
+    const effectiveThicknessMm = waistMm / Math.cos(theta) + actualRiseMm / 2;
+    const slabDL = effectiveThicknessMm / 1000 * 24;
+    const totalDL = slabDL + 1.5;
+    const liveLoad = 4.8;
+    const factoredLoad = 1.2 * totalDL + 1.6 * liveLoad;
+
+    return {
+        ready: fits && !conflict,
+        message: !fits
+            ? `Footprint ${footprintX.toFixed(2)} x ${footprintY.toFixed(2)} m does not fit Bay ${bayX + 1}-${bayY + 1} (${bayWidth.toFixed(2)} x ${bayDepth.toFixed(2)} m).`
+            : (conflict ? `${targetSlabId} already has a stair opening.` : 'Geometry fits the selected bay. Destination slab opening will be reserved.'),
+        fromFloorId,
+        toFloorId,
+        bayX,
+        bayY,
+        type,
+        axis,
+        widthM,
+        landingM,
+        gapM,
+        preferredRiseMm,
+        actualRiseMm,
+        treadMm,
+        waistMm,
+        risers,
+        flightRunM,
+        floorHeightM,
+        footprintX,
+        footprintY,
+        factoredLoad,
+        targetSlabId,
+        bounds: { x1, y1, x2, y2 }
+    };
+}
+
+function refreshStairBuilderPreview() {
+    const preview = calculateStairBuilderPreview();
+    const status = document.getElementById('stairBuilderStatus');
+    if (status) {
+        status.textContent = preview.message || '';
+        status.classList.toggle('ready', !!preview.ready);
+    }
+    const setText = (id, value) => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = value;
+    };
+    setText('stairMetricRisers', preview.risers ? String(preview.risers) : '-');
+    setText('stairMetricRise', preview.actualRiseMm ? `${preview.actualRiseMm.toFixed(1)} mm` : '-');
+    setText('stairMetricFootprint', preview.footprintX ? `${preview.footprintX.toFixed(2)} x ${preview.footprintY.toFixed(2)} m` : '-');
+    setText('stairMetricLoad', preview.factoredLoad ? `${preview.factoredLoad.toFixed(2)} kPa` : '-');
+    renderStairBuilderTable();
+    return preview;
+}
+
+function syncStairOpening(stair, remove = false) {
+    const floor = state.floors.find(item => item.id === stair?.toFloorId);
+    const opening = stair?.opening;
+    if (!floor || !opening?.slabId) return;
+    floor.slabOpenings = cloneSerializable(floor.slabOpenings, []);
+    floor.slabOpenings = floor.slabOpenings.filter(item => !(item.source === 'stair' && item.stairId === stair.id));
+    if (remove) return;
+    floor.slabOpenings.push({
+        id: opening.slabId,
+        openingW: opening.x2 - opening.x1,
+        openingH: opening.y2 - opening.y1,
+        x1: opening.x1,
+        y1: opening.y1,
+        x2: opening.x2,
+        y2: opening.y2,
+        source: 'stair',
+        stairId: stair.id
+    });
+}
+
+function createStairFromBuilder() {
+    const preview = refreshStairBuilderPreview();
+    if (!preview.ready) return;
+    const duplicate = (state.stairs || []).find(stair =>
+        stair.fromFloorId === preview.fromFloorId && stair.bayX === preview.bayX && stair.bayY === preview.bayY
+    );
+    if (duplicate) {
+        const status = document.getElementById('stairBuilderStatus');
+        if (status) {
+            status.textContent = `${duplicate.id} already occupies this source-floor bay.`;
+            status.classList.remove('ready');
+        }
+        return;
+    }
+
+    saveStateSnapshot();
+    const id = `ST-${state.nextStairId || getNextStairSequence()}`;
+    state.nextStairId = (state.nextStairId || getNextStairSequence()) + 1;
+    const stair = {
+        id,
+        type: preview.type,
+        fromFloorId: preview.fromFloorId,
+        toFloorId: preview.toFloorId,
+        bayX: preview.bayX,
+        bayY: preview.bayY,
+        axis: preview.axis,
+        widthM: preview.widthM,
+        landingM: preview.landingM,
+        gapM: preview.gapM,
+        preferredRiseMm: preview.preferredRiseMm,
+        actualRiseMm: preview.actualRiseMm,
+        treadMm: preview.treadMm,
+        waistMm: preview.waistMm,
+        risers: preview.risers,
+        flightRunM: preview.flightRunM,
+        bounds: preview.bounds,
+        opening: {
+            slabId: preview.targetSlabId,
+            ...preview.bounds
+        },
+        analysisExport: 'pending-validation'
+    };
+    state.stairs = normalizeStairList([...(state.stairs || []), stair]);
+    syncStairOpening(stair);
+    calculate();
+    renderStairBuilderTable();
+    refreshStairBuilderPreview();
+    const status = document.getElementById('stairBuilderStatus');
+    if (status) {
+        status.textContent = `${id} created. Opening reserved on ${preview.toFloorId} ${preview.targetSlabId}.`;
+        status.classList.add('ready');
+    }
+    scheduleProjectAutosave('stair-create');
+}
+
+function removeStair(stairId) {
+    const stair = (state.stairs || []).find(item => item.id === stairId);
+    if (!stair) return;
+    saveStateSnapshot();
+    syncStairOpening(stair, true);
+    state.stairs = (state.stairs || []).filter(item => item.id !== stairId);
+    calculate();
+    renderStairBuilderTable();
+    refreshStairBuilderPreview();
+    scheduleProjectAutosave('stair-remove');
+}
+
+function showStairOnPlan(stairId) {
+    const stair = (state.stairs || []).find(item => item.id === stairId);
+    if (!stair) return;
+    const floorIndex = state.floors.findIndex(floor => floor.id === stair.fromFloorId);
+    if (floorIndex >= 0) state.currentFloorIndex = floorIndex;
+    renderFloorTabs();
+    calculate();
+    setPlanTab('structural');
+    fitView();
+}
+
+function renderStairBuilderTable() {
     const tbody = document.getElementById('staircaseBody');
-    if (tbody) tbody.innerHTML = html;
+    if (!tbody) return;
+    const stairs = normalizeStairList(state.stairs);
+    tbody.innerHTML = stairs.length ? stairs.map(stair => {
+        const size = `${(stair.bounds.x2 - stair.bounds.x1).toFixed(2)} x ${(stair.bounds.y2 - stair.bounds.y1).toFixed(2)} m`;
+        const type = stair.type === 'dogleg' ? 'Dog-leg' : 'Straight';
+        return `<tr>
+            <td>${escapeInfoText(stair.id)}</td>
+            <td>${escapeInfoText(stair.fromFloorId)} to ${escapeInfoText(stair.toFloorId)}</td>
+            <td>${stair.bayX + 1}-${stair.bayY + 1}</td>
+            <td>${type}</td>
+            <td>${size}</td>
+            <td>${escapeInfoText(stair.opening?.slabId || '-')}</td>
+            <td><button class="mini-action-btn" onclick="showStairOnPlan('${stair.id}')">Plan</button> <button class="mini-action-btn remove" onclick="removeStair('${stair.id}')">Remove</button></td>
+        </tr>`;
+    }).join('') : '<tr><td colspan="7" class="schedule-note">No stairs in this model.</td></tr>';
+}
+
+function populateStairBuilder() {
+    populateStairBuilderSelectors();
+    refreshStairBuilderPreview();
+}
+
+function calculateStaircase() {
+    populateStairBuilder();
+}
+
+function drawStairPlanObjects(floorId) {
+    if (!ctx || !floorId) return;
+    const sourceStairs = normalizeStairList(state.stairs).filter(stair => stair.fromFloorId === floorId);
+    const arrivingStairs = normalizeStairList(state.stairs).filter(stair => stair.toFloorId === floorId);
+    const px = value => value * state.scale + state.offsetX;
+    const py = value => value * state.scale + state.offsetY;
+    const scaleFactor = Math.max(0.55, state.scale / 50);
+
+    ctx.save();
+    arrivingStairs.forEach(stair => {
+        const b = stair.bounds;
+        ctx.setLineDash([6 * scaleFactor, 4 * scaleFactor]);
+        ctx.strokeStyle = '#0f766e';
+        ctx.lineWidth = 1.5 * scaleFactor;
+        ctx.strokeRect(px(b.x1), py(b.y1), (b.x2 - b.x1) * state.scale, (b.y2 - b.y1) * state.scale);
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#0f766e';
+        ctx.font = `bold ${Math.max(6, Math.round(7 * scaleFactor))}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${stair.id} OPENING`, px((b.x1 + b.x2) / 2), py((b.y1 + b.y2) / 2));
+    });
+
+    sourceStairs.forEach(stair => {
+        const b = stair.bounds;
+        const x1 = px(b.x1);
+        const y1 = py(b.y1);
+        const x2 = px(b.x2);
+        const y2 = py(b.y2);
+        const w = x2 - x1;
+        const h = y2 - y1;
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(14, 116, 144, 0.10)';
+        ctx.fillRect(x1, y1, w, h);
+        ctx.strokeStyle = '#155e75';
+        ctx.lineWidth = 1.7 * scaleFactor;
+        ctx.strokeRect(x1, y1, w, h);
+
+        const isX = stair.axis === 'X';
+        const landingPx = stair.landingM * state.scale;
+        const runStart = isX ? x1 : y1;
+        const runEnd = isX ? x2 - landingPx : y2 - landingPx;
+        const crossStart = isX ? y1 : x1;
+        const crossEnd = isX ? y2 : x2;
+        const laneSplit = stair.type === 'dogleg'
+            ? crossStart + stair.widthM * state.scale + stair.gapM * state.scale / 2
+            : crossEnd;
+
+        ctx.strokeStyle = '#0e7490';
+        ctx.lineWidth = Math.max(0.7, 0.8 * scaleFactor);
+        if (stair.type === 'dogleg') {
+            ctx.beginPath();
+            if (isX) {
+                ctx.moveTo(x1, laneSplit);
+                ctx.lineTo(x2 - landingPx, laneSplit);
+                ctx.strokeRect(x2 - landingPx, y1, landingPx, h);
+            } else {
+                ctx.moveTo(laneSplit, y1);
+                ctx.lineTo(laneSplit, y2 - landingPx);
+                ctx.strokeRect(x1, y2 - landingPx, w, landingPx);
+            }
+            ctx.stroke();
+        } else if (isX) {
+            ctx.strokeRect(x2 - landingPx, y1, landingPx, h);
+        } else {
+            ctx.strokeRect(x1, y2 - landingPx, w, landingPx);
+        }
+
+        const treadSpacingPx = Math.max(4, stair.treadMm / 1000 * state.scale);
+        for (let run = runStart + treadSpacingPx; run < runEnd - 1; run += treadSpacingPx) {
+            ctx.beginPath();
+            if (isX) {
+                ctx.moveTo(run, crossStart);
+                ctx.lineTo(run, crossEnd);
+            } else {
+                ctx.moveTo(crossStart, run);
+                ctx.lineTo(crossEnd, run);
+            }
+            ctx.stroke();
+        }
+
+        const cx = (x1 + x2) / 2;
+        const cy = (y1 + y2) / 2;
+        const arrowLength = Math.max(18, Math.min(isX ? w : h, 50 * scaleFactor));
+        ctx.strokeStyle = '#0f172a';
+        ctx.fillStyle = '#0f172a';
+        ctx.lineWidth = 1.3 * scaleFactor;
+        ctx.beginPath();
+        if (isX) {
+            ctx.moveTo(cx - arrowLength / 2, cy);
+            ctx.lineTo(cx + arrowLength / 2, cy);
+            ctx.lineTo(cx + arrowLength / 2 - 6 * scaleFactor, cy - 4 * scaleFactor);
+            ctx.moveTo(cx + arrowLength / 2, cy);
+            ctx.lineTo(cx + arrowLength / 2 - 6 * scaleFactor, cy + 4 * scaleFactor);
+        } else {
+            ctx.moveTo(cx, cy + arrowLength / 2);
+            ctx.lineTo(cx, cy - arrowLength / 2);
+            ctx.lineTo(cx - 4 * scaleFactor, cy - arrowLength / 2 + 6 * scaleFactor);
+            ctx.moveTo(cx, cy - arrowLength / 2);
+            ctx.lineTo(cx + 4 * scaleFactor, cy - arrowLength / 2 + 6 * scaleFactor);
+        }
+        ctx.stroke();
+        ctx.font = `bold ${Math.max(6, Math.round(8 * scaleFactor))}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(stair.id, cx, y1 - 4 * scaleFactor);
+    });
+    ctx.restore();
 }
 
 // --- WATER TANK LOADING ---
@@ -16966,7 +18725,7 @@ function populateBOM() {
             }
             const params = getLoadParams();
             state.columns.forEach(col => {
-                if (col.active !== false && col.footingSize > 0 && !col.isPlanted) {
+                if (col.footingSize > 0 && !col.isPlanted) {
                     EngineLoads.designFooting(col, params);
                 }
             });
@@ -17165,7 +18924,15 @@ function populateBOM() {
                 frameNodeIds.add(startNode);
                 frameNodeIds.add(endNode);
                 const id = members.length + 1;
-                members.push({ id, startNode, endNode, section: beam.section, type: 'beam', sourceId: beam.id });
+                members.push({
+                    id,
+                    startNode,
+                    endNode,
+                    section: beam.section,
+                    type: 'beam',
+                    sourceId: beam.id,
+                    verticalInsertionOffsetM: Number(beam.verticalInsertionOffsetM) || 0
+                });
                 beamMembers.push(id);
                 addSectionMember(beam.section, id);
                 if (Number(beam.wallLoad) > 0) wallLoads.push({ id, load: -Number(beam.wallLoad) });
@@ -17284,6 +19051,19 @@ function populateBOM() {
                 });
             }
 
+            const verticallyOffsetBeams = members.filter(member =>
+                member.type === 'beam' && Math.abs(member.verticalInsertionOffsetM) > 1e-9
+            );
+            if (verticallyOffsetBeams.length) {
+                std += '\n* Beam analytical nodes stay on the slab/story plane; member offsets align physical tops.\n';
+                std += 'MEMBER OFFSET\n';
+                verticallyOffsetBeams.forEach(member => {
+                    const offset = member.verticalInsertionOffsetM.toFixed(6);
+                    std += `${member.id} START 0 ${offset} 0\n`;
+                    std += `${member.id} END 0 ${offset} 0\n`;
+                });
+            }
+
             const ec = 4700 * Math.sqrt(model.fcMPa || 21) * 1000;
             std += '\nDEFINE MATERIAL START\n';
             std += 'ISOTROPIC CONCRETE\n';
@@ -17362,6 +19142,7 @@ function populateBOM() {
                     slabs: plates.length,
                     nodes: nodes.length,
                     frameMembers: members.length,
+                    verticallyOffsetBeams: verticallyOffsetBeams.length,
                     rigidLinkedPlateNodes: rigidLinkedPlateNodeCount,
                     upwardPlateNormals: plateNormalYValues.filter(value => value > 1e-9).length
                 },
@@ -17377,6 +19158,10 @@ function populateBOM() {
                     units: 'N-mm',
                     fcMPa: model.fcMPa || 21,
                     fyMPa: model.fyMPa || 415
+                },
+                beamInsertion: {
+                    policy: 'slab-midplane-nodes-with-top-aligned-beams',
+                    offsetsM: verticallyOffsetBeams.map(member => member.verticalInsertionOffsetM)
                 }
             };
             console.log(`STAAD Export: ${nodes.length} nodes, ${members.length} frame members, ${plates.length} plates`);
@@ -17751,6 +19536,7 @@ function populateBOM() {
                 ['renderCantileverInputs', renderCantileverInputs],
                 ['renderFloorTabs', renderFloorTabs],
                 ['ensureScheduleBackButtons', ensureScheduleBackButtons],
+                ['init3DDisplayControls', init3DDisplayControls],
                 ['syncColumnAlignmentButton', syncColumnAlignmentButton],
                 ['syncFoundationModeUI', syncFoundationModeUI],
                 ['calculate', calculate],
@@ -17868,6 +19654,25 @@ function populateBOM() {
                     dxf += dxfText(midX, midY + 0.3, cb.id, DXF_LAYER.TEXT, 0.1);
                 });
             }
+
+            // ----- STAIR FOOTPRINTS / OPENINGS -----
+            normalizeStairList(state.stairs).forEach(stair => {
+                if (stair.fromFloorId !== currentFloor?.id && stair.toFloorId !== currentFloor?.id) return;
+                const b = stair.bounds;
+                dxf += dxfRect(b.x1, b.y1, b.x2, b.y2, DXF_LAYER.STAIR);
+                const label = stair.fromFloorId === currentFloor?.id ? stair.id : `${stair.id}-OPENING`;
+                dxf += dxfText((b.x1 + b.x2) / 2, (b.y1 + b.y2) / 2, label, DXF_LAYER.TEXT, 0.12);
+                if (stair.fromFloorId !== currentFloor?.id) return;
+                const isX = stair.axis === 'X';
+                const runStart = isX ? b.x1 : b.y1;
+                const runEnd = (isX ? b.x2 : b.y2) - stair.landingM;
+                const spacing = Math.max(0.23, stair.treadMm / 1000);
+                for (let position = runStart + spacing; position < runEnd - 0.01; position += spacing) {
+                    dxf += isX
+                        ? dxfLine(position, b.y1, position, b.y2, DXF_LAYER.STAIR)
+                        : dxfLine(b.x1, position, b.x2, position, DXF_LAYER.STAIR);
+                }
+            });
 
             // ----- SLABS -----
             state.slabs.forEach(slab => {
@@ -17991,6 +19796,8 @@ function populateBOM() {
                     (geometry.beams || []).forEach(beam => {
                         if (!beam || beam.deleted) return;
                         const size = getBeamSizeMm(beam, floorId);
+                        const slabThicknessMm = Math.max(75, Number(floor.slabThickness) || 150);
+                        const verticalInsertionOffsetM = -Math.max(0, (size.h - slabThicknessMm) / 2000);
                         const section = registerFrameSection('B', 'beam', size.b, size.h);
                         const governanceType = getBeamGovernanceType(beam);
                         const rawFloorWallLoad = Math.max(0, Number(floor.wallLoad) || 0);
@@ -18037,9 +19844,11 @@ function populateBOM() {
                                 x2: solverDrawingEnd.x,
                                 y2: solverDrawingEnd.y
                             },
-                            analyticalAxisPolicy: 'support-centerline',
+                            analyticalAxisPolicy: 'support-centerline-at-slab-midplane',
                             z: zTop,
                             section,
+                            slabThicknessMm,
+                            verticalInsertionOffsetM,
                             wallLoad: solverWallLoad
                         });
                     });
@@ -18999,16 +20808,21 @@ try {
 
         let selectedMemberType = null;  // 'beam' or 'slab'
         let selectedMemberId = null;
+        let selectedMemberWorldPoint = null;
 
         /**
          * Show member context menu at click position
          */
-        function showMemberMenu(type, memberId, screenX, screenY) {
+        function showMemberMenu(type, memberId, screenX, screenY, worldX = null, worldY = null) {
             selectedMemberType = type;
             selectedMemberId = memberId;
+            selectedMemberWorldPoint = Number.isFinite(worldX) && Number.isFinite(worldY)
+                ? { x: worldX, y: worldY }
+                : null;
 
             const menu = document.getElementById('memberContextMenu');
             const title = document.getElementById('memberMenuTitle');
+            const cornerSlabBtn = document.getElementById('memberCornerSlabBtn');
             const lockBtn = document.getElementById('memberLockBtn');
             const deleteBtn = document.getElementById('memberDeleteBtn');
             const moveBtn = document.getElementById('memberMoveBtn');
@@ -19039,6 +20853,16 @@ try {
             const selectedBeam = type === 'beam'
                 ? (state.beams || []).find(beam => beam.id === memberId)
                 : null;
+            const selectedSlab = type === 'slab'
+                ? (state.slabs || []).find(slab => slab.id === memberId)
+                : null;
+            const cornerAction = selectedSlab?.isCantilever
+                ? getCantileverCornerAction(selectedSlab, floor?.id, selectedMemberWorldPoint)
+                : null;
+            if (cornerSlabBtn) {
+                cornerSlabBtn.style.display = cornerAction ? '' : 'none';
+                cornerSlabBtn.textContent = cornerAction?.mode === 'remove' ? 'Remove Corner Slab' : 'Create Corner Slab';
+            }
             const canOffset = type === 'foundationTieBeam' || (type === 'beam' && isGeneratedBeamAlignmentCandidate(selectedBeam) && !isLocked);
             if (deleteBtn) deleteBtn.style.display = (type === 'foundationTieBeam' || isLocked) ? 'none' : '';
             if (lockBtn) lockBtn.style.display = type === 'foundationTieBeam' ? 'none' : '';
@@ -19082,6 +20906,57 @@ try {
                 return null;
             }
             return value;
+        }
+
+        function toggleSelectedCornerSlab() {
+            hideMemberMenu();
+            if (selectedMemberType !== 'slab' || !selectedMemberId) return;
+            const floor = state.floors[state.currentFloorIndex];
+            const slab = (state.slabs || []).find(item => item.id === selectedMemberId);
+            if (!floor || !slab?.isCantilever) return;
+            if (isFloorTypicalFromLower(floor)) {
+                alert(`This floor follows ${floor.typicalSourceFloorId || 'the floor below'}. Edit the source floor or uncheck Typical first.`);
+                return;
+            }
+
+            const action = getCantileverCornerAction(slab, floor.id, selectedMemberWorldPoint);
+            if (!action) {
+                alert('No perpendicular adjacent cantilever slab is available at this corner.');
+                return;
+            }
+            if (action.mode === 'remove') {
+                saveStateSnapshot();
+                floor.cornerSlabs = getFloorCornerSlabJoins(floor).filter(join => join.id !== action.join.id);
+                calculate();
+                writeProjectAutosave('corner-slab-removed');
+                return;
+            }
+
+            const candidates = getCantileverCornerCandidates(slab, floor.id);
+            if (!candidates.length) {
+                alert('No perpendicular adjacent cantilever slab is available at this corner.');
+                return;
+            }
+            let selectedCandidate = action.candidate || candidates[0];
+            if (!selectedMemberWorldPoint && candidates.length > 1) {
+                const choices = candidates.map(candidate => candidate.other.id).join(', ');
+                const chosenId = prompt(`Adjacent cantilever slab (${choices})`, candidates[0].other.id);
+                if (chosenId === null) return;
+                selectedCandidate = candidates.find(candidate => candidate.other.id === chosenId.trim());
+                if (!selectedCandidate) {
+                    alert('Choose one of the listed adjacent cantilever slab IDs.');
+                    return;
+                }
+            }
+
+            const sourceSlabIds = [slab.id, selectedCandidate.other.id].sort();
+            saveStateSnapshot();
+            floor.cornerSlabs = normalizeCornerSlabList([
+                ...getFloorCornerSlabJoins(floor),
+                { id: `CORNER-${sourceSlabIds.join('|')}`, sourceSlabIds }
+            ]);
+            calculate();
+            writeProjectAutosave('corner-slab-created');
         }
 
         function moveSelectedColumn() {
@@ -19941,31 +21816,50 @@ try {
 
         let currentScheduleTab = 'beams';
 
+        function getSchedulePanelTab(tab = 'beams') {
+            if (tab === 'columns' || tab === 'colSchedule') return 'colSchedule';
+            if (tab === 'footings' || tab === 'footingSchedule' || tab === 'reactions') return 'footingSchedule';
+            if (tab === 'slabs' || tab === 'slabSchedule') return 'slabSchedule';
+            return 'beamSchedule';
+        }
+
+        function openTrustedSchedulePanel(tab = 'beams') {
+            currentScheduleTab = tab;
+            const modal = document.getElementById('schedulesModal');
+            if (modal) modal.style.display = 'none';
+            const targetTab = getSchedulePanelTab(tab);
+            if (typeof setPlanTab === 'function') {
+                setPlanTab(targetTab);
+            }
+            if (targetTab === 'colSchedule' && typeof populateColumnSchedule === 'function') populateColumnSchedule();
+            if (targetTab === 'beamSchedule' && typeof populateBeamSchedule === 'function') populateBeamSchedule();
+            if (targetTab === 'footingSchedule' && typeof populateFootingSchedule === 'function') populateFootingSchedule();
+            if (targetTab === 'slabSchedule' && typeof populateSlabSchedule === 'function') populateSlabSchedule();
+        }
+
         /**
          * Show schedules modal and populate tables
          */
         function showSchedulesModal() {
-            const modal = document.getElementById('schedulesModal');
-            modal.style.display = 'flex';
-            populateScheduleTables();
+            openTrustedSchedulePanel(currentScheduleTab || 'beams');
         }
 
         /**
          * Hide schedules modal
          */
         function hideSchedulesModal() {
-            document.getElementById('schedulesModal').style.display = 'none';
+            const modal = document.getElementById('schedulesModal');
+            if (modal) {
+                modal.style.display = 'none';
+                modal.setAttribute('aria-hidden', 'true');
+            }
         }
 
         /**
          * Switch between beam and column schedule tabs
          */
         function switchScheduleTab(tab) {
-            currentScheduleTab = tab;
-            document.getElementById('schedTabBeams').classList.toggle('active', tab === 'beams');
-            document.getElementById('schedTabColumns').classList.toggle('active', tab === 'columns');
-            document.getElementById('scheduleBeamsPanel').style.display = tab === 'beams' ? 'block' : 'none';
-            document.getElementById('scheduleColumnsPanel').style.display = tab === 'columns' ? 'block' : 'none';
+            openTrustedSchedulePanel(tab);
         }
 
         /**
@@ -19975,38 +21869,51 @@ try {
             // Beam schedule
             const beamsBody = document.getElementById('scheduleBeamsBody');
             beamsBody.innerHTML = '';
+            const floorId = state.floors[state.currentFloorIndex]?.id || '2F';
 
-            state.beams.filter(b => !b.deleted).forEach(beam => {
-                const size = beam.bSize && beam.hSize ? `${ beam.bSize }×${ beam.hSize } ` : '-';
+            state.beams.filter(b => !b.deleted).forEach((beam, beamIdx) => {
+                const size = typeof getBeamSizeMm === 'function'
+                    ? getBeamSizeMm(beam, floorId)
+                    : { b: beam.bSize || beam.suggestedB || 250, h: beam.hSize || beam.suggestedH || 400 };
+                const beamTag = typeof getBeamPlanTableTag === 'function'
+                    ? getBeamPlanTableTag(beam, floorId, beamIdx + 1)
+                    : (beam.id || '-');
+                const reaction = beam.Rleft || beam.Rright
+                    ? ((Number(beam.Rleft || 0) + Number(beam.Rright || 0)) / 2).toFixed(1)
+                    : '-';
                 const row = document.createElement('tr');
                 row.innerHTML = `
-            < td > ${ beam.id }</td >
-                    <td>${beam.direction || '-'}</td>
+                    <td>${escapeInfoText(beamTag)}</td>
+                    <td>${escapeInfoText(getBeamDirectionLabel(beam))}</td>
                     <td>${beam.span?.toFixed(2) || '-'}</td>
-                    <td>${size}</td>
-                    <td>${beam.startCol || '-'}</td>
-                    <td>${beam.endCol || '-'}</td>
+                    <td>${size.b}</td>
+                    <td>${size.h}</td>
                     <td>${beam.w?.toFixed(1) || '-'}</td>
-                    <td>${beam.Rleft ? ((beam.Rleft + beam.Rright) / 2).toFixed(1) : '-'}</td>
-        `;
+                    <td>${reaction}</td>
+                `;
                 beamsBody.appendChild(row);
             });
 
             // Custom beams
             const customBeams = getFloorCustomBeams();
-            customBeams.forEach(cb => {
+            customBeams.forEach((cb, cbIdx) => {
+                const beamTag = typeof getBeamPlanTableTag === 'function'
+                    ? getBeamPlanTableTag({ ...cb, isCustom: true }, floorId, cbIdx + 1)
+                    : (cb.id || '-');
+                const size = typeof getBeamSizeMm === 'function'
+                    ? getBeamSizeMm({ id: cb.id, span: cb.span, ...cb }, floorId)
+                    : { b: '-', h: '-' };
                 const row = document.createElement('tr');
                 row.style.background = 'rgba(249, 115, 22, 0.1)';
                 row.innerHTML = `
-            < td > ${ cb.id } (custom)</td >
-                    <td>${cb.dir}</td>
+                    <td>${escapeInfoText(beamTag)}</td>
+                    <td>${escapeInfoText(cb.dir || '-')}</td>
                     <td>${cb.span?.toFixed(2) || '-'}</td>
+                    <td>${size.b}</td>
+                    <td>${size.h}</td>
                     <td>-</td>
                     <td>-</td>
-                    <td>-</td>
-                    <td>-</td>
-                    <td>-</td>
-        `;
+                `;
                 beamsBody.appendChild(row);
             });
 
@@ -20044,51 +21951,11 @@ try {
          * Export current schedule tab as CSV
          */
         function exportScheduleCSV() {
-            let csvContent = '';
-            let filename = '';
-
-            if (currentScheduleTab === 'beams') {
-                filename = 'beam_schedule.csv';
-                csvContent = 'Beam ID,Direction,Span (m),Size (mm),Start Col,End Col,w (kN/m),R (kN)\n';
-
-                state.beams.filter(b => !b.deleted).forEach(beam => {
-                    const size = beam.bSize && beam.hSize ? `${ beam.bSize }x${ beam.hSize } ` : '-';
-                    csvContent += `${ beam.id },${ beam.direction || '-' },${ beam.span?.toFixed(2) || '-' },${ size },${ beam.startCol || '-' },${ beam.endCol || '-' },${ beam.w?.toFixed(1) || '-' },${ beam.Rleft ? ((beam.Rleft + beam.Rright) / 2).toFixed(1) : '-' } \n`;
-                });
-
-                // Custom beams
-                const customBeams = getFloorCustomBeams();
-                customBeams.forEach(cb => {
-                    csvContent += `${ cb.id } (custom), ${ cb.dir },${ cb.span?.toFixed(2) || '-' }, -, -, -, -, -\n`;
-                });
-            } else {
-                filename = 'column_schedule.csv';
-                csvContent = 'Col ID,Type,Size (mm),Total Load (kN),Footing (m),Planted,Floors Active\n';
-
-                state.columns.forEach(col => {
-                    const activeFloors = state.floors
-                        .filter(f => col.floorActive?.[f.id] !== false)
-                        .map(f => f.id)
-                        .join('/') || 'All';
-
-                    const planted = col.startFloor ? `Yes @${ col.startFloor } ` : 'No';
-                    const size = col.size ? `${ col.size }x${ col.size } ` : '-';
-                    const footing = col.footingSize ? col.footingSize.toFixed(2) : '-';
-
-                    csvContent += `${ col.id },${ col.type || '-' },${ size },${ col.totalLoad?.toFixed(1) || '-' },${ footing },${ planted },${ activeFloors } \n`;
-                });
-            }
-
-            // Download
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
-            URL.revokeObjectURL(url);
-
-            console.log(`v3.0: Exported ${ filename }`);
+            const tab = getSchedulePanelTab(currentScheduleTab);
+            if (tab === 'colSchedule' && typeof exportColumnScheduleCSV === 'function') return exportColumnScheduleCSV();
+            if (tab === 'footingSchedule' && typeof exportFootingScheduleCSV === 'function') return exportFootingScheduleCSV();
+            if (tab === 'slabSchedule' && typeof exportSlabScheduleCSV === 'function') return exportSlabScheduleCSV();
+            if (typeof exportBeamScheduleCSV === 'function') return exportBeamScheduleCSV();
         }
     </script>
 
@@ -20451,7 +22318,7 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                 const target = parseInt(count);
                 if (target < 1 || target > 10) return { success: false, error: 'Floor count must be 1-10' };
                 while (state.floors.length < target) { if (typeof addFloor === 'function') addFloor(); else break; }
-                while (state.floors.length > target) { if (typeof removeFloor === 'function') removeFloor(); else break; }
+                while (state.floors.length > target) { if (typeof removeFloor === 'function') removeFloor({ confirm: false }); else break; }
                 return { success: true, message: `✅ Set to ${ state.floors.length } floors` };
             },
 
@@ -20821,7 +22688,8 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                         const spanVal = beam.span || 4.0;
                         const typeKey = getBeamGovernanceType(beam);
                         const typeLabel = getBeamGovernanceLabel(beam);
-                        const bID = getBeamScheduleId(beam, floorID, rowNum);
+                        const scheduleId = getBeamScheduleId(beam, floorID, rowNum);
+                        const bID = formatBeamTagForPlanTable(scheduleId);
                         const dirLabel = getBeamDirectionLabel(beam);
                         const w = Number(beam.w || 0);
                         const reaction = beam.isCantilever
@@ -20839,7 +22707,7 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                         tbody.innerHTML += `
                         <tr>
                             <td class="row-num">${rowNum}</td>
-                            <td>${escapeInfoText(bID)}</td>
+                            <td title="${escapeInfoText(scheduleId)}">${escapeInfoText(bID)}</td>
                             <td>${escapeInfoText(typeLabel)}</td>
                             <td>${escapeInfoText(dirLabel)}</td>
                             <td>${spanVal.toFixed(2)}</td>
@@ -21342,44 +23210,19 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
             // v3.5: Schedules Feature Implementation (LEGACY - kept for compatibility)
             // ========================================
             window.showSchedules = function () {
-                const modal = document.getElementById('schedulesModal');
-                if (modal) {
-                    modal.style.display = 'flex';
-                    switchScheduleTab('columns'); // Default view
-                }
+                openTrustedSchedulePanel('columns');
             };
 
             window.hideSchedulesModal = function () {
                 const modal = document.getElementById('schedulesModal');
-                if (modal) modal.style.display = 'none';
+                if (modal) {
+                    modal.style.display = 'none';
+                    modal.setAttribute('aria-hidden', 'true');
+                }
             };
 
             window.switchScheduleTab = function (tab) {
-                // Update Tabs
-                document.querySelectorAll('.sched-tab').forEach(t => t.classList.remove('active'));
-                const tabBtn = document.getElementById('schedTab' + tab.charAt(0).toUpperCase() + tab.slice(1));
-                if (tabBtn) tabBtn.classList.add('active');
-
-                // Update Panels
-                const beamPanel = document.getElementById('scheduleBeamsPanel');
-                const colPanel = document.getElementById('scheduleColumnsPanel');
-                const ftPanel = document.getElementById('scheduleFootingsPanel');
-
-                // Reset all
-                if (beamPanel) beamPanel.style.display = 'none';
-                if (colPanel) colPanel.style.display = 'none';
-                if (ftPanel) ftPanel.style.display = 'none';
-
-                if (tab === 'columns') {
-                    if (colPanel) colPanel.style.display = 'block';
-                    renderScheduleColumns();
-                } else if (tab === 'footings') {
-                    if (ftPanel) ftPanel.style.display = 'block';
-                    renderScheduleFootings();
-                } else {
-                    if (beamPanel) beamPanel.style.display = 'block';
-                    renderScheduleBeams();
-                }
+                openTrustedSchedulePanel(tab);
             };
 
             window.renderScheduleColumns = function () {
@@ -21486,6 +23329,7 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
 
                     const floorBeams = floorGeometryById.get(floor.id)?.beams || state.beams || [];
                     floorBeams.forEach(beam => {
+                        if (!beam || beam.deleted) return;
                         const tr = document.createElement('tr');
                         // Excel Look - Paper Matte style
                         const inputStyle = "width:100%; border:none; background:transparent; text-align:center; font-family:Arial; font-size:0.85rem; color:black;";
@@ -21493,18 +23337,13 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
 
                         const { b: bW, h: bD } = getBeamSizeMm(beam, floor.id);
 
-                        // Handle startCol/endCol - could be object with .id or string
-                        const startColID = beam.startCol ? (typeof beam.startCol === 'object' ? beam.startCol.id : beam.startCol) : '';
-                        const endColID = beam.endCol ? (typeof beam.endCol === 'object' ? beam.endCol.id : beam.endCol) : '';
-
-                        // v3.7: New naming convention: B-{Floor}-{StartCol}{EndCol}
-                        // Example: B-2F-A1B1 (X direction), B-2F-A1A2 (Y direction)
                         const floorID = floor.id || '1F';
-                        const bID = startColID && endColID ? `B-${floorID}-${startColID}${endColID}` : `B-${floorID}-${beam.id}`;
-
-                        // Derive direction: same letter = Y, same number = X
-                        const isYDir = startColID && endColID && startColID.charAt(0) === endColID.charAt(0);
-                        const dirLabel = isYDir ? 'Y' : 'X';
+                        const bID = typeof getBeamPlanTableTag === 'function'
+                            ? getBeamPlanTableTag(beam, floorID, 0)
+                            : (beam.id || '-');
+                        const dirLabel = typeof getBeamDirectionLabel === 'function'
+                            ? getBeamDirectionLabel(beam)
+                            : (beam.direction || beam.dir || '-');
 
                         // v3.7: Calculate reactions R = wL/2 for simply supported beam
                         const w_load = beam.w_total || beam.w || 0;
@@ -21516,8 +23355,8 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                         const lockedAttr = isLocked ? ' disabled title="Beam is locked"' : '';
 
                         tr.innerHTML = `
-                            <td style="${cellStyle} font-weight:bold; width:110px;">${bID}</td>
-                            <td style="${cellStyle} width:50px;">${dirLabel}</td>
+                            <td style="${cellStyle} font-weight:bold; width:110px;">${escapeInfoText(bID)}</td>
+                            <td style="${cellStyle} width:50px;">${escapeInfoText(dirLabel)}</td>
                             <td style="${cellStyle} width:55px;">${(beam.span || 0).toFixed(2)}</td>
                             <td style="${cellStyle} width:60px;">
                                 <input type="number" value="${bW}" step="25" min="150" style="${beamInputStyle}"
@@ -21538,21 +23377,23 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                 if (state.floors.length === 0) {
                     const floorID = '1F';
                     state.beams.forEach(beam => {
+                        if (!beam || beam.deleted) return;
                         const tr = document.createElement('tr');
                         const inputStyle = "width:100%; border:none; background:transparent; text-align:center; font-family:Arial; font-size:0.85rem; color:black;";
                         const cellStyle = "border:1px solid #ccc; padding:4px; text-align:center;";
                         const { b: bW, h: bD } = getBeamSizeMm(beam, floorID);
-                        const startColID = beam.startCol ? (typeof beam.startCol === 'object' ? beam.startCol.id : beam.startCol) : '';
-                        const endColID = beam.endCol ? (typeof beam.endCol === 'object' ? beam.endCol.id : beam.endCol) : '';
-                        const bID = startColID && endColID ? `B-${floorID}-${startColID}${endColID}` : `B-${floorID}-${beam.id}`;
-                        const isYDir = startColID && endColID && startColID.charAt(0) === endColID.charAt(0);
-                        const dirLabel = isYDir ? 'Y' : 'X';
+                        const bID = typeof getBeamPlanTableTag === 'function'
+                            ? getBeamPlanTableTag(beam, floorID, 0)
+                            : (beam.id || '-');
+                        const dirLabel = typeof getBeamDirectionLabel === 'function'
+                            ? getBeamDirectionLabel(beam)
+                            : (beam.direction || beam.dir || '-');
                         const isLocked = isBeamLocked(beam.id, floorID);
                         const beamInputStyle = inputStyle + (isLocked ? ' opacity:0.55; cursor:not-allowed;' : '');
                         const lockedAttr = isLocked ? ' disabled title="Beam is locked"' : '';
                         tr.innerHTML = `
-                            <td style="${cellStyle} font-weight:bold;">${bID}</td>
-                            <td style="${cellStyle} width:40px;">${dirLabel}</td>
+                            <td style="${cellStyle} font-weight:bold;">${escapeInfoText(bID)}</td>
+                            <td style="${cellStyle} width:40px;">${escapeInfoText(dirLabel)}</td>
                             <td style="${cellStyle} width:60px;">${(beam.span || 0).toFixed(2)}</td>
                             <td style="${cellStyle} width:70px;">
                                 <input type="number" value="${bW}" step="25" min="150" style="${beamInputStyle}"

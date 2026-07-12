@@ -179,7 +179,10 @@ const EngineLoads = (function () {
 
         let totalColumnSelfWeight = 0;
         for (let col of columns) {
-            if (col.active === false) continue;
+            const activeOnAnyFloor = Array.isArray(params.floors) && params.floors.length
+                ? params.floors.some(floor => isColumnActiveOnFloor(col, floor.id, params.floors))
+                : col.active !== false;
+            if (!activeOnAnyFloor) continue;
             const sizing = sizeColumn(col.totalLoad, params.floorHeight, params);
             const manualB = positiveNumber(col.webB) || positiveNumber(col.overrideB) || positiveNumber(col.b);
             const manualH = positiveNumber(col.webD) || positiveNumber(col.overrideH) || positiveNumber(col.h);
@@ -317,8 +320,12 @@ const EngineLoads = (function () {
         const tieBeamWeight = tieBeamVolume * params.concreteDensity;
         const tieBeamDLPerColumn = tieBeamWeight * 1.2;
 
+        const foundationFloorId = Array.isArray(params.floors) ? params.floors[0]?.id : null;
         for (let col of columns) {
-            if (col.active === false) {
+            const activeAtFoundation = foundationFloorId
+                ? isColumnActiveOnFloor(col, foundationFloorId, params.floors)
+                : col.active !== false;
+            if (!activeAtFoundation) {
                 col.footingSize = 0;
                 col.footingThick = 0;
                 continue;

@@ -261,6 +261,16 @@ async function openAppTab(base) {
     });
     const tab = new CdpTab(target.webSocketDebuggerUrl);
     await tab.enable();
+    const viewportWidth = Number(getArgValue('--viewport-width')) || 0;
+    const viewportHeight = Number(getArgValue('--viewport-height')) || 0;
+    if (viewportWidth > 0 && viewportHeight > 0) {
+        await tab.send('Emulation.setDeviceMetricsOverride', {
+            width: viewportWidth,
+            height: viewportHeight,
+            deviceScaleFactor: 1,
+            mobile: viewportWidth < 700
+        });
+    }
     try {
         await tab.send('Network.enable');
         await tab.send('Network.setCacheDisabled', { cacheDisabled: true });
@@ -300,6 +310,7 @@ async function runBrowserSmoke() {
     const browser = await ensureBrowser(DEFAULT_PORT);
     const tab = await openAppTab(browser.base);
     const screenshotPath = path.join(os.tmpdir(), 'futolstructure-smoke.png');
+    const stair3DScreenshotPath = path.join(os.tmpdir(), 'futolstructure-stair-3d.png');
 
     try {
         const result = await tab.evaluate(`(() => {
@@ -338,6 +349,25 @@ async function runBrowserSmoke() {
                 columns: state.columns.length,
                 regularSlabs: state.slabs.filter(s => !s.isCantilever).length
             };
+
+            const uiCleanupAudit = (() => {
+                const stairBeamBtn = document.getElementById('addCustomBeamBtn');
+                const scheduleModal = document.getElementById('schedulesModal');
+                const previousTab = currentPlanTab || 'structural';
+                if (typeof showSchedulesModal === 'function') showSchedulesModal();
+                const audit = {
+                    buildBadge: Array.from(document.querySelectorAll('header span')).map(el => el.textContent.trim()).find(text => /^v3\\./.test(text)) || '',
+                    rebuildButton: Array.from(document.querySelectorAll('.header-actions .tool-btn')).some(btn => btn.textContent.trim() === 'Rebuild'),
+                    etabsButton: Array.from(document.querySelectorAll('.header-actions .tool-btn')).some(btn => btn.textContent.trim() === 'ETABS'),
+                    etabsQaBadge: document.querySelectorAll('.header-actions .export-validation-badge').length,
+                    stairBeamHidden: !!stairBeamBtn && (stairBeamBtn.hidden || stairBeamBtn.getAttribute('aria-hidden') === 'true'),
+                    scheduleRedirectTab: currentPlanTab,
+                    legacyScheduleModalDisplay: scheduleModal?.style.display || '',
+                    legacyScheduleModalDisabled: scheduleModal?.dataset?.legacyDisabled === 'true'
+                };
+                setPlanTab(previousTab);
+                return audit;
+            })();
 
             saveStateSnapshot();
             state.xSpans = [2.05, 4.38, 4.58, 2.91];
@@ -512,10 +542,81 @@ async function runBrowserSmoke() {
             };
             const partialCantilever = { rightPatchWithEdge, rightPatchWithoutEdge };
 
+            selectedMemberType = 'slab';
+            selectedMemberId = 'SC-T4';
+            toggleSelectedCornerSlab();
+            const createdCornerSlab = state.slabs.find(slab => slab.isCornerSlab);
+            const createdCornerSupportBeams = createdCornerSlab
+                ? getCornerSlabSupportBeams(createdCornerSlab, currentFloor.id)
+                : [];
+            const createdCornerHiddenBeamIds = Array.from(getCornerSlabHiddenBeamIds(currentFloor.id));
+            const cornerAudit = collectActiveSlabTruthAudit(currentFloor.id);
+            const cornerProjectData = buildProjectData();
+            const cornerSlabBeforeReload = {
+                joinCount: currentFloor.cornerSlabs?.length || 0,
+                id: createdCornerSlab?.id || '',
+                sourceSlabIds: createdCornerSlab?.sourceSlabIds || [],
+                area: createdCornerSlab?.area || 0,
+                supportBeamIds: createdCornerSupportBeams.map(beam => beam.id).sort(),
+                hiddenBeamIds: createdCornerHiddenBeamIds.sort(),
+                renderedHiddenBeamIds: (window.lastPlanLabelDiagnostics?.cornerHiddenBeamIds || []).slice().sort(),
+                assignedArea: createdCornerSupportBeams.reduce((sum, beam) => sum + beam.slices
+                    .filter(slice => slice.slabId === createdCornerSlab?.id)
+                    .reduce((beamSum, slice) => beamSum + (Number(slice.area) || 0), 0), 0),
+                areaDelta: cornerAudit.areaDelta,
+                savedJoinCount: cornerProjectData.floors.find(floor => floor.id === currentFloor.id)?.cornerSlabs?.length || 0
+            };
+            applyLoadedProject(cornerProjectData, 'corner-slab-smoke.fstr', { silent: true, skipAutosave: true });
+            const reloadedFloor = state.floors[state.currentFloorIndex];
+            const reloadedCornerSlab = state.slabs.find(slab => slab.isCornerSlab);
+            const cornerSlabAfterReload = {
+                joinCount: reloadedFloor.cornerSlabs?.length || 0,
+                id: reloadedCornerSlab?.id || '',
+                sourceSlabIds: reloadedCornerSlab?.sourceSlabIds || [],
+                hiddenBeamIds: Array.from(getCornerSlabHiddenBeamIds(reloadedFloor.id)).sort(),
+                areaDelta: collectActiveSlabTruthAudit(reloadedFloor.id).areaDelta
+            };
+            selectedMemberType = 'slab';
+            selectedMemberId = reloadedCornerSlab?.id || '';
+            toggleSelectedCornerSlab();
+            const cornerSlabAfterRemove = {
+                joinCount: state.floors[state.currentFloorIndex].cornerSlabs?.length || 0,
+                generatedCount: state.slabs.filter(slab => slab.isCornerSlab).length
+            };
+            const multiEndFloor = state.floors[state.currentFloorIndex];
+            const originalMultiEndSlabs = state.slabs;
+            const originalMultiEndJoins = normalizeCornerSlabList(multiEndFloor.cornerSlabs);
+            state.slabs = [
+                { id: 'SC-QA-H', x1: 0, y1: -1, x2: 4, y2: 0, isCantilever: true, cantileverEdge: 'top', area: 4 },
+                { id: 'SC-QA-L', x1: -1, y1: 0, x2: 0, y2: 3, isCantilever: true, cantileverEdge: 'left', area: 3 },
+                { id: 'SC-QA-R', x1: 4, y1: 0, x2: 5, y2: 3, isCantilever: true, cantileverEdge: 'right', area: 3 }
+            ];
+            multiEndFloor.cornerSlabs = normalizeCornerSlabList([
+                { sourceSlabIds: ['SC-QA-H', 'SC-QA-L'] }
+            ]);
+            const multiEndHorizontal = state.slabs.find(slab => slab.id === 'SC-QA-H');
+            const multiEndLeftAction = getCantileverCornerAction(multiEndHorizontal, multiEndFloor.id, { x: 0, y: -0.5 });
+            const multiEndRightAction = getCantileverCornerAction(multiEndHorizontal, multiEndFloor.id, { x: 4, y: -0.5 });
+            const multiEndCornerAction = {
+                leftMode: multiEndLeftAction?.mode || '',
+                leftPair: multiEndLeftAction?.join?.sourceSlabIds || [],
+                rightMode: multiEndRightAction?.mode || '',
+                rightCandidateId: multiEndRightAction?.candidate?.other?.id || ''
+            };
+            state.slabs = originalMultiEndSlabs;
+            multiEndFloor.cornerSlabs = originalMultiEndJoins;
+            calculate();
+
             toggleColumn('A1');
             const afterColumnToggle = {
                 visibleColumns: state.columns.filter(c => isColumnActiveOnFloor(c, state.floors[state.currentFloorIndex].id)).length,
-                undoCount: undoHistory.length
+                undoCount: undoHistory.length,
+                columnPositionLocked: !!state.columnPositionLocked,
+                lockedBeamCount: state.floors[state.currentFloorIndex]?.lockedBeams?.length || 0,
+                a1: (() => {
+                    const col = state.columns.find(item => item.id === 'A1');
+                    return col ? { active: col.active, activePerFloor: col.activePerFloor } : null;
+                })()
             };
             undo();
             const afterColumnUndo = {
@@ -786,6 +887,70 @@ async function runBrowserSmoke() {
             state.measureSnapPoint = null;
             toggleMeasureMode(false);
 
+            state.stairs = [];
+            state.nextStairId = 1;
+            state.floors.forEach(floor => {
+                floor.slabOpenings = (floor.slabOpenings || []).filter(opening => opening.source !== 'stair');
+            });
+            setPlanTab('staircase');
+            populateStairBuilder();
+            document.getElementById('stairType').value = 'dogleg';
+            document.getElementById('stairAxis').value = 'X';
+            document.getElementById('stairBayX').value = '1';
+            document.getElementById('stairBayY').value = '0';
+            document.getElementById('stairWidth').value = '900';
+            document.getElementById('stairLanding').value = '900';
+            document.getElementById('stairRise').value = '175';
+            document.getElementById('stairTread').value = '250';
+            document.getElementById('stairWaist').value = '150';
+            document.getElementById('stairGap').value = '100';
+            const stairPreview = refreshStairBuilderPreview();
+            createStairFromBuilder();
+            const createdStair = state.stairs[0];
+            const stairProject = buildProjectData();
+            const destinationFloor = state.floors.find(floor => floor.id === createdStair?.toFloorId);
+            const stairOpening = destinationFloor?.slabOpenings?.find(opening => opening.stairId === createdStair?.id);
+            if (!view3DInitialized && typeof init3D === 'function') init3D();
+            if (typeof render3DFrame === 'function') render3DFrame();
+            const stairMeshes = meshes3D.filter(mesh => mesh?.userData?.type === 'stair');
+            const destinationGeometry = collect3DFloorGeometry().get(createdStair?.toFloorId)?.slabs || [];
+            const afterStairCreate = {
+                previewReady: stairPreview.ready,
+                previewMessage: stairPreview.message,
+                pairValue: document.getElementById('stairLevelPair')?.value || '',
+                floorIds: state.floors.map(floor => floor.id),
+                spans: { x: state.xSpans.slice(), y: state.ySpans.slice() },
+                count: state.stairs.length,
+                id: createdStair?.id,
+                levels: [createdStair?.fromFloorId, createdStair?.toFloorId],
+                risers: createdStair?.risers,
+                opening: stairOpening ? {
+                    slabId: stairOpening.id,
+                    width: stairOpening.openingW,
+                    height: stairOpening.openingH
+                } : null,
+                savedCount: stairProject.stairs?.length || 0,
+                stairMeshCount: stairMeshes.length,
+                destinationFragmentCount: destinationGeometry.filter(slab => slab.isStairOpeningFragment).length,
+                tableHasStair: document.getElementById('staircaseBody')?.textContent.includes(createdStair?.id || '') || false,
+                dxfHasStair: generateDXFContent().includes(createdStair?.id || 'missing-stair')
+            };
+            applyLoadedProject(stairProject, 'qa-stair-builder.fstr', {
+                silent: true,
+                skipAutosave: true,
+                quarantineHiddenGeometry: true
+            });
+            const afterStairReload = {
+                count: state.stairs.length,
+                id: state.stairs[0]?.id,
+                openingCount: state.floors.reduce((sum, floor) => sum + (floor.slabOpenings || []).filter(opening => opening.source === 'stair').length, 0)
+            };
+            removeStair(state.stairs[0]?.id);
+            const afterStairRemove = {
+                count: state.stairs.length,
+                openingCount: state.floors.reduce((sum, floor) => sum + (floor.slabOpenings || []).filter(opening => opening.source === 'stair').length, 0)
+            };
+
             const transientDeletedSlab = state.slabs.find(s => !s.isCantilever && s.id === 'S2');
             if (transientDeletedSlab) transientDeletedSlab.deleted = true;
             const transientDeletedProject = buildProjectData();
@@ -903,7 +1068,21 @@ async function runBrowserSmoke() {
                 voidRegular: state.slabs.filter(s => !s.isCantilever && s.isVoid).map(s => s.id)
             };
 
-            const autosaveHiddenProject = buildProjectData();
+            const autosaveBaselineProject = buildProjectData();
+            autosaveBaselineProject.floors = autosaveBaselineProject.floors.map(floor => ({
+                ...floor,
+                voidSlabs: [],
+                deletedBeams: [],
+                deletedColumns: [],
+                lockedSlabs: [],
+                lockedBeams: []
+            }));
+            applyLoadedProject(autosaveBaselineProject, 'qa-autosave-baseline.fstr', {
+                silent: true,
+                skipAutosave: true,
+                quarantineHiddenGeometry: true
+            });
+            const autosaveHiddenProject = cloneSerializable(autosaveBaselineProject, {});
             autosaveHiddenProject.autosaveMeta = {
                 reason: 'qa-hidden-autosave',
                 savedAt: new Date().toISOString(),
@@ -918,9 +1097,12 @@ async function runBrowserSmoke() {
                 lockedBeams: []
             }));
             localStorage.setItem(PROJECT_AUTOSAVE_KEY, JSON.stringify(autosaveHiddenProject));
-            restoreAutosavedProjectOnStartup();
+            const incompatibleAutosaveRestored = restoreAutosavedProjectOnStartup();
             calculate();
             const autosaveHidden = {
+                restored: incompatibleAutosaveRestored,
+                warningReason: startupAutosaveWarning?.reason || '',
+                quarantineBackup: !!localStorage.getItem(PROJECT_AUTOSAVE_QUARANTINE_KEY),
                 hidden: {
                     voidSlabs: state.floors[0].voidSlabs.slice(),
                     deletedBeams: state.floors[0].deletedBeams.slice(),
@@ -933,6 +1115,8 @@ async function runBrowserSmoke() {
                 voidRegular: state.slabs.filter(s => !s.isCantilever && s.isVoid).map(s => s.id)
             };
             localStorage.removeItem(PROJECT_AUTOSAVE_KEY);
+            localStorage.removeItem(PROJECT_AUTOSAVE_QUARANTINE_KEY);
+            startupAutosaveWarning = null;
 
             applyLoadedProject(intentionalHiddenProject, 'qa-trusted-autosave-base.fstr', {
                 silent: true,
@@ -956,6 +1140,34 @@ async function runBrowserSmoke() {
                 voidRegular: state.slabs.filter(s => !s.isCantilever && s.isVoid).map(s => s.id)
             };
             localStorage.removeItem(PROJECT_AUTOSAVE_KEY);
+
+            const invalidStructuralAutosaveProject = buildProjectData();
+            invalidStructuralAutosaveProject.autosaveMeta = {
+                reason: 'qa-invalid-structural-autosave',
+                savedAt: new Date().toISOString(),
+                sourceName: 'qa-invalid-structural-autosave',
+                stateRevision: FSTR_AUTOSAVE_STATE_REVISION
+            };
+            const invalidFloorId = invalidStructuralAutosaveProject.floors[1]?.id || invalidStructuralAutosaveProject.floors[0]?.id;
+            invalidStructuralAutosaveProject.columnOverrides = invalidStructuralAutosaveProject.columnOverrides.map(column => ({
+                ...column,
+                active: false,
+                activePerFloor: {
+                    ...(column.activePerFloor || {}),
+                    [invalidFloorId]: false
+                }
+            }));
+            localStorage.setItem(PROJECT_AUTOSAVE_KEY, JSON.stringify(invalidStructuralAutosaveProject));
+            const invalidStructuralAutosaveRestored = restoreAutosavedProjectOnStartup();
+            const invalidStructuralAutosave = {
+                restored: invalidStructuralAutosaveRestored,
+                warningReason: startupAutosaveWarning?.reason || '',
+                quarantineBackup: !!localStorage.getItem(PROJECT_AUTOSAVE_QUARANTINE_KEY),
+                invalidFloorId
+            };
+            localStorage.removeItem(PROJECT_AUTOSAVE_KEY);
+            localStorage.removeItem(PROJECT_AUTOSAVE_QUARANTINE_KEY);
+            startupAutosaveWarning = null;
 
             state.xSpans = [4, 4];
             state.ySpans = [5, 5];
@@ -993,10 +1205,13 @@ async function runBrowserSmoke() {
                 top: [{ projection: 0.75, run: 0, offset: 0, eb: true }, 0],
                 bottom: [0, 0],
                 left: [0, 0],
-                right: [{ projection: 1.2, run: 1.2, offset: 0.4, eb: false }, 0]
+                right: [{ projection: 1.2, run: 1.2, offset: 0, eb: false }, 0]
             }, state.xSpans.length, state.ySpans.length);
             state.floors[0].slabThickness = 100;
             state.floors[0].voidSlabs = ['S1'];
+            state.floors[0].cornerSlabs = normalizeCornerSlabList([
+                { sourceSlabIds: ['SC-T1', 'SC-R1'] }
+            ]);
             state.floors[0].deletedBeams = ['BX-1-1'];
             state.floors[0].planDimensions = [{ id: 'DIM-QA', x1: 0, y1: 0, x2: 2, y2: 0, label: '2.00 m' }];
             const inheritedOverrideBeamId = 'BX-1-2';
@@ -1038,10 +1253,12 @@ async function runBrowserSmoke() {
                 cantRight0Eb: state.floors[1].cantilevers.right[0]?.eb,
                 voidSlabs: state.floors[1].voidSlabs.slice(),
                 deletedBeams: state.floors[1].deletedBeams.slice(),
+                cornerSlabCount: state.floors[1].cornerSlabs.length,
                 dimensions: state.floors[1].planDimensions.length,
                 beamOverride: readInheritedBeamOverrides('RF'),
                 savedFlag: !!rfSavedTypical.typicalFromLower,
                 savedCantTop0: rfSavedTypical.cantilevers?.top?.[0]?.projection,
+                savedCornerSlabCount: rfSavedTypical.cornerSlabs?.length || 0,
                 savedBeamOffset: typicalFloorProject.beamAlignmentOverrides[getBeamAlignmentKey(inheritedOverrideBeamId, 'RF')],
                 savedBeamSize: typicalFloorProject.beamSizeOverrides[getBeamSizeKey(inheritedOverrideBeamId, 'RF')],
                 inheritedInputsDisabled: Array.from(document.querySelectorAll('#cantileverTop input, #cantileverRight input'))
@@ -1058,6 +1275,7 @@ async function runBrowserSmoke() {
                 cantTop0: state.floors[1].cantilevers.top[0]?.projection,
                 voidSlabs: state.floors[1].voidSlabs.slice(),
                 deletedBeams: state.floors[1].deletedBeams.slice(),
+                cornerSlabCount: state.floors[1].cornerSlabs.length,
                 beamOverride: readInheritedBeamOverrides('RF'),
                 roofLoads: {
                     dlSuper: state.floors[1].dlSuper,
@@ -1068,7 +1286,35 @@ async function runBrowserSmoke() {
             };
 
             state.currentFloorIndex = state.floors.findIndex(floor => floor.id === 'RF');
-            removeFloor();
+            const originalConfirm = window.confirm;
+            let removeFloorPrompt = '';
+            window.confirm = message => {
+                removeFloorPrompt = String(message || '');
+                return false;
+            };
+            const floorCountBeforeCancelledRemove = state.floors.length;
+            const cancelledRemoveResult = removeFloor();
+            window.confirm = originalConfirm;
+            const floorRemovalGuard = {
+                before: floorCountBeforeCancelledRemove,
+                after: state.floors.length,
+                result: cancelledRemoveResult,
+                prompt: removeFloorPrompt
+            };
+            removeFloor({ confirm: false });
+            let floorOverwritePrompt = '';
+            window.confirm = message => {
+                floorOverwritePrompt = String(message || '');
+                return false;
+            };
+            const floorOverwriteAllowed = confirmFloorCountReductionBeforeSave(false);
+            window.confirm = originalConfirm;
+            const floorOverwriteGuard = {
+                allowed: floorOverwriteAllowed,
+                baseline: currentProjectBaselineFloorCount,
+                current: state.floors.length,
+                prompt: floorOverwritePrompt
+            };
             const oneFloorAfterRfDelete = {
                 floorIds: state.floors.map(floor => floor.id),
                 count: state.floors.length,
@@ -1194,14 +1440,39 @@ async function runBrowserSmoke() {
                 };
             })();
 
+            const memberTagAudit = (() => {
+                setPlanTab('layout');
+                if (typeof populateBeamSchedule === 'function') populateBeamSchedule();
+                if (typeof renderScheduleBeams === 'function') renderScheduleBeams();
+                if (typeof populateScheduleTables === 'function') populateScheduleTables();
+                if (typeof designAllBeams === 'function') designAllBeams();
+                const floorId = state.floors[state.currentFloorIndex]?.id || '2F';
+                const beam = state.beams.find(b => b && b.id === 'BX-1-1') ||
+                    state.beams.find(b => b && !b.isCustom && !b.isCantilever && !b.deleted);
+                const tag = beam ? getBeamPlanTableTag(beam, floorId, 1) : '';
+                return {
+                    floorId,
+                    beamId: beam?.id || '',
+                    tag,
+                    designText: document.getElementById('beamDesignBody')?.textContent || '',
+                    beamScheduleText: document.getElementById('beamScheduleBody')?.textContent || '',
+                    paperScheduleText: document.getElementById('scheduleBeamsBody')?.textContent || ''
+                };
+            })();
+
             setPlanTab('analysis');
             return {
                 initial,
+                uiCleanupAudit,
                 fourByThree,
                 afterCantileverDashboardRepair,
                 afterUndo,
                 afterRedo,
                 partialCantilever,
+                cornerSlabBeforeReload,
+                cornerSlabAfterReload,
+                cornerSlabAfterRemove,
+                multiEndCornerAction,
                 afterColumnToggle,
                 afterColumnUndo,
                 afterBeamDelete,
@@ -1219,21 +1490,28 @@ async function runBrowserSmoke() {
                 afterMeasureClear,
                 afterMeasureClearUndo,
                 afterMeasureSnapOrtho,
+                afterStairCreate,
+                afterStairReload,
+                afterStairRemove,
                 transientDeletedSave,
                 legacyRootLoad,
                 quarantine,
                 intentionalHidden,
                 autosaveHidden,
                 trustedAutosaveHidden,
+                invalidStructuralAutosave,
                 multiFloorVoidSave,
                 typicalFloorBeforeReload,
                 typicalFloorAfterReload,
+                floorRemovalGuard,
+                floorOverwriteGuard,
                 oneFloorAfterRfDelete,
                 addedRfFromSingle,
                 addedTypicalBeforeRf,
                 beforeSpanVoidOrphan,
                 afterSpanVoidOrphan,
                 dxfLayerAudit,
+                memberTagAudit,
                 finalStatus: document.getElementById('statusText')?.textContent || '',
                 initError: document.body.innerText.includes('Init error')
             };
@@ -1242,6 +1520,18 @@ async function runBrowserSmoke() {
         assert(result.initial.title === 'FutolStructure | Structural Engineering', 'Unexpected app title', result.initial);
         assert(!result.initial.initError && !result.initError, 'Init error shown in app', result);
         assert(result.initial.columns === 9, 'Default 2x2 model did not initialize 9 columns', result.initial);
+        assert(
+            result.uiCleanupAudit.buildBadge === 'v3.16.115' &&
+            result.uiCleanupAudit.rebuildButton === true &&
+            result.uiCleanupAudit.etabsButton === true &&
+            result.uiCleanupAudit.etabsQaBadge === 1 &&
+            result.uiCleanupAudit.stairBeamHidden === true &&
+            result.uiCleanupAudit.scheduleRedirectTab === 'beamSchedule' &&
+            result.uiCleanupAudit.legacyScheduleModalDisplay === 'none' &&
+            result.uiCleanupAudit.legacyScheduleModalDisabled === true,
+            'Approved toolbar/schedule cleanup UI did not render as expected',
+            result.uiCleanupAudit
+        );
         assert(result.fourByThree.grid[0] === 4 && result.fourByThree.grid[1] === 3, '4x3 grid setup failed', result.fourByThree);
         assert(result.fourByThree.inputs.top === 4 && result.fourByThree.inputs.right === 3, 'Cantilever inputs did not match 4x3 grid', result.fourByThree);
         assert(result.fourByThree.columns === 20 && result.fourByThree.visibleColumns === 20, '4x3 model did not generate 20 visible columns', result.fourByThree);
@@ -1275,6 +1565,43 @@ async function runBrowserSmoke() {
             result.partialCantilever.rightPatchWithoutEdge.edgeBeamExists === false,
             'Cantilever edge beam toggle did not suppress only the free-end edge beam',
             result.partialCantilever
+        );
+        assert(
+            result.cornerSlabBeforeReload.joinCount === 1 &&
+            result.cornerSlabBeforeReload.savedJoinCount === 1 &&
+            result.cornerSlabBeforeReload.sourceSlabIds.includes('SC-T4') &&
+            result.cornerSlabBeforeReload.sourceSlabIds.includes('SC-R1') &&
+            Math.abs(result.cornerSlabBeforeReload.area - 0.6) < 0.001 &&
+            result.cornerSlabBeforeReload.supportBeamIds.length === 2 &&
+            result.cornerSlabBeforeReload.supportBeamIds.every(id => result.cornerSlabBeforeReload.hiddenBeamIds.includes(id)) &&
+            result.cornerSlabBeforeReload.supportBeamIds.every(id => result.cornerSlabBeforeReload.renderedHiddenBeamIds.includes(id)) &&
+            Math.abs(result.cornerSlabBeforeReload.assignedArea - result.cornerSlabBeforeReload.area) < 0.001 &&
+            Math.abs(result.cornerSlabBeforeReload.areaDelta) < 0.001,
+            'Corner slab creation did not add the missing patch once, assign its area once, or mark both support beams as hidden lines',
+            result.cornerSlabBeforeReload
+        );
+        assert(
+            result.cornerSlabAfterReload.joinCount === 1 &&
+            result.cornerSlabAfterReload.id === result.cornerSlabBeforeReload.id &&
+            result.cornerSlabAfterReload.sourceSlabIds.includes('SC-T4') &&
+            result.cornerSlabAfterReload.sourceSlabIds.includes('SC-R1') &&
+            result.cornerSlabAfterReload.hiddenBeamIds.length === 2 &&
+            Math.abs(result.cornerSlabAfterReload.areaDelta) < 0.001,
+            'Corner slab join or hidden-line support state did not survive save/load',
+            result.cornerSlabAfterReload
+        );
+        assert(
+            result.cornerSlabAfterRemove.joinCount === 0 && result.cornerSlabAfterRemove.generatedCount === 0,
+            'Remove Corner Slab did not restore the original two-cantilever condition',
+            result.cornerSlabAfterRemove
+        );
+        assert(
+            result.multiEndCornerAction.leftMode === 'remove' &&
+            result.multiEndCornerAction.leftPair.includes('SC-QA-L') &&
+            result.multiEndCornerAction.rightMode === 'create' &&
+            result.multiEndCornerAction.rightCandidateId === 'SC-QA-R',
+            'Corner slab menu action was not resolved independently at opposite ends of the same cantilever slab',
+            result.multiEndCornerAction
         );
         assert(result.afterColumnToggle.visibleColumns === 19, 'Column toggle did not hide one active column', result.afterColumnToggle);
         assert(result.afterColumnUndo.visibleColumns === 20, 'Undo did not restore toggled column', result.afterColumnUndo);
@@ -1371,6 +1698,33 @@ async function runBrowserSmoke() {
             result.afterMeasureSnapOrtho
         );
         assert(
+            result.afterStairCreate.previewReady &&
+            result.afterStairCreate.count === 1 &&
+            result.afterStairCreate.savedCount === 1 &&
+            result.afterStairCreate.levels[0] === '2F' &&
+            result.afterStairCreate.levels[1] === 'RF' &&
+            result.afterStairCreate.risers >= 4 &&
+            result.afterStairCreate.opening?.slabId === 'S2' &&
+            result.afterStairCreate.stairMeshCount === 3 &&
+            result.afterStairCreate.destinationFragmentCount >= 2 &&
+            result.afterStairCreate.tableHasStair &&
+            result.afterStairCreate.dxfHasStair,
+            'Stair Builder did not create persistent plan/opening/3D/DXF geometry',
+            result.afterStairCreate
+        );
+        assert(
+            result.afterStairReload.count === 1 &&
+            result.afterStairReload.id === result.afterStairCreate.id &&
+            result.afterStairReload.openingCount === 1,
+            'Stair Builder object or destination opening did not survive FSTR save/load',
+            result.afterStairReload
+        );
+        assert(
+            result.afterStairRemove.count === 0 && result.afterStairRemove.openingCount === 0,
+            'Removing a stair did not remove its reserved slab opening',
+            result.afterStairRemove
+        );
+        assert(
             result.transientDeletedSave.savedVoidSlabs.includes('S2') &&
             result.transientDeletedSave.hidden.voidSlabs.includes('S2') &&
             result.transientDeletedSave.activeRegularSlabs === 11,
@@ -1393,10 +1747,27 @@ async function runBrowserSmoke() {
         assert(result.quarantine.count === 6, 'Quarantined payload was not fully captured', result.quarantine);
         assert(result.intentionalHidden.hidden.voidSlabs.includes('S1'), 'Intentional saved void slab was quarantined instead of preserved', result.intentionalHidden);
         assert(result.intentionalHidden.voidRegular.includes('S1') && result.intentionalHidden.activeRegularSlabs === 11, 'Intentional saved void slab did not affect active slab geometry after load', result.intentionalHidden);
-        assert(result.autosaveHidden.hidden.voidSlabs.length === 0 && result.autosaveHidden.hidden.deletedBeams.length === 0, 'Autosave restore left stale hidden geometry active', result.autosaveHidden);
-        assert(result.autosaveHidden.quarantinedCount === 2 && result.autosaveHidden.activeRegularSlabs === 12 && result.autosaveHidden.voidRegular.length === 0, 'Autosave hidden geometry was not quarantined on startup restore', result.autosaveHidden);
+        assert(
+            result.autosaveHidden.restored === false &&
+            result.autosaveHidden.warningReason === 'incompatible revision' &&
+            result.autosaveHidden.quarantineBackup &&
+            result.autosaveHidden.hidden.voidSlabs.length === 0 &&
+            result.autosaveHidden.hidden.deletedBeams.length === 0 &&
+            result.autosaveHidden.quarantinedCount === 0 &&
+            result.autosaveHidden.activeRegularSlabs === 12 &&
+            result.autosaveHidden.voidRegular.length === 0,
+            'Outdated autosave was applied instead of being quarantined before startup restore',
+            result.autosaveHidden
+        );
         assert(result.trustedAutosaveHidden.hidden.voidSlabs.includes('S1'), 'Trusted current-build autosave did not preserve intentional void slab state', result.trustedAutosaveHidden);
         assert(result.trustedAutosaveHidden.quarantinedCount === 0 && result.trustedAutosaveHidden.activeRegularSlabs === 11 && result.trustedAutosaveHidden.voidRegular.includes('S1'), 'Trusted current-build autosave void slab was not active after restore', result.trustedAutosaveHidden);
+        assert(
+            result.invalidStructuralAutosave.restored === false &&
+            result.invalidStructuralAutosave.warningReason === 'structural integrity' &&
+            result.invalidStructuralAutosave.quarantineBackup,
+            'Structurally impossible autosave was silently restored',
+            result.invalidStructuralAutosave
+        );
         assert(
             result.multiFloorVoidSave.saved2FVoidSlabs.includes('S1') &&
             result.multiFloorVoidSave.savedRFVoidSlabs.includes('S3'),
@@ -1411,6 +1782,8 @@ async function runBrowserSmoke() {
             result.typicalFloorBeforeReload.cantRight0Eb === false &&
             result.typicalFloorBeforeReload.voidSlabs.includes('S1') &&
             result.typicalFloorBeforeReload.deletedBeams.includes('BX-1-1') &&
+            result.typicalFloorBeforeReload.cornerSlabCount === 1 &&
+            result.typicalFloorBeforeReload.savedCornerSlabCount === 1 &&
             result.typicalFloorBeforeReload.dimensions === 1 &&
             Math.abs(result.typicalFloorBeforeReload.beamOverride.offset - 0.22) < 0.001 &&
             result.typicalFloorBeforeReload.beamOverride.width === 350 &&
@@ -1434,12 +1807,31 @@ async function runBrowserSmoke() {
             Math.abs(result.typicalFloorAfterReload.cantTop0 - 0.75) < 0.001 &&
             result.typicalFloorAfterReload.voidSlabs.includes('S1') &&
             result.typicalFloorAfterReload.deletedBeams.includes('BX-1-1') &&
+            result.typicalFloorAfterReload.cornerSlabCount === 1 &&
             Math.abs(result.typicalFloorAfterReload.beamOverride.offset - 0.22) < 0.001 &&
             result.typicalFloorAfterReload.beamOverride.width === 350 &&
             result.typicalFloorAfterReload.beamOverride.depth === 650 &&
             result.typicalFloorAfterReload.roofLoads.liveLoad === 1.0,
             'Typical-from-lower floor did not survive project save/load',
             result.typicalFloorAfterReload
+        );
+        assert(
+            result.floorRemovalGuard.before === 2 &&
+            result.floorRemovalGuard.after === 2 &&
+            result.floorRemovalGuard.result === false &&
+            /Remove floor RF/.test(result.floorRemovalGuard.prompt) &&
+            /floor-specific slabs, beams, locks, offsets, and loads/.test(result.floorRemovalGuard.prompt),
+            'Floor removal did not require explicit confirmation or cancellation changed the model',
+            result.floorRemovalGuard
+        );
+        assert(
+            result.floorOverwriteGuard.allowed === false &&
+            result.floorOverwriteGuard.baseline === 2 &&
+            result.floorOverwriteGuard.current === 1 &&
+            /2 -> 1/.test(result.floorOverwriteGuard.prompt) &&
+            /floor deletion was intentional/.test(result.floorOverwriteGuard.prompt),
+            'Saving a model with fewer floors than the loaded project was not guarded',
+            result.floorOverwriteGuard
         );
         assert(
             result.oneFloorAfterRfDelete.count === 1 &&
@@ -1518,6 +1910,15 @@ async function runBrowserSmoke() {
         assert(/62\n1\n/.test(result.dxfLayerAudit.beamLayerChunk) && /370\n50\n/.test(result.dxfLayerAudit.beamLayerChunk), 'DXF beam layer does not match FT layer color/lineweight', result.dxfLayerAudit);
         assert(/62\n2\n/.test(result.dxfLayerAudit.columnLayerChunk) && /370\n70\n/.test(result.dxfLayerAudit.columnLayerChunk), 'DXF column layer does not match FT layer color/lineweight', result.dxfLayerAudit);
         assert(/62\n250\n/.test(result.dxfLayerAudit.gridLayerChunk) && /6\nCENTER2\n/.test(result.dxfLayerAudit.gridLayerChunk), 'DXF grid layer does not match FT layer color/linetype', result.dxfLayerAudit);
+        assert(
+            result.memberTagAudit.tag.startsWith(`B - ${result.memberTagAudit.floorId} -`) &&
+            result.memberTagAudit.designText.includes(result.memberTagAudit.tag) &&
+            result.memberTagAudit.beamScheduleText.includes(result.memberTagAudit.tag) &&
+            result.memberTagAudit.paperScheduleText.includes(result.memberTagAudit.tag) &&
+            !result.memberTagAudit.designText.includes(result.memberTagAudit.beamId),
+            'Beam tables are not synchronized with plan-style member tags',
+            result.memberTagAudit
+        );
 
         await tab.evaluate(`(() => {
             state.xSpans = [2.05, 4.38, 4.58, 2.91];
@@ -1586,9 +1987,70 @@ async function runBrowserSmoke() {
         assert(afterReload.regularSlabs === 12, 'Browser reload did not restore regular slabs', afterReload);
         assert(afterReload.hidden.voidSlabs.length === 0 && afterReload.hidden.deletedBeams.length === 0 && afterReload.hidden.deletedColumns.length === 0, 'Browser reload restored hidden geometry as active state', afterReload);
 
+        await tab.evaluate(`(() => {
+            state.stairs = [];
+            state.nextStairId = 1;
+            state.floors.forEach(floor => {
+                floor.slabOpenings = (floor.slabOpenings || []).filter(opening => opening.source !== 'stair');
+            });
+            setPlanTab('staircase');
+            populateStairBuilder();
+            document.getElementById('stairBayX').value = '1';
+            document.getElementById('stairBayY').value = '0';
+            document.getElementById('stairWidth').value = '900';
+            document.getElementById('stairLanding').value = '900';
+            document.getElementById('stairTread').value = '250';
+            document.getElementById('stairGap').value = '100';
+            refreshStairBuilderPreview();
+            createStairFromBuilder();
+            return { count: state.stairs.length, panel: currentPlanTab };
+        })()`);
+        await wait(150);
+        await tab.evaluate(`(() => {
+            const stair = state.stairs[0];
+            const status = document.getElementById('stairBuilderStatus');
+            if (stair && status) {
+                status.textContent = stair.id + ' created. Opening reserved on ' + stair.toFloorId + ' ' + stair.opening.slabId + '.';
+                status.classList.add('ready');
+            }
+            return true;
+        })()`);
         await tab.screenshot(screenshotPath);
+        await tab.evaluate(`(() => {
+            setPlanTab('structural');
+            setView('3d');
+            return true;
+        })()`);
+        await wait(600);
+        await tab.evaluate(`(() => {
+            const stair = state.stairs[0];
+            if (!stair || !camera3D || !controls3D) return false;
+            const totalX = state.xSpans.reduce((sum, span) => sum + span, 0);
+            const totalY = state.ySpans.reduce((sum, span) => sum + span, 0);
+            const cx = (stair.bounds.x1 + stair.bounds.x2) / 2 - totalX / 2;
+            const cz = (stair.bounds.y1 + stair.bounds.y2) / 2 - totalY / 2;
+            const elevations = getExportStoryElevations(state.floors);
+            const fromIndex = state.floors.findIndex(floor => floor.id === stair.fromFloorId);
+            const targetY = (elevations[fromIndex + 1] + elevations[fromIndex + 2]) / 2;
+            view3DDisplaySettings.categories.columns.opacity = 0.18;
+            view3DDisplaySettings.categories.beams.opacity = 0.18;
+            view3DDisplaySettings.categories.cantilevers.opacity = 0.18;
+            view3DDisplaySettings.categories.slabs.opacity = 0.12;
+            view3DDisplaySettings.categories.foundations.opacity = 0.1;
+            view3DDisplaySettings.categories.stairs.color = '#0d9488';
+            view3DDisplaySettings.categories.stairs.opacity = 1;
+            render3DFrame();
+            controls3D.target.set(cx, targetY, cz);
+            camera3D.position.set(cx + 5.5, targetY + 3.5, cz + 5.5);
+            camera3D.lookAt(cx, targetY, cz);
+            controls3D.update();
+            renderer3D.render(scene3D, camera3D);
+            return true;
+        })()`);
+        await wait(150);
+        await tab.screenshot(stair3DScreenshotPath);
         const relevantLogs = tab.logs.filter(log => ['error', 'warning', 'exception'].includes(log.type));
-        return { result, afterReload, screenshotPath, relevantLogs };
+        return { result, afterReload, screenshotPath, stair3DScreenshotPath, relevantLogs };
     } finally {
         tab.close();
         if (browser.process && !KEEP_BROWSER) {
@@ -1616,13 +2078,17 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
     const expectedActiveHiddenTotal = preserveHiddenGeometry ? hiddenGeometryPayloadTotal : 0;
     const browser = await ensureBrowser(DEFAULT_PORT);
     const tab = await openAppTab(browser.base);
-    const screenshotPath = path.join(os.tmpdir(), `futolstructure-project-${path.basename(projectName, path.extname(projectName)).replace(/[^a-z0-9_-]+/gi, '-').toLowerCase()}.png`);
+    const viewportSuffix = getArgValue('--viewport-width') && getArgValue('--viewport-height')
+        ? `-${getArgValue('--viewport-width')}x${getArgValue('--viewport-height')}`
+        : '';
+    const screenshotPath = path.join(os.tmpdir(), `futolstructure-project-${path.basename(projectName, path.extname(projectName)).replace(/[^a-z0-9_-]+/gi, '-').toLowerCase()}${viewportSuffix}.png`);
 
     try {
         const serializedProject = JSON.stringify(projectData);
         const serializedName = JSON.stringify(projectName);
         const result = await tab.evaluate(`(() => {
             localStorage.removeItem('FutolStructure.autosave.v1');
+            window.FS_ENABLE_3D_PIXEL_AUDIT = true;
             const projectData = ${serializedProject};
             const projectName = ${serializedName};
             const validated = typeof validateProjectData === 'function'
@@ -1861,6 +2327,16 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                     if (!values[beam.floorId].includes(beam.wallLoad)) values[beam.floorId].push(beam.wallLoad);
                     return values;
                 }, {}),
+                beamInsertion: {
+                    policies: [...new Set(csiExportModel.beams.map(beam => beam.analyticalAxisPolicy))],
+                    offsetCount: csiExportModel.beams.filter(beam => Math.abs(Number(beam.verticalInsertionOffsetM)) > 1e-9).length,
+                    offsetsM: csiExportModel.beams.map(beam => Number(beam.verticalInsertionOffsetM) || 0),
+                    validTopAlignment: csiExportModel.beams.every(beam => {
+                        const section = csiExportModel.frameSections.find(item => item.name === beam.section);
+                        const expected = -Math.max(0, (Number(section?.hMm) - Number(beam.slabThicknessMm)) / 2000);
+                        return Math.abs((Number(beam.verticalInsertionOffsetM) || 0) - expected) < 1e-9;
+                    })
+                },
                 hasSafeHandoff: typeof exportToSAFEViaETABS === 'function' &&
                     exportToSAFEViaETABS.toString().includes('Story as SAFE V12 .f2k File'),
                 hasAreaLoads: etabsScript.includes('SetLoadUniform')
@@ -1873,7 +2349,9 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                 hasElementLoads: staadContent.includes('\\nELEMENT LOAD\\n'),
                 hasLegacyFloorLoad: staadContent.includes('\\nFLOOR LOAD\\n'),
                 hasConcreteDesignUnits: staadContent.includes('\\nLOAD LIST 3 4\\nUNIT MMS NEWTON\\nSTART CONCRETE DESIGN\\n'),
-                hasJointDisplacements: staadContent.includes('\\nPRINT JOINT DISPLACEMENTS\\n')
+                hasJointDisplacements: staadContent.includes('\\nPRINT JOINT DISPLACEMENTS\\n'),
+                hasMemberOffsets: staadContent.includes('\\nMEMBER OFFSET\\n') &&
+                    staadContent.includes('START 0 -') && staadContent.includes('END 0 -')
             };
             const ifcExportAudit = {
                 ...window.lastIFCExportAudit,
@@ -1901,6 +2379,62 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                 planLabelDiagnostics = window.lastPlanLabelDiagnostics || null;
                 tabSwitchAudit.layout = collectActiveSlabTruthAudit();
             }
+
+            const collectFoundationDiagnostics = () => {
+                if (typeof setView === 'function') setView('3d');
+                if (!view3DInitialized && typeof init3D === 'function') init3D();
+                if (typeof render3DFrame === 'function') render3DFrame();
+                const foundationFloorId = state.floors[0]?.id;
+                const baseColumns = state.columns.filter(col =>
+                    (!foundationFloorId || isColumnActiveOnFloor(col, foundationFloorId)) &&
+                    !col.startFloor && !col.isPlanted
+                );
+                return {
+                    mode: normalizeFoundationMode(state.foundationMode),
+                    baseColumns: baseColumns.length,
+                    positiveFootings: baseColumns.filter(col => Number(col.footingSize) > 0).length,
+                    columnDL: baseColumns.reduce((sum, col) => sum + (Number(col.columnDL) || 0), 0),
+                    tieBeamDL: baseColumns.reduce((sum, col) => sum + (Number(col.tieBeamDL) || 0), 0),
+                    footingDL: baseColumns.reduce((sum, col) => sum + (Number(col.footingDL) || 0), 0),
+                    render: JSON.parse(JSON.stringify(window.last3DModelDiagnostics || {}))
+                };
+            };
+            const loadedFoundationMode = normalizeFoundationMode(state.foundationMode);
+            setFoundationMode('plan', { snapshot: false });
+            const foundationPlanBefore = collectFoundationDiagnostics();
+            setFoundationMode('baseReactionsOnly', { snapshot: false });
+            const foundationBaseOnly = collectFoundationDiagnostics();
+            setFoundationMode('plan', { snapshot: false });
+            const foundationPlanRestored = collectFoundationDiagnostics();
+            setFoundationMode(loadedFoundationMode, { snapshot: false });
+            reset3DDisplaySettings();
+            document.getElementById('display3DTrigger')?.click();
+            const displayScheme = document.getElementById('display3DScheme');
+            displayScheme.value = 'contrast';
+            displayScheme.dispatchEvent(new Event('change', { bubbles: true }));
+            const slabColorInput = document.getElementById('display3DslabsColor');
+            const slabOpacityInput = document.getElementById('display3DslabsOpacity');
+            slabColorInput.value = '#22c3a6';
+            slabColorInput.dispatchEvent(new Event('input', { bubbles: true }));
+            slabOpacityInput.value = '64';
+            slabOpacityInput.dispatchEvent(new Event('input', { bubbles: true }));
+            render3DFrame();
+            const customSlabMesh = meshes3D.find(mesh => mesh?.userData?.type === 'slab');
+            const saved3DDisplay = JSON.parse(localStorage.getItem('FutolStructure.3dDisplay.v1') || 'null');
+            const display3DControlAudit = {
+                panelOpen: !document.getElementById('display3DPanel')?.hidden,
+                controlRows: document.querySelectorAll('#display3DMemberControls .display-3d-field').length,
+                scheme: view3DDisplaySettings.scheme,
+                slabColor: '#' + customSlabMesh.material.color.getHexString(),
+                slabOpacity: customSlabMesh.material.opacity,
+                displayedOpacity: document.getElementById('display3DslabsValue')?.textContent || '',
+                savedScheme: saved3DDisplay?.scheme,
+                savedSlabColor: saved3DDisplay?.categories?.slabs?.color,
+                savedSlabOpacity: saved3DDisplay?.categories?.slabs?.opacity
+            };
+            reset3DDisplaySettings();
+            render3DFrame();
+            toggle3DDisplayPanel(true);
 
             return {
                 title: document.title,
@@ -1936,6 +2470,10 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                     areaBalance: document.getElementById('areaBalance')?.textContent || ''
                 },
                 planLabelDiagnostics,
+                foundationPlanBefore,
+                foundationBaseOnly,
+                foundationPlanRestored,
+                display3DControlAudit,
                 csiExportAudit,
                 staadExportAudit,
                 ifcExportAudit,
@@ -1968,6 +2506,9 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
             result.csiExportAudit.hasRigidDiaphragm &&
             result.csiExportAudit.hasGovernedMassSource &&
             result.csiExportAudit.hasAutomatedModalAudit &&
+            result.csiExportAudit.beamInsertion.offsetCount > 0 &&
+            result.csiExportAudit.beamInsertion.validTopAlignment &&
+            JSON.stringify(result.csiExportAudit.beamInsertion.policies) === JSON.stringify(['support-centerline-at-slab-midplane']) &&
             result.csiExportAudit.hasSafeHandoff &&
             result.csiExportAudit.hasAreaLoads,
             'ETABS OAPI export payload is incomplete',
@@ -2010,11 +2551,62 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
             result.staadExportAudit.hasElementLoads &&
             result.staadExportAudit.hasConcreteDesignUnits &&
             result.staadExportAudit.hasJointDisplacements &&
+            result.staadExportAudit.hasMemberOffsets &&
+            result.staadExportAudit.counts.verticallyOffsetBeams === result.csiExportAudit.beamInsertion.offsetCount &&
             result.staadExportAudit.concreteDesign?.units === 'N-mm' &&
             JSON.stringify(result.staadExportAudit.concreteDesign?.loadList) === JSON.stringify([3, 4]) &&
             !result.staadExportAudit.hasLegacyFloorLoad,
             'STAAD export is not in geometry/load parity with the shared ETABS solver payload',
             { etabs: result.csiExportAudit, staad: result.staadExportAudit }
+        );
+        assert(
+            result.foundationPlanBefore.mode === 'plan' &&
+            result.foundationPlanBefore.baseColumns > 0 &&
+            result.foundationPlanBefore.positiveFootings === result.foundationPlanBefore.baseColumns &&
+            result.foundationPlanBefore.columnDL > 0 &&
+            result.foundationPlanBefore.tieBeamDL > 0 &&
+            result.foundationPlanBefore.footingDL > 0 &&
+            result.foundationPlanBefore.render.structuralCounts.beams === result.csiExportAudit.counts.beams &&
+            result.foundationPlanBefore.render.structuralCounts.footings === result.foundationPlanBefore.baseColumns &&
+            result.foundationPlanBefore.render.structuralCounts.pedestals === result.foundationPlanBefore.baseColumns &&
+            result.foundationPlanBefore.render.structuralCounts.tieBeams > 0 &&
+            result.foundationPlanBefore.render.beamTopAtStoryLevel &&
+            result.foundationPlanBefore.render.slabTopAtStoryLevel &&
+            result.foundationPlanBefore.render.slabThicknessMatchesFloor &&
+            result.foundationPlanBefore.render.beamSlabTopAligned &&
+            result.foundationPlanBefore.render.foundationCenterlineMaxDeltaM < 1e-9 &&
+            result.foundationPlanBefore.render.canvasPixels?.nonBackgroundPixels > 1000 &&
+            result.foundationPlanBefore.render.canvasPixels?.coverage > 0.01,
+            'Foundation Plan or 3D structural members did not regenerate from the saved project',
+            result.foundationPlanBefore
+        );
+        assert(
+            result.foundationBaseOnly.mode === 'baseReactionsOnly' &&
+            result.foundationBaseOnly.render.structuralCounts.footings === 0 &&
+            result.foundationBaseOnly.render.structuralCounts.pedestals === 0 &&
+            result.foundationBaseOnly.render.structuralCounts.tieBeams === 0,
+            'Base Reaction mode still rendered foundation members in 3D',
+            result.foundationBaseOnly
+        );
+        assert(
+            result.foundationPlanRestored.mode === 'plan' &&
+            result.foundationPlanRestored.positiveFootings === result.foundationPlanBefore.positiveFootings &&
+            result.foundationPlanRestored.render.structuralCounts.footings === result.foundationPlanBefore.render.structuralCounts.footings,
+            'Foundation Plan members did not return after a Base Reaction mode cycle',
+            { before: result.foundationPlanBefore, restored: result.foundationPlanRestored }
+        );
+        assert(
+            result.display3DControlAudit.panelOpen &&
+            result.display3DControlAudit.controlRows === 6 &&
+            result.display3DControlAudit.scheme === 'custom' &&
+            result.display3DControlAudit.slabColor === '#22c3a6' &&
+            Math.abs(result.display3DControlAudit.slabOpacity - 0.64) < 1e-9 &&
+            result.display3DControlAudit.displayedOpacity === '64%' &&
+            result.display3DControlAudit.savedScheme === 'custom' &&
+            result.display3DControlAudit.savedSlabColor === '#22c3a6' &&
+            Math.abs(result.display3DControlAudit.savedSlabOpacity - 0.64) < 1e-9,
+            '3D display controls did not update and persist the rendered slab material',
+            result.display3DControlAudit
         );
         assert(
             result.ifcExportAudit.counts.stories === result.csiExportAudit.counts.stories &&
