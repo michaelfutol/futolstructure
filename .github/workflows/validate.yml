@@ -31,4 +31,5 @@ jobs:
         run: node v3/tools/check-fs.js --no-browser
 
       - name: Validate deployment configuration
-        run: node -e "JSON.parse(require('fs').readFileSync('vercel.json', 'utf8')); console.log('vercel.json: valid')"
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('vercel.json', 'utf8')); console.log('vercel.json: valid')"
