@@ -5,7 +5,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FutolStructure | Structural Engineering</title>
+    <meta name="description" content="FutolStructure is a structural engineering workbench for RC framing layout, tributary load-path review, 3D coordination, and solver handoff preparation.">
+    <meta name="robots" content="index,follow">
     <meta name="theme-color" content="#1b1e24">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="FutolStructure | Structural Engineering Workbench">
+    <meta property="og:description" content="RC framing layout, tributary load-path review, 3D coordination, and solver handoff preparation.">
+    <meta property="og:url" content="https://futolstructure.vercel.app/">
+    <meta property="og:image" content="https://futolstructure.vercel.app/v3/assets/screenshots/futolstructure-3d.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="canonical" href="https://futolstructure.vercel.app/">
     <link rel="icon" type="image/png" href="assets/futolstructure-icon.png">
     <style>
         /* ========== GOOGLE FONTS ========== */
@@ -2153,7 +2162,7 @@
                     <button class="plan-tab" id="tabDashboard" onclick="setPlanTab('dashboard')">Dashboard</button>
                     <button class="plan-tab" id="tabRecovery" onclick="setPlanTab('recovery')">Recovery</button>
                     <button class="plan-tab" id="tabSettings" onclick="setPlanTab('settings')">Settings</button>
-                    <button class="plan-tab" id="tabAIAssistant" onclick="setPlanTab('aiAssistant')">AI</button>
+                    <button class="plan-tab" id="tabAIAssistant" onclick="setPlanTab('aiAssistant')" style="display:none;" aria-hidden="true" title="AI review is disabled in the public technical preview">AI</button>
                 </div>
 
                 <!-- Canvas Tools -->
@@ -3375,7 +3384,7 @@
                 <div style="padding:8px;">
                     <div style="display:flex; gap:6px; margin-bottom:8px; align-items:center;">
                         <label style="font-size:0.7rem; white-space:nowrap;">API Key:</label>
-                        <input type="password" id="kimiApiKey" placeholder="sk-kimi-..."
+                        <input type="password" id="kimiApiKey" placeholder="Disabled in public preview" autocomplete="off" disabled
                             style="flex:1; padding:4px 8px; font-size:0.75rem; border:1px solid #ccc; border-radius:4px;">
                         <select id="kimiModel"
                             style="padding:4px; font-size:0.7rem; border:1px solid #ccc; border-radius:4px;">
@@ -15989,12 +15998,13 @@
 
 // ========== v3.15: KIMI CODE AI ASSISTANT ==========
 
+const PUBLIC_AI_ASSISTANT_ENABLED = false;
+
 const aiChatHistory = [];
 
 function initAIAssistant() {
-    // Load saved API key
-    const saved = localStorage.getItem('kimiApiKey');
-    if (saved) document.getElementById('kimiApiKey').value = saved;
+    const input = document.getElementById('kimiApiKey');
+    if (input) input.value = '';
 }
 
 function getStructuralContext() {
@@ -16068,15 +16078,16 @@ function getStructuralContext() {
 }
 
 async function sendToKimi() {
+    if (!PUBLIC_AI_ASSISTANT_ENABLED) {
+        alert('AI review is disabled in the public technical preview.');
+        return;
+    }
     const apiKey = document.getElementById('kimiApiKey')?.value?.trim();
     const model = document.getElementById('kimiModel')?.value || 'moonshot-v1-32k';
     const userInput = document.getElementById('aiUserInput')?.value?.trim();
 
     if (!apiKey) { alert('Please enter your Kimi API key'); return; }
     if (!userInput) return;
-
-    // Save API key
-    localStorage.setItem('kimiApiKey', apiKey);
 
     // Add user message to chat
     const chatDiv = document.getElementById('aiChatMessages');
@@ -16090,7 +16101,7 @@ async function sendToKimi() {
 
     // Build messages
     const structuralContext = getStructuralContext();
-    const systemPrompt = `You are a licensed structural engineer assistant integrated into the FutolStructure structural design software.You are reviewing a REAL project with REAL data.
+    const systemPrompt = `You are a preliminary structural engineering review assistant integrated into FutolStructure. You are reviewing project data supplied by the user.
 
                 RULES:
             1. ONLY reference data that exists in the PROJECT DATA below.Do NOT invent values.
@@ -22268,7 +22279,7 @@ try {
         // ========== RESIDENT ETHOS ENGINE ==========
         const RESIDENT_ETHOS_ENABLED = false; // Validation branch: keep AI out of the main modeling surface.
         const ETHOS = {
-            apiKey: localStorage.getItem('residentEthosApiKey'),
+            apiKey: null,
             history: [],
             isLoading: false,
 
@@ -22509,7 +22520,6 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                 const key = document.getElementById('ethosApiKeyInput').value.trim();
                 if (key) {
                     ETHOS.apiKey = key;
-                    localStorage.setItem('residentEthosApiKey', key);
                     apiSetup.style.display = 'none';
                     inputArea.style.display = 'flex';
                     addMsg('assistant', '✅ API key saved! Ready to help.');

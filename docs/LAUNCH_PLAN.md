@@ -19,7 +19,7 @@ Do not create a second repository yet. A new repository is only useful if we lat
 1. Keep the existing repo as the source of truth.
 2. Stage only intentional public-facing changes.
 3. Push a stable branch.
-4. Connect that branch to the website deployment.
+4. Merge reviewed release changes to `main`, which is the Vercel production branch.
 
 ## Local Folder Decision
 
@@ -33,7 +33,7 @@ For public presentation, use one of these approaches:
 | `release/web` branch | Public demo branch | Stage only `README.md`, `index.html`, `v3/`, `docs/`, and deploy config. |
 | New clean repo | Later portfolio polish | Use after the app stabilizes and we want a smaller public history. |
 
-Recommended now: create a `release/web` or `main` public branch from the current working app after review.
+Current decision: keep `main` as the reviewed production branch. Pull requests receive Vercel previews and merge to production only after validation passes.
 
 ## Deployment Options
 
@@ -47,7 +47,8 @@ Current Vercel project:
 scope: ikel-eidras-projects
 project: futolstructure
 production: https://futolstructure.vercel.app
-deployment: https://futolstructure-i93dbe2sb-ikel-eidras-projects.vercel.app
+production branch: main
+validated deployment: dpl_6BPVUFHxE7NqPEUSdQXCmUXkziiB
 custom domain target: futolstructure.futoltech.com
 ```
 
@@ -64,23 +65,15 @@ futolstructure.futoltech.com
 
 7. In DNS, point the subdomain to the Vercel target shown in the project domain settings.
 
-Current DNS action required:
-
-```text
-type: CNAME
-name: futolstructure
-value: 3dcc340da554f319.vercel-dns-017.com.
-```
-
-Vercel also reports the common fallback option:
+Current DNS action required, as reported by Vercel on 2026-07-13:
 
 ```text
 type: A
-name: futolstructure.futoltech.com
+name/host: futolstructure
 value: 76.76.21.21
 ```
 
-Use the CNAME record for the subdomain when the DNS provider allows it. After changing DNS, verify with:
+Create this record at the DNS provider currently serving `futoltech.com`. Do not replace the domain's nameservers merely for this subdomain. After changing DNS, verify with:
 
 ```bash
 npx --yes vercel@latest domains verify futolstructure.futoltech.com
@@ -131,22 +124,25 @@ https://futolstructure.futoltech.com
 
 ## Pre-Launch Checklist
 
-- README uses the FutolStructure name and current build.
-- Screenshots are current and stored under `v3/assets/screenshots/`.
-- Root `index.html` no longer references old `v3.10` wording.
-- `node v3/tools/check-fs.js --no-browser` passes.
-- Full browser smoke passes before announcing the link.
-- No private `.fstr` project files are accidentally committed.
-- No personal solver validation folders are committed.
-- Public README does not claim permit-ready design without engineer review.
+- [x] README uses the FutolStructure name and current build.
+- [x] Screenshots are stored under `v3/assets/screenshots/`.
+- [x] Root `index.html` no longer references old `v3.10` wording.
+- [x] Repository license, contribution, security, issue, and pull-request policies exist.
+- [x] GitHub validation workflow runs the source/engine smoke check.
+- [ ] Full browser smoke passes for the release commit.
+- [x] No private `.fstr` project files are committed.
+- [x] No personal native-solver project files are committed.
+- [x] Public README does not claim permit-ready design without engineer review.
+- [ ] DNS resolves `futolstructure.futoltech.com` to Vercel.
 
 ## Recommended Git Staging
 
-For the first portfolio update, stage only the intentional public and launch files:
+For a portfolio update, stage only the intentional public and launch files:
 
 ```bash
-git add README.md index.html vercel.json docs/LAUNCH_PLAN.md v3/assets/screenshots/
-git add v3/index.html v3/tools/check-fs.js v3/_logs/AGENT_RAG.md
+git add README.md LICENSE SECURITY.md CONTRIBUTING.md CODE_OF_CONDUCT.md
+git add .github/ index.html robots.txt sitemap.xml vercel.json docs/LAUNCH_PLAN.md
+git add v3/index.html v3/assets/screenshots/ v3/tools/check-fs.js
 ```
 
 Review before commit:
@@ -165,9 +161,9 @@ Prepare FutolStructure portfolio launch
 ## Next Product Goals
 
 1. Add pre-save backups and save health gates for `.fstr` protection.
-2. Stabilize website deployment and custom domain.
+2. Complete custom-domain DNS and switch canonical metadata to the verified custom domain.
 3. Add accounts and cloud project storage using the architecture in `docs/AUTH_SECURITY_PLAN.md`.
 4. Add a short demo video or GIF to the README.
 5. Continue export validation for ETABS, STAAD, IFC, SAFE, and Revit review.
 6. Improve stair export from visual geometry to solver-ready shell/frame connectivity.
-7. Add a formal license and a lightweight engineering disclaimer page.
+7. Replace client-only experimental AI with an authenticated, consent-based server integration if it returns.

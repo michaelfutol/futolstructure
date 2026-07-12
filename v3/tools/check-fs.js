@@ -352,6 +352,7 @@ async function runBrowserSmoke() {
 
             const uiCleanupAudit = (() => {
                 const stairBeamBtn = document.getElementById('addCustomBeamBtn');
+                const aiAssistantTab = document.getElementById('tabAIAssistant');
                 const scheduleModal = document.getElementById('schedulesModal');
                 const previousTab = currentPlanTab || 'structural';
                 if (typeof showSchedulesModal === 'function') showSchedulesModal();
@@ -361,6 +362,8 @@ async function runBrowserSmoke() {
                     etabsButton: Array.from(document.querySelectorAll('.header-actions .tool-btn')).some(btn => btn.textContent.trim() === 'ETABS'),
                     etabsQaBadge: document.querySelectorAll('.header-actions .export-validation-badge').length,
                     stairBeamHidden: !!stairBeamBtn && (stairBeamBtn.hidden || stairBeamBtn.getAttribute('aria-hidden') === 'true'),
+                    aiAssistantHidden: !!aiAssistantTab && (aiAssistantTab.hidden || aiAssistantTab.style.display === 'none' || aiAssistantTab.getAttribute('aria-hidden') === 'true'),
+                    publicAiDisabled: typeof PUBLIC_AI_ASSISTANT_ENABLED !== 'undefined' && PUBLIC_AI_ASSISTANT_ENABLED === false,
                     scheduleRedirectTab: currentPlanTab,
                     legacyScheduleModalDisplay: scheduleModal?.style.display || '',
                     legacyScheduleModalDisabled: scheduleModal?.dataset?.legacyDisabled === 'true'
@@ -1526,6 +1529,8 @@ async function runBrowserSmoke() {
             result.uiCleanupAudit.etabsButton === true &&
             result.uiCleanupAudit.etabsQaBadge === 1 &&
             result.uiCleanupAudit.stairBeamHidden === true &&
+            result.uiCleanupAudit.aiAssistantHidden === true &&
+            result.uiCleanupAudit.publicAiDisabled === true &&
             result.uiCleanupAudit.scheduleRedirectTab === 'beamSchedule' &&
             result.uiCleanupAudit.legacyScheduleModalDisplay === 'none' &&
             result.uiCleanupAudit.legacyScheduleModalDisabled === true,

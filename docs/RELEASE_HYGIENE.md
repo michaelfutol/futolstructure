@@ -13,6 +13,8 @@ Use this checklist before pushing a public FutolStructure update.
 ## Keep In The Public Repo
 
 - `README.md`
+- `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, and `CODE_OF_CONDUCT.md`
+- `.github/` validation and contribution templates
 - `index.html`
 - `v3/index.html`
 - `v3/assets/futolstructure-icon.png`
@@ -44,6 +46,7 @@ Use targeted staging:
 
 ```bash
 git add README.md index.html vercel.json docs/
+git add LICENSE SECURITY.md CONTRIBUTING.md CODE_OF_CONDUCT.md .github/
 git add v3/assets/screenshots/
 ```
 

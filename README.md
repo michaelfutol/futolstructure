@@ -4,14 +4,34 @@
 
 # FutolStructure
 
-FutolStructure is a browser-based structural engineering workbench for early reinforced-concrete building modeling, gravity load takeoff, tributary area visualization, 3D review, and solver handoff preparation.
+FutolStructure is a browser-based structural engineering workbench for reinforced-concrete building layout, gravity load-path review, tributary area visualization, 3D coordination, and solver handoff preparation.
 
-It is designed around the workflow of a practicing engineer: define a grid, tune floor/cantilever geometry, review load paths, inspect the 3D frame, then export coordinated model data for documentation and solver validation.
+<p>
+  <a href="https://futolstructure.vercel.app"><strong>Open the live technical preview</strong></a>
+  &nbsp;|&nbsp;
+  <a href="docs/LAUNCH_PLAN.md">Deployment</a>
+  &nbsp;|&nbsp;
+  <a href="SECURITY.md">Security</a>
+</p>
 
-![Version](https://img.shields.io/badge/build-v3.16.115-2563eb)
+[![Build](https://img.shields.io/badge/build-v3.16.115-2563eb)](https://futolstructure.vercel.app)
+[![Validation](https://github.com/michaelfutol/futolstructure/actions/workflows/validate.yml/badge.svg)](https://github.com/michaelfutol/futolstructure/actions/workflows/validate.yml)
 ![Platform](https://img.shields.io/badge/platform-browser-0f766e)
-![Stack](https://img.shields.io/badge/stack-HTML%20%7C%20CSS%20%7C%20JavaScript-f59e0b)
-![Validation](https://img.shields.io/badge/solver%20QA-ETABS%20%7C%20STAAD%20%7C%20IFC-16a34a)
+![Maturity](https://img.shields.io/badge/maturity-technical%20preview-f59e0b)
+![License](https://img.shields.io/badge/license-all%20rights%20reserved-475569)
+
+> [!IMPORTANT]
+> FutolStructure is an engineering decision-support and model-preparation tool. It does not replace project-specific analysis, code checks, geotechnical input, detailing, or review and signing by the responsible licensed engineer.
+
+## Product Workflow
+
+```mermaid
+flowchart LR
+    A[Grid and floor intent] --> B[Active structural geometry]
+    B --> C[Tributary and gravity load path]
+    C --> D[Plans, schedules, and 3D review]
+    D --> E[DXF, IFC, STAAD, and ETABS handoff]
+```
 
 ## Screenshots
 
@@ -29,55 +49,40 @@ It is designed around the workflow of a practicing engineer: define a grid, tune
 
 ## Current Capabilities
 
-- Grid-based reinforced-concrete framing model with columns, beams, slabs, cantilevers, corner slab patches, and per-floor controls.
+- Grid-based RC framing with columns, beams, slabs, cantilevers, corner slab patches, and floor-specific controls.
 - Tributary area and gravity load distribution from slabs to beams, columns, footings, and base reactions.
-- Plan drafting aids including beam/slab tags, grid bubbles, dimensions, ortho measure mode, entity snapping, and member lock indicators.
-- Professional 3D review with display schemes, member opacity/color controls, foundation visualization, slab transparency, and stair geometry.
-- Persistent `.fstr` project save/load with autosave protection, hidden-geometry recovery, floor deletion guardrails, and lock persistence.
-- Stair Builder for inter-storey stair geometry, destination slab openings, DXF footprint output, and 3D stair review.
-- Reports and schedules for columns, beams, slabs, footings/base reactions, and design summaries.
-- Export pathways for DXF, IFC2x3, STAAD.Pro, ETABS 22 OAPI, and SAFE handoff through ETABS.
+- Plan drafting aids including coordinated member tags, grid bubbles, dimensions, ortho measurement, snapping, and lock indicators.
+- 3D review with display schemes, member colors and opacity controls, foundation geometry, slab transparency, and stair geometry.
+- `.fstr` project save/load with guarded autosave, recovery diagnostics, floor deletion warnings, and persisted member locks.
+- Stair Builder geometry with destination slab openings, DXF footprint output, and 3D review.
+- Reports and schedules for columns, beams, slabs, footings/base reactions, and preliminary design summaries.
+- Coordinated DXF, IFC2x3, STAAD.Pro, ETABS 22 OAPI, and ETABS-to-SAFE handoff paths.
 
-## Solver And BIM Status
+## Solver and BIM Status
 
-FutolStructure uses one shared active model payload for export parity. Current validation work has covered gravity-baseline export and model-count parity for ETABS, STAAD.Pro, and IFC.
+FutolStructure uses a shared active-model payload so geometry counts and member intent remain coordinated across export targets.
 
 | Target | Current status |
 | --- | --- |
-| DXF | Structural drafting layers and plan output are active. |
-| IFC2x3 | Active columns, beams, slabs, and stair-related geometry are exported for BIM review. |
-| STAAD.Pro | Gravity baseline, frame/plate geometry, beam insertion offsets, and statics checks have been validated against STAAD.Pro 2024. |
-| ETABS 22 | OAPI builder creates a dated working model, assigns rigid diaphragm baseline, defines governed mass source, runs modal analysis, and exports audit artifacts. |
-| SAFE | Handoff path is planned through ETABS story export and base reaction workflows. |
+| DXF | Structural plan output and governed layer mapping are active. |
+| IFC2x3 | Active columns, beams, slabs, and storey organization are exported for BIM review. |
+| STAAD.Pro | The gravity baseline, frame/plate geometry, beam insertion offsets, and statics balance were validated in STAAD.Pro 2024. |
+| ETABS 22 | The OAPI builder creates a dated working copy, assigns the governed mass baseline, runs modal analysis, and exports audit artifacts. |
+| SAFE | The supported handoff remains ETABS story export plus governed base reactions; direct browser-authored SAFE models are not claimed. |
 
-Important: this repository is an engineering decision-support and model-preparation tool. Final permit-ready design still requires project-specific wind/seismic inputs, diaphragm and drift checks, geotechnical data, detailing checks, and review/signing by the responsible licensed engineer.
+Validated baselines do not imply final lateral design, detailing compliance, or permit readiness for an arbitrary project. The current reliable envelope is regular orthogonal low-rise RC framing; irregular and transfer behavior requires explicit solver review.
 
 ## Quick Start
 
-No build step is required for the app itself.
+No build step is required for the current static application.
 
 ```bash
 git clone https://github.com/michaelfutol/futolstructure.git
 cd futolstructure
-```
-
-Open the app directly:
-
-```text
-v3/index.html
-```
-
-Or serve it locally:
-
-```bash
 python -m http.server 4173
 ```
 
-Then open:
-
-```text
-http://127.0.0.1:4173/v3/index.html
-```
+Open `http://127.0.0.1:4173/v3/index.html`.
 
 ## Validation
 
@@ -87,60 +92,55 @@ Run the syntax and engine smoke check:
 node v3/tools/check-fs.js --no-browser
 ```
 
-Run the full browser smoke check with Chrome or Edge available:
+Run the full browser smoke check with Chrome or Edge installed:
 
 ```bash
 node v3/tools/check-fs.js
 ```
 
-The browser smoke covers app initialization, plan geometry, active slab truth, cantilever behavior, hidden/deleted geometry persistence, member locking, measurement tools, stair builder persistence, DXF stair output, 3D rendering coverage, export payload parity, and current UI cleanup checks.
+The browser smoke covers initialization, plan geometry, slab ownership, cantilever behavior, persistence and recovery guards, member locking, measurement tools, stair persistence, 3D rendering, and export payload parity.
 
 ## Repository Layout
 
 ```text
 futolstructure/
-|-- README.md
-|-- index.html
+|-- .github/              Release checks and contribution templates
+|-- docs/                 Launch, security architecture, and release notes
 |-- v3/
-|   |-- index.html
-|   |-- assets/
-|   |   |-- futolstructure-icon.png
-|   |   `-- screenshots/
-|   |-- engine/
-|   |-- tools/
-|   |   `-- check-fs.js
-|   `-- _logs/
-`-- .gitignore
+|   |-- assets/           Product identity and screenshots
+|   |-- engine/           Extracted structural calculation helpers
+|   |-- tools/            Regression smoke runner
+|   `-- index.html        Current application
+|-- index.html            Hosted root entry
+|-- vercel.json           Static deployment and security headers
+`-- README.md
 ```
 
-## Technical Notes
+## Data and Security Boundary
 
-- Frontend: plain HTML, CSS, and JavaScript.
-- 3D rendering: Three.js loaded by the app.
-- Persistence: `.fstr` project files plus guarded browser autosave.
-- Testing: Node-based syntax checks and Chrome/Edge CDP browser smoke tests.
-- Deployment: static hosting is enough for the current app.
+- The public technical preview is local-file first and does not yet provide user accounts or cloud project storage.
+- `.fstr` model data stays in the browser or in files explicitly saved by the user.
+- Experimental client-side AI key panels are disabled for the public preview. Future AI or collaboration features must use an authenticated server boundary and explicit project-data consent.
+- Private project files and native solver artifacts are excluded from source control and Vercel deployments.
+
+See [SECURITY.md](SECURITY.md) for vulnerability reporting and [docs/AUTH_SECURITY_PLAN.md](docs/AUTH_SECURITY_PLAN.md) for the planned Supabase authentication and row-level-security architecture.
 
 ## Deployment
 
-The intended public URL is:
+- Production preview: https://futolstructure.vercel.app
+- Custom domain target: https://futolstructure.futoltech.com
+- Release workflow: pull request preview, automated validation, merge to `main`, then Vercel production deployment.
 
-```text
-https://futolstructure.futoltech.com
-```
+The custom domain requires its DNS record before it becomes public. See [docs/LAUNCH_PLAN.md](docs/LAUNCH_PLAN.md) for the exact record and verification command.
 
-See [docs/LAUNCH_PLAN.md](docs/LAUNCH_PLAN.md) for the GitHub, Vercel/cPanel, DNS, and release checklist.
+## Project Status
 
-For future authenticated cloud projects and user accounts, see [docs/AUTH_SECURITY_PLAN.md](docs/AUTH_SECURITY_PLAN.md).
+The product is under active technical validation. Near-term work focuses on protected `.fstr` revisions, solver export truth, authenticated cloud projects, stair analytical connectivity, and continued BIM round-trip testing.
 
-## Portfolio Roadmap
-
-- Add a public live demo link after deploying the static app.
-- Add a formal `LICENSE` file before public release.
-- Add a short demo video or GIF showing plan editing, 3D review, and solver export.
-- Split long-term code into modules once feature stabilization is complete.
-- Continue native solver validation for stairs, lateral loading, SAFE workflow, and Revit/IFC round-trip review.
+Contributions should preserve engineering traceability and avoid claims beyond validated behavior; read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 ## Author
 
 FutolTech - Engineering & Project Systems
+
+Copyright (c) 2026 Michael Futol. All rights reserved. See [LICENSE](LICENSE).
