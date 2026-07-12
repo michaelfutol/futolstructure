@@ -14,7 +14,7 @@ FutolStructure is a browser-based structural engineering workbench for reinforce
   <a href="SECURITY.md">Security</a>
 </p>
 
-[![Build](https://img.shields.io/badge/build-v3.16.115-2563eb)](https://futolstructure.vercel.app)
+[![Build](https://img.shields.io/badge/build-v3.16.116-2563eb)](https://futolstructure.vercel.app)
 [![Validation](https://github.com/michaelfutol/futolstructure/actions/workflows/validate.yml/badge.svg)](https://github.com/michaelfutol/futolstructure/actions/workflows/validate.yml)
 ![Platform](https://img.shields.io/badge/platform-browser-0f766e)
 ![Maturity](https://img.shields.io/badge/maturity-technical%20preview-f59e0b)
@@ -56,7 +56,7 @@ flowchart LR
 - `.fstr` project save/load with guarded autosave, recovery diagnostics, floor deletion warnings, and persisted member locks.
 - Stair Builder geometry with destination slab openings, DXF footprint output, and 3D review.
 - Reports and schedules for columns, beams, slabs, footings/base reactions, and preliminary design summaries.
-- Coordinated DXF, IFC2x3, STAAD.Pro, ETABS 22 OAPI, and ETABS-to-SAFE handoff paths.
+- Coordinated multi-floor DXF drawing packages, IFC2x3, STAAD.Pro, ETABS 22 OAPI, and ETABS-to-SAFE handoff paths.
 
 ## Solver and BIM Status
 
@@ -64,7 +64,7 @@ FutolStructure uses a shared active-model payload so geometry counts and member 
 
 | Target | Current status |
 | --- | --- |
-| DXF | Structural plan output and governed layer mapping are active. |
+| DXF | Every floor exports layout and tributary plans, plus foundation/base reactions, synchronized schedules, load summary, and preliminary BOQ tables on governed structural layers. |
 | IFC2x3 | Active columns, beams, slabs, and storey organization are exported for BIM review. |
 | STAAD.Pro | The gravity baseline, frame/plate geometry, beam insertion offsets, and statics balance were validated in STAAD.Pro 2024. |
 | ETABS 22 | The OAPI builder creates a dated working copy, assigns the governed mass baseline, runs modal analysis, and exports audit artifacts. |
@@ -98,7 +98,7 @@ Run the full browser smoke check with Chrome or Edge installed:
 node v3/tools/check-fs.js
 ```
 
-The browser smoke covers initialization, plan geometry, slab ownership, cantilever behavior, persistence and recovery guards, member locking, measurement tools, stair persistence, 3D rendering, and export payload parity.
+The browser smoke covers initialization, plan geometry, slab ownership, cantilever behavior, persistence and recovery guards, member locking, measurement tools, stair persistence, 3D rendering, coordinated DXF package completeness, and export payload parity.
 
 ## Repository Layout
 

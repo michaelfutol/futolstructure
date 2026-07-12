@@ -1397,6 +1397,7 @@ async function runBrowserSmoke() {
 
             const dxfLayerAudit = (() => {
                 const dxf = generateDXFContent();
+                const packageAudit = JSON.parse(JSON.stringify(window.lastDXFExportAudit || {}));
                 const requiredLayers = [
                     'S-CONC-FOUND',
                     'S-CONC-SLAB',
@@ -1426,6 +1427,21 @@ async function runBrowserSmoke() {
                     'S-TEXT'
                 ];
                 const legacyLayers = ['GRID', 'COLUMNS', 'BEAMS', 'SLABS', 'TEXT', 'CUSTOM_BEAMS'];
+                const floorIds = (state.floors || []).map(floor => floor.id);
+                const missingPlanTitles = floorIds.flatMap(floorId => [
+                    floorId + ' - STRUCTURAL LAYOUT PLAN',
+                    floorId + ' - TRIBUTARY PLAN'
+                ]).filter(title => !dxf.includes('\\n1\\n' + title + '\\n'));
+                const requiredTableTitles = [
+                    'DRAWING PACKAGE INDEX',
+                    'MODEL SUMMARY',
+                    'FLOOR LOAD SUMMARY',
+                    'COLUMN SCHEDULE',
+                    'BEAM SCHEDULE - PLAN TAGS',
+                    'SLAB SCHEDULE - PLAN TAGS',
+                    'BILL OF QUANTITIES - CONCRETE (PRELIMINARY)',
+                    'BILL OF QUANTITIES - REBAR ALLOWANCE'
+                ];
                 const layerChunk = (name) => {
                     const marker = '0\\nLAYER\\n2\\n' + name + '\\n';
                     const start = dxf.indexOf(marker);
@@ -1437,6 +1453,12 @@ async function runBrowserSmoke() {
                     missingEntityLayers: exportedEntityLayers.filter(name => !dxf.includes('\\n8\\n' + name + '\\n')),
                     legacyLayerHits: legacyLayers.filter(name => dxf.includes('\\n2\\n' + name + '\\n') || dxf.includes('\\n8\\n' + name + '\\n')),
                     hasCenter2Linetype: dxf.includes('\\n2\\nCENTER2\\n') && dxf.includes('\\n6\\nCENTER2\\n'),
+                    hasHidden2Linetype: dxf.includes('\\n2\\nHIDDEN2\\n'),
+                    hasFoundationPlanTitle: dxf.includes('\\n1\\nFOUNDATION PLAN\\n') || dxf.includes('\\n1\\nBASE REACTION PLAN\\n'),
+                    missingPlanTitles,
+                    missingTableTitles: requiredTableTitles.filter(title => !dxf.includes('\\n1\\n' + title + '\\n')),
+                    validTerminator: dxf.endsWith('0\\nEOF\\n'),
+                    packageAudit,
                     beamLayerChunk: layerChunk('S-CONC-BEAM'),
                     columnLayerChunk: layerChunk('S-CONC-COL'),
                     gridLayerChunk: layerChunk('S-GRID')
@@ -1524,7 +1546,7 @@ async function runBrowserSmoke() {
         assert(!result.initial.initError && !result.initError, 'Init error shown in app', result);
         assert(result.initial.columns === 9, 'Default 2x2 model did not initialize 9 columns', result.initial);
         assert(
-            result.uiCleanupAudit.buildBadge === 'v3.16.115' &&
+            result.uiCleanupAudit.buildBadge === 'v3.16.116' &&
             result.uiCleanupAudit.rebuildButton === true &&
             result.uiCleanupAudit.etabsButton === true &&
             result.uiCleanupAudit.etabsQaBadge === 1 &&
@@ -1912,6 +1934,35 @@ async function runBrowserSmoke() {
         assert(result.dxfLayerAudit.missingEntityLayers.length === 0, 'DXF export did not place generated entities on structural layers', result.dxfLayerAudit);
         assert(result.dxfLayerAudit.legacyLayerHits.length === 0, 'DXF export still emits legacy layer names', result.dxfLayerAudit);
         assert(result.dxfLayerAudit.hasCenter2Linetype === true, 'DXF export did not define/use CENTER2 for grid lines', result.dxfLayerAudit);
+        assert(result.dxfLayerAudit.hasHidden2Linetype === true, 'DXF export did not define HIDDEN2 for hidden corner-slab framing', result.dxfLayerAudit);
+        assert(
+            result.dxfLayerAudit.missingPlanTitles.length === 0 &&
+            result.dxfLayerAudit.hasFoundationPlanTitle === true &&
+            result.dxfLayerAudit.packageAudit.plans.layouts === result.dxfLayerAudit.packageAudit.floorIds.length &&
+            result.dxfLayerAudit.packageAudit.plans.tributary === result.dxfLayerAudit.packageAudit.floorIds.length &&
+            result.dxfLayerAudit.packageAudit.plans.foundation === 1,
+            'DXF package did not export all floor plans and the foundation/base-reaction plan',
+            result.dxfLayerAudit
+        );
+        assert(
+            result.dxfLayerAudit.missingTableTitles.length === 0 &&
+            result.dxfLayerAudit.packageAudit.tables.columnSchedule > 0 &&
+            result.dxfLayerAudit.packageAudit.tables.beamSchedule > 0 &&
+            result.dxfLayerAudit.packageAudit.tables.slabSchedule > 0 &&
+            result.dxfLayerAudit.packageAudit.tables.foundationSchedule > 0 &&
+            result.dxfLayerAudit.packageAudit.tables.boqConcrete > 0 &&
+            result.dxfLayerAudit.packageAudit.tables.boqRebar === 1,
+            'DXF package is missing schedules, load summary, or BOQ tables',
+            result.dxfLayerAudit
+        );
+        assert(
+            result.dxfLayerAudit.validTerminator === true &&
+            result.dxfLayerAudit.packageAudit.validTerminator === true &&
+            result.dxfLayerAudit.packageAudit.requiredLayerEntities === true &&
+            result.dxfLayerAudit.packageAudit.bytes > 10000,
+            'DXF package is incomplete or structurally invalid',
+            result.dxfLayerAudit
+        );
         assert(/62\n1\n/.test(result.dxfLayerAudit.beamLayerChunk) && /370\n50\n/.test(result.dxfLayerAudit.beamLayerChunk), 'DXF beam layer does not match FT layer color/lineweight', result.dxfLayerAudit);
         assert(/62\n2\n/.test(result.dxfLayerAudit.columnLayerChunk) && /370\n70\n/.test(result.dxfLayerAudit.columnLayerChunk), 'DXF column layer does not match FT layer color/lineweight', result.dxfLayerAudit);
         assert(/62\n250\n/.test(result.dxfLayerAudit.gridLayerChunk) && /6\nCENTER2\n/.test(result.dxfLayerAudit.gridLayerChunk), 'DXF grid layer does not match FT layer color/linetype', result.dxfLayerAudit);
@@ -2064,7 +2115,7 @@ async function runBrowserSmoke() {
     }
 }
 
-async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = null, ifcPath = null) {
+async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = null, ifcPath = null, dxfPath = null) {
     const resolvedProjectPath = path.resolve(projectPath);
     assert(fs.existsSync(resolvedProjectPath), 'Project file was not found', { projectPath: resolvedProjectPath });
 
@@ -2708,6 +2759,14 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
             fs.writeFileSync(resolvedIFCPath, ifcContent, 'utf8');
             result.ifcExportAudit.writtenPath = resolvedIFCPath;
         }
+        if (dxfPath) {
+            const dxfContent = await tab.evaluate('generateDXFContent()');
+            const resolvedDXFPath = path.resolve(dxfPath);
+            fs.mkdirSync(path.dirname(resolvedDXFPath), { recursive: true });
+            fs.writeFileSync(resolvedDXFPath, dxfContent, 'utf8');
+            result.dxfExportAudit = await tab.evaluate('JSON.parse(JSON.stringify(window.lastDXFExportAudit || {}))');
+            result.dxfExportAudit.writtenPath = resolvedDXFPath;
+        }
 
         await tab.screenshot(screenshotPath);
         const relevantLogs = tab.logs.filter(log => ['error', 'warning', 'exception'].includes(log.type));
@@ -2730,11 +2789,14 @@ async function main() {
     const etabsScriptPath = getArgValue('--write-etabs-script');
     const staadPath = getArgValue('--write-staad');
     const ifcPath = getArgValue('--write-ifc');
+    const dxfPath = getArgValue('--write-dxf');
 
     ['v3/engine/loads.js', 'v3/engine/tributary.js'].forEach(file => {
         checkNodeSyntax(file);
         summary.engines.push(file);
     });
+    checkNodeSyntax('v3/dxf-export.js');
+    summary.engines.push('v3/dxf-export.js');
 
     if (process.argv.includes('--no-browser')) {
         console.log(JSON.stringify({ ok: true, ...summary }, null, 2));
@@ -2742,7 +2804,7 @@ async function main() {
     }
 
     const browser = await runBrowserSmoke();
-    const project = projectPath ? await runProjectSmoke(projectPath, etabsScriptPath, staadPath, ifcPath) : null;
+    const project = projectPath ? await runProjectSmoke(projectPath, etabsScriptPath, staadPath, ifcPath, dxfPath) : null;
     console.log(JSON.stringify({ ok: true, ...summary, browser, project }, null, 2));
 }
 
