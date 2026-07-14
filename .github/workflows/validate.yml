@@ -25,10 +25,23 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install DXF acceptance dependency
+        run: python -m pip install -r v3/tools/requirements-dxf.txt
 
       - name: Validate application source and engine
         run: node v3/tools/check-fs.js --no-browser
+
+      - name: Validate browser workflow and DXF round trip
+        env:
+          FS_HEADLESS: '1'
+        run: node v3/tools/check-fs.js
 
       - name: Validate deployment configuration
         run: |

@@ -20,7 +20,11 @@ Use this checklist before pushing a public FutolStructure update.
 - `v3/assets/futolstructure-icon.png`
 - `v3/assets/screenshots/`
 - `v3/engine/`
+- `v3/dxf-export.js`
 - `v3/tools/check-fs.js`
+- `v3/tools/check-dxf-autocad.ps1`
+- `v3/tools/validate-dxf.py`
+- `v3/tools/requirements-dxf.txt`
 - `docs/`
 - deployment config such as `vercel.json`
 
@@ -35,7 +39,14 @@ git diff --check
 For browser-sensitive changes, also run:
 
 ```bash
+python -m pip install -r v3/tools/requirements-dxf.txt
 node v3/tools/check-fs.js
+```
+
+For a DXF release on a workstation with AutoCAD 2025:
+
+```powershell
+powershell -File v3/tools/check-dxf-autocad.ps1 -DxfPath "path/to/package.dxf"
 ```
 
 ## If The Working Tree Is Dirty
