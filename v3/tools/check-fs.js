@@ -259,32 +259,46 @@ async function ensureBrowser(port) {
 
     const browserArgs = [
         `--remote-debugging-port=${port}`,
+        '--remote-debugging-address=127.0.0.1',
         `--user-data-dir=${profileDir}`,
         '--no-first-run',
         '--disable-extensions',
         '--disable-background-networking'
     ];
     if (process.env.CI === 'true' || process.env.CI === '1' || process.env.FS_HEADLESS === '1') {
-        browserArgs.push('--headless=new', '--no-sandbox', '--disable-dev-shm-usage');
+        browserArgs.push('--headless', '--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu');
     }
     browserArgs.push('about:blank');
 
     const child = spawn(browser, browserArgs, {
         detached: false,
-        stdio: 'ignore'
+        stdio: ['ignore', 'pipe', 'pipe']
     });
-    child.unref();
+    let browserOutput = '';
+    const captureOutput = chunk => {
+        browserOutput = `${browserOutput}${chunk.toString()}`.slice(-4000);
+    };
+    child.stdout.on('data', captureOutput);
+    child.stderr.on('data', captureOutput);
 
-    for (let attempt = 0; attempt < 30; attempt += 1) {
+    for (let attempt = 0; attempt < 120; attempt += 1) {
         try {
             await fetchJson(`${base}/json/version`);
             return { base, process: child };
         } catch (err) {
+            if (child.exitCode !== null) break;
             await wait(250);
         }
     }
 
-    throw new Error(`Browser did not open a CDP endpoint on port ${port}`);
+    const exitState = child.exitCode === null ? 'still running' : `exit ${child.exitCode}`;
+    if (child.exitCode === null) {
+        try { child.kill(); } catch (err) { /* noop */ }
+    }
+    throw new Error(
+        `Browser did not open a CDP endpoint on port ${port} (${browser}; ${exitState}).` +
+        (browserOutput.trim() ? `\n${browserOutput.trim()}` : '')
+    );
 }
 
 class CdpTab {
