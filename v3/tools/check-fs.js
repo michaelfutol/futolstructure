@@ -414,7 +414,8 @@ async function openAppTab(base) {
 
 async function waitForAppReady(tab) {
     let lastError = null;
-    for (let attempt = 0; attempt < 80; attempt += 1) {
+    let lastReady = null;
+    for (let attempt = 0; attempt < 240; attempt += 1) {
         try {
             const ready = await tab.evaluate(`(() => ({
                 body: !!document.body,
@@ -424,6 +425,7 @@ async function waitForAppReady(tab) {
                 hasCanvas: typeof canvas !== 'undefined' && !!canvas && canvas.width > 0 && canvas.height > 0,
                 title: document.title || ''
             }))()`);
+            lastReady = ready;
             if (ready.body && ready.readyState === 'complete' && ready.hasState && ready.hasCalculate && ready.hasCanvas && ready.title.includes('FutolStructure')) {
                 return;
             }
@@ -432,7 +434,8 @@ async function waitForAppReady(tab) {
         }
         await wait(250);
     }
-    throw new Error(`App did not become ready for browser smoke check${lastError ? `: ${lastError.message}` : ''}`);
+    const diagnostic = lastReady ? ` Last state: ${JSON.stringify(lastReady)}` : '';
+    throw new Error(`App did not become ready for browser smoke check${lastError ? `: ${lastError.message}` : ''}.${diagnostic}`);
 }
 
 async function runBrowserSmoke() {
