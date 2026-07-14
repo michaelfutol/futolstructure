@@ -1821,7 +1821,7 @@
             </div>
             <img class="logo-icon" src="assets/futolstructure-icon.png" alt="FutolStructure">
             <span style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary); letter-spacing: -0.01em;">FutolStructure</span>
-            <button id="buildVersionBadge" type="button" title="View FS-117 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.117</button>
+            <button id="buildVersionBadge" type="button" title="View FS-118 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.118</button>
         </div>
         <!-- Action Toolbar -->
         <div class="header-actions">
@@ -3097,9 +3097,10 @@
 
             <div id="panelRecovery" class="schedule-panel" style="display:none;">
                 <div class="schedule-header">
-                    <h3>Recovery / State Inspector</h3>
+                    <h3 style="color:var(--text-primary);">Protected Project Revisions</h3>
                 </div>
                 <div style="padding:12px; display:grid; gap:12px;">
+                    <div id="releaseProvenance" style="font-size:0.72rem; line-height:1.5; color:var(--text-secondary); background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:9px;"></div>
                     <div id="recoveryStatus" style="font-size:0.78rem; line-height:1.5; color:var(--text-primary);"></div>
                     <div style="display:flex; flex-wrap:wrap; gap:8px;">
                         <button class="tool-btn" onclick="recoveryRefreshPanel()">Refresh Inspector</button>
@@ -3110,6 +3111,27 @@
                         <button class="tool-btn" onclick="recoveryRestoreQuarantinedHiddenGeometry()">Restore Quarantined Hidden State</button>
                         <button class="tool-btn" onclick="recoveryClearAutosave()">Clear Local Autosave</button>
                         <button class="tool-btn" onclick="recoveryDownloadStateSnapshot()">Download State Snapshot</button>
+                    </div>
+                    <div>
+                        <div style="font-size:0.72rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Recoverable pre-save revisions</div>
+                        <div class="schedule-table-wrapper" style="max-height:260px;">
+                            <table class="schedule-table" style="width:100%; min-width:920px;">
+                                <thead>
+                                    <tr>
+                                        <th>Date / Time</th>
+                                        <th>Project</th>
+                                        <th>Build / Schema</th>
+                                        <th>Model Summary</th>
+                                        <th>Health</th>
+                                        <th>Reason</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="protectedRevisionBody">
+                                    <tr><td colspan="7">Loading local revisions...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                     <div class="schedule-table-wrapper" style="max-height:260px;">
                         <table class="schedule-table" style="width:100%;">
@@ -3893,6 +3915,7 @@
     <!-- ========== ENGINE MODULES ========== -->
     <script src="engine/loads.js"></script>
     <script src="engine/tributary.js"></script>
+    <script src="persistence/project-revisions.js"></script>
 
     <!-- ========== JAVASCRIPT ========== -->
     <script>
@@ -3915,21 +3938,27 @@
 
         const FSTR_FILE_TYPE = 'FutolStructure.StructuralModel';
         const FSTR_SCHEMA_VERSION = '0.1.0';
-        const FSTR_APP_VERSION = '3.16.117';
-        const FSTR_BUILD_ID = 'FS-117';
-        const FSTR_RELEASE_NAME = 'DXF R12 Hotfix';
+        const FSTR_HIDDEN_GEOMETRY_POLICY = 'preserve-intentional-hidden-geometry';
+        const FSTR_AUTOSAVE_STATE_REVISION = 'FS-107-floor-aware-autosave';
+        const FSTR_APP_VERSION = '3.16.118';
+        const FSTR_BUILD_ID = 'FS-118';
+        const FSTR_RELEASE_NAME = 'Protected Project Revisions';
         const FSTR_RELEASE_MANIFEST_FALLBACK = Object.freeze({
             appVersion: FSTR_APP_VERSION,
             buildId: FSTR_BUILD_ID,
             releaseName: FSTR_RELEASE_NAME,
             fstrSchemaVersion: FSTR_SCHEMA_VERSION,
-            gitCommit: '58edb71ce88b0060a8a2d9901664e91ac61dfcc2',
+            gitCommit: 'aefbd94dfbf31121e5831ad21b8cf6e54ff9fccc',
             buildDate: '2026-07-14',
+            validatedFixtures: [
+                'legacy-v2.8-2floor',
+                'Olango_2026-07-14_3Floors_GF-2F-RF'
+            ],
             validatedTargets: {
                 DXF: 'AutoCAD R12 ASCII parser-audited and AutoCAD 2025 core-opened'
             }
         });
-        let fsReleaseManifest = { ...FSTR_RELEASE_MANIFEST_FALLBACK };
+        let fsReleaseManifest = JSON.parse(JSON.stringify(FSTR_RELEASE_MANIFEST_FALLBACK));
 
         function getReleaseManifest() {
             return JSON.parse(JSON.stringify(fsReleaseManifest || FSTR_RELEASE_MANIFEST_FALLBACK));
@@ -3938,8 +3967,8 @@
         function getProjectProvenance() {
             return {
                 releaseManifest: getReleaseManifest(),
-                projectId: '',
-                sourceRevisionId: '',
+                projectId: typeof currentProjectId !== 'undefined' ? currentProjectId : '',
+                sourceRevisionId: typeof currentProjectRevisionId !== 'undefined' ? currentProjectRevisionId : '',
                 fstrSchemaVersion: FSTR_SCHEMA_VERSION
             };
         }
@@ -3960,24 +3989,12 @@
                 badge.textContent = `v${fsReleaseManifest.appVersion}`;
                 badge.title = `${fsReleaseManifest.buildId} | ${fsReleaseManifest.releaseName || FSTR_RELEASE_NAME}`;
             }
+            if (typeof renderReleaseProvenance === 'function') renderReleaseProvenance();
             return getReleaseManifest();
-        }
-
-        function showReleaseInfo() {
-            const manifest = getReleaseManifest();
-            alert([
-                `FutolStructure v${manifest.appVersion}`,
-                `${manifest.buildId} - ${manifest.releaseName || FSTR_RELEASE_NAME}`,
-                `Schema: ${manifest.fstrSchemaVersion}`,
-                `Release commit: ${manifest.gitCommit || 'local/uncommitted candidate'}`,
-                `Build date: ${manifest.buildDate || 'unknown'}`
-            ].join('\n'));
         }
 
         window.getReleaseManifest = getReleaseManifest;
         window.getProjectProvenance = getProjectProvenance;
-        const FSTR_HIDDEN_GEOMETRY_POLICY = 'preserve-intentional-hidden-geometry';
-        const FSTR_AUTOSAVE_STATE_REVISION = 'FS-107-floor-aware-autosave';
 
         const PLOT_PAPER_SIZES = Object.freeze({
             A4: { label: 'A4', css: 'A4', widthMm: 210, heightMm: 297 },
@@ -6577,11 +6594,6 @@
             SLAB: DXF_LAYER.SLAB,
             TEXT: DXF_LAYER.TEXT
         };
-
-        function getDxfLineweightCode(lineweightMm) {
-            const code = Math.round((Number(lineweightMm) || 0) * 100);
-            return Math.max(0, Math.min(211, code));
-        }
 
         function generateDXFLinetypeTable() {
             let dxf = '0\nTABLE\n2\nLTYPE\n70\n5\n';
@@ -15185,8 +15197,13 @@
         // ========== v3.0: SAVE/LOAD PROJECT ==========
         let currentProjectFileHandle = null;
         let currentProjectFileName = '';
+        let currentProjectId = '';
+        let currentProjectRevisionId = '';
+        let currentProjectBaselineData = null;
+        let currentProjectBaselineSummary = null;
         let currentProjectBaselineFloorCount = null;
         const PROJECT_AUTOSAVE_KEY = 'FutolStructure.autosave.v1';
+        const PROJECT_LAST_HEALTHY_AUTOSAVE_KEY = 'FutolStructure.autosave.healthy.v1';
         const PROJECT_AUTOSAVE_QUARANTINE_KEY = 'FutolStructure.autosave.quarantine.v1';
         let projectAutosaveTimer = null;
         let autosaveSuppressed = false;
@@ -15208,6 +15225,85 @@
 
         function getDefaultProjectFileName() {
             return getProjectFileNameForSave(false);
+        }
+
+        function createProjectIdentifier(prefix = 'project') {
+            if (window.FSProtectedRevisions?.createId) return window.FSProtectedRevisions.createId(prefix);
+            const uuid = window.crypto?.randomUUID?.();
+            return uuid ? `${prefix}-${uuid}` : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+        }
+
+        function ensureCurrentProjectId() {
+            if (!currentProjectId) currentProjectId = createProjectIdentifier('project');
+            return currentProjectId;
+        }
+
+        function countUniqueProjectItems(values) {
+            return new Set((Array.isArray(values) ? values : []).filter(Boolean)).size;
+        }
+
+        function countProjectOverrideEntries(value) {
+            if (!value || typeof value !== 'object') return 0;
+            return Object.values(value).filter(entry => {
+                if (entry == null) return false;
+                if (typeof entry !== 'object') return true;
+                return Object.values(entry).some(item => {
+                    if (item == null || item === '' || item === false) return false;
+                    if (typeof item === 'number') return Math.abs(item) > 1e-9;
+                    return true;
+                });
+            }).length;
+        }
+
+        function collectCurrentProjectSummary(projectData = null) {
+            const floorGeometry = collect3DFloorGeometry();
+            const perFloor = (state.floors || []).map(floor => {
+                const deletedColumns = new Set(floor.deletedColumns || []);
+                const geometry = floorGeometry.get(floor.id) || { beams: [], slabs: [] };
+                const activeColumns = (state.columns || []).filter(column =>
+                    isColumnActiveOnFloor(column, floor.id) && !deletedColumns.has(column.id)).length;
+                const activeBeams = (geometry.beams || []).filter(beam =>
+                    beam && !beam.deleted && beam.active !== false && !(floor.deletedBeams || []).includes(beam.id)).length;
+                const activeSlabs = (geometry.slabs || []).filter(slab =>
+                    slab && !slab.isVoid && !slab.deleted && slab.active !== false).length;
+                return {
+                    id: floor.id,
+                    activeColumns,
+                    activeBeams,
+                    activeSlabs,
+                    lockedBeams: countUniqueProjectItems(floor.lockedBeams),
+                    lockedSlabs: countUniqueProjectItems(floor.lockedSlabs),
+                    voids: countUniqueProjectItems(floor.voidSlabs),
+                    deletions: countUniqueProjectItems(floor.deletedBeams) + countUniqueProjectItems(floor.deletedColumns),
+                    cantilevers: recoveryCantileverCount(floor.cantilevers),
+                    cornerSlabs: normalizeCornerSlabList(floor.cornerSlabs).length
+                };
+            });
+            const sum = field => perFloor.reduce((total, floor) => total + (Number(floor[field]) || 0), 0);
+            const release = projectData?.releaseManifest || getReleaseManifest();
+            return {
+                projectId: ensureCurrentProjectId(),
+                projectName: currentProjectFileName || 'Untitled project',
+                schemaVersion: String(projectData?.schemaVersion || FSTR_SCHEMA_VERSION),
+                appVersion: String(release?.appVersion || FSTR_APP_VERSION),
+                totals: {
+                    floors: perFloor.length,
+                    activeColumns: sum('activeColumns'),
+                    activeBeams: sum('activeBeams'),
+                    activeSlabs: sum('activeSlabs'),
+                    lockedColumns: state.columnPositionLocked ? sum('activeColumns') : 0,
+                    lockedBeams: sum('lockedBeams'),
+                    lockedSlabs: sum('lockedSlabs'),
+                    offsets: countProjectOverrideEntries(state.columnPositionOverrides) +
+                        countProjectOverrideEntries(state.beamAlignmentOverrides) +
+                        countProjectOverrideEntries(state.foundationTieBeamAlignmentOverrides),
+                    voids: sum('voids'),
+                    deletions: sum('deletions'),
+                    cantilevers: sum('cantilevers'),
+                    cornerSlabs: sum('cornerSlabs')
+                },
+                perFloor
+            };
         }
 
         function validateProjectData(projectData) {
@@ -15234,15 +15330,25 @@
             return Array.from(ids).filter(Boolean);
         }
 
-        function buildProjectData() {
+        function buildProjectData(options = {}) {
             applyTypicalFloorLayoutInheritance();
+            const savedAt = new Date().toISOString();
+            const releaseManifest = getReleaseManifest();
             return {
                 fileType: FSTR_FILE_TYPE,
                 schemaVersion: FSTR_SCHEMA_VERSION,
                 format: 'FSTR_JSON',
                 version: '2.8',
                 hiddenGeometryPolicy: FSTR_HIDDEN_GEOMETRY_POLICY,
-                savedAt: new Date().toISOString(),
+                projectId: ensureCurrentProjectId(),
+                releaseManifest,
+                revisionMeta: {
+                    revisionId: options.revisionId || currentProjectRevisionId || '',
+                    parentRevisionId: options.parentRevisionId || '',
+                    savedAt,
+                    sourceName: currentProjectFileName || ''
+                },
+                savedAt,
                 xSpans: state.xSpans || [4.0, 4.0],
                 ySpans: state.ySpans || [5.0, 5.0],
                 gridBubbleOffsetPx: getGridBubbleOffsetPx(),
@@ -15344,10 +15450,107 @@
             );
         }
 
+        function establishProjectBaseline(projectData, summary = null) {
+            currentProjectId = String(projectData?.projectId || currentProjectId || createProjectIdentifier('project'));
+            currentProjectRevisionId = String(projectData?.revisionMeta?.revisionId || '');
+            currentProjectBaselineData = cloneSerializable(projectData, null);
+            currentProjectBaselineSummary = cloneSerializable(summary || collectCurrentProjectSummary(projectData), null);
+            currentProjectBaselineFloorCount = state.floors.length;
+        }
+
+        function getProtectedRevisionService() {
+            if (!window.FSProtectedRevisions) {
+                throw new Error('Protected revision storage did not initialize. Use Save As to avoid overwriting the source file.');
+            }
+            return window.FSProtectedRevisions;
+        }
+
+        function getProjectSummaryText(summary) {
+            const totals = summary?.totals || {};
+            return `${totals.floors ?? 0}F / ${totals.activeColumns ?? 0}C / ${totals.activeBeams ?? '-'}B / ${totals.activeSlabs ?? 0}S`;
+        }
+
+        function confirmProtectedSaveDelta(currentSummary, saveAs = false) {
+            const revisions = getProtectedRevisionService();
+            const health = revisions.assessHealth(currentSummary);
+            const delta = currentProjectBaselineSummary
+                ? revisions.compareSummaries(currentProjectBaselineSummary, currentSummary)
+                : null;
+            const warnings = [];
+            if (!health.valid) {
+                warnings.push(`Model health: ${health.score}/100 (${health.label})`);
+                health.issues.slice(0, 5).forEach(issue => warnings.push(`- ${issue.message}`));
+            }
+            if (!saveAs && delta?.significant) {
+                warnings.push('Destructive changes against the loaded baseline:');
+                delta.destructive.slice(0, 10).forEach(item => warnings.push(`- ${item}`));
+            }
+            if (!warnings.length) return { confirmed: true, delta, health };
+            const confirmed = confirm(
+                `Protected save review\n\n${warnings.join('\n')}\n\n` +
+                `Current model: ${getProjectSummaryText(currentSummary)}\n\n` +
+                'A recoverable pre-save revision will be created before overwrite. Continue?'
+            );
+            return { confirmed, delta, health };
+        }
+
+        async function storeProtectedRevision(projectData, options = {}) {
+            const revisions = getProtectedRevisionService();
+            const summary = options.summary || revisions.summarizePersistedProject(projectData);
+            const health = options.health || revisions.assessHealth(summary);
+            return revisions.saveRevision({
+                projectId: ensureCurrentProjectId(),
+                projectName: currentProjectFileName || options.sourceName || 'Untitled project',
+                sourceName: options.sourceName || currentProjectFileName || '',
+                reason: options.reason || 'pre-overwrite',
+                appVersion: projectData?.releaseManifest?.appVersion || summary.appVersion || FSTR_APP_VERSION,
+                buildId: projectData?.releaseManifest?.buildId || FSTR_BUILD_ID,
+                schemaVersion: projectData?.schemaVersion || FSTR_SCHEMA_VERSION,
+                sourceRevisionId: projectData?.revisionMeta?.revisionId || '',
+                summary,
+                health,
+                delta: options.delta || null,
+                projectData
+            });
+        }
+
+        async function capturePreOverwriteRevision(fileHandle, currentSummary, currentDelta) {
+            const file = await fileHandle.getFile();
+            if (!file || file.size === 0) return null;
+            let projectData;
+            try {
+                projectData = validateProjectData(JSON.parse(await file.text()));
+            } catch (err) {
+                throw new Error(
+                    `The existing file "${file.name || fileHandle.name || 'project'}" could not be protected before overwrite. ` +
+                    `Use Save As. Details: ${err.message}`
+                );
+            }
+            const revisions = getProtectedRevisionService();
+            const sameLoadedRevision = currentProjectBaselineData &&
+                String(currentProjectBaselineData?.revisionMeta?.revisionId || '') === String(projectData?.revisionMeta?.revisionId || '') &&
+                String(currentProjectBaselineData?.savedAt || '') === String(projectData?.savedAt || '');
+            const summary = sameLoadedRevision && currentProjectBaselineSummary
+                ? cloneSerializable(currentProjectBaselineSummary, null)
+                : revisions.summarizePersistedProject(projectData);
+            return storeProtectedRevision(projectData, {
+                sourceName: file.name || fileHandle.name || currentProjectFileName,
+                reason: 'pre-overwrite',
+                summary,
+                delta: currentDelta || revisions.compareSummaries(summary, currentSummary)
+            });
+        }
+
         async function saveProject(saveAs = false) {
             try {
-                if (!confirmFloorCountReductionBeforeSave(saveAs)) return;
-                const projectData = buildProjectData();
+                const nextRevisionId = createProjectIdentifier('model-revision');
+                const projectData = buildProjectData({
+                    revisionId: nextRevisionId,
+                    parentRevisionId: currentProjectRevisionId || ''
+                });
+                const currentSummary = collectCurrentProjectSummary(projectData);
+                const review = confirmProtectedSaveDelta(currentSummary, saveAs);
+                if (!review.confirmed) return;
                 const json = JSON.stringify(projectData, null, 2);
 
                 if (window.showSaveFilePicker) {
@@ -15365,16 +15568,31 @@
                     }
 
                     currentProjectFileName = currentProjectFileHandle?.name || getDefaultProjectFileName();
+                    await capturePreOverwriteRevision(currentProjectFileHandle, currentSummary, review.delta);
                     await writeProjectToHandle(currentProjectFileHandle, json);
-                    currentProjectBaselineFloorCount = state.floors.length;
+                    establishProjectBaseline(projectData, currentSummary);
                     console.log('v3.0: Project saved!', projectData);
                     alert(`Project saved: ${ currentProjectFileName }`);
+                    if (currentPlanTab === 'recovery') populateRecoveryPanel();
                     return;
                 }
 
+                if (currentProjectBaselineData) {
+                    try {
+                        await storeProtectedRevision(currentProjectBaselineData, {
+                            sourceName: currentProjectFileName || getDefaultProjectFileName(),
+                            reason: 'pre-download',
+                            summary: currentProjectBaselineSummary,
+                            delta: review.delta
+                        });
+                    } catch (revisionErr) {
+                        console.warn('Optional pre-download revision could not be stored:', revisionErr);
+                    }
+                }
                 const fallbackName = getProjectFileNameForSave(saveAs);
                 downloadProjectJson(json, fallbackName);
-                currentProjectBaselineFloorCount = state.floors.length;
+                currentProjectFileName = fallbackName;
+                establishProjectBaseline(projectData, currentSummary);
                 console.log('v3.0: Project downloaded!', projectData);
                 alert('Project downloaded as .fstr. Browser file-handle save is not available in this session.');
             } catch (err) {
@@ -15388,15 +15606,39 @@
             if (autosaveSuppressed) return;
             try {
                 const projectData = buildProjectData();
+                const revisions = getProtectedRevisionService();
+                const summary = revisions.summarizePersistedProject(projectData);
+                const structuralIntegrity = auditAutosaveStructuralIntegrity(projectData);
+                const health = revisions.assessHealth(summary);
                 projectData.autosaveMeta = {
                     reason,
                     savedAt: new Date().toISOString(),
                     sourceName: currentProjectFileName || '',
-                    stateRevision: FSTR_AUTOSAVE_STATE_REVISION
+                    stateRevision: FSTR_AUTOSAVE_STATE_REVISION,
+                    healthScore: health.score,
+                    healthLabel: health.label
                 };
-                localStorage.setItem(PROJECT_AUTOSAVE_KEY, JSON.stringify(projectData));
+                const raw = JSON.stringify(projectData);
+                if (!structuralIntegrity.valid || !health.valid) {
+                    const details = structuralIntegrity.valid
+                        ? health.issues.map(issue => issue.message).join('; ')
+                        : structuralIntegrity.issues.map(issue => `${issue.floorId}: unsupported support/slab state`).join('; ');
+                    localStorage.setItem(PROJECT_AUTOSAVE_QUARANTINE_KEY, raw);
+                    startupAutosaveWarning = {
+                        reason: 'autosave health gate',
+                        detail: details || 'The current model is structurally implausible.',
+                        savedAt: projectData.autosaveMeta.savedAt,
+                        sourceName: currentProjectFileName || ''
+                    };
+                    console.warn('Autosave blocked by health gate:', details);
+                    return false;
+                }
+                localStorage.setItem(PROJECT_AUTOSAVE_KEY, raw);
+                localStorage.setItem(PROJECT_LAST_HEALTHY_AUTOSAVE_KEY, raw);
+                return true;
             } catch (err) {
                 console.warn('Autosave skipped:', err);
+                return false;
             }
         }
 
@@ -15409,6 +15651,7 @@
         function clearProjectAutosaveSnapshot() {
             try {
                 localStorage.removeItem(PROJECT_AUTOSAVE_KEY);
+                localStorage.removeItem(PROJECT_LAST_HEALTHY_AUTOSAVE_KEY);
             } catch (err) {
                 console.warn('Autosave clear skipped:', err);
             }
@@ -15417,10 +15660,15 @@
         function auditAutosaveStructuralIntegrity(projectData) {
             const floors = Array.isArray(projectData?.floors) ? projectData.floors : [];
             const overrides = Array.isArray(projectData?.columnOverrides) ? projectData.columnOverrides : [];
-            if (!floors.length || !overrides.length) return { valid: true, issues: [] };
+            if (!floors.length) {
+                return { valid: false, issues: [{ floorId: 'MODEL', reason: 'no floors' }] };
+            }
 
             const bayCount = Math.max(0,
                 (projectData.xSpans || []).length * (projectData.ySpans || []).length);
+            if (bayCount > 0 && !overrides.length) {
+                return { valid: false, issues: [{ floorId: 'MODEL', reason: 'no column state' }] };
+            }
             const issues = floors.flatMap(floor => {
                 const floorId = floor?.id;
                 const activeColumns = overrides.filter(column => {
@@ -15460,45 +15708,68 @@
         }
 
         function restoreAutosavedProjectOnStartup() {
-            try {
-                const raw = localStorage.getItem(PROJECT_AUTOSAVE_KEY);
-                if (!raw) return false;
-                const projectData = validateProjectData(JSON.parse(raw));
-                const isCompatibleAutosave = projectData?.hiddenGeometryPolicy === FSTR_HIDDEN_GEOMETRY_POLICY
-                    && projectData?.autosaveMeta?.stateRevision === FSTR_AUTOSAVE_STATE_REVISION;
-                if (!isCompatibleAutosave) {
-                    quarantineStartupAutosave(
-                        raw,
-                        projectData,
-                        'incompatible revision',
-                        'The browser snapshot predates the current floor-aware column model. Open the saved .fstr file.'
-                    );
-                    return false;
+            const candidates = [
+                { key: PROJECT_AUTOSAVE_KEY, fallback: false },
+                { key: PROJECT_LAST_HEALTHY_AUTOSAVE_KEY, fallback: true }
+            ];
+            let blockedCandidate = false;
+            for (const candidate of candidates) {
+                let raw = null;
+                let projectData = null;
+                try {
+                    raw = localStorage.getItem(candidate.key);
+                    if (!raw) continue;
+                    if (candidate.fallback && raw === localStorage.getItem(PROJECT_AUTOSAVE_KEY)) continue;
+                    projectData = validateProjectData(JSON.parse(raw));
+                    const isCompatibleAutosave = projectData?.hiddenGeometryPolicy === FSTR_HIDDEN_GEOMETRY_POLICY
+                        && projectData?.autosaveMeta?.stateRevision === FSTR_AUTOSAVE_STATE_REVISION;
+                    if (!isCompatibleAutosave) {
+                        blockedCandidate = true;
+                        quarantineStartupAutosave(
+                            raw,
+                            projectData,
+                            'incompatible revision',
+                            'The browser snapshot predates the current floor-aware column model.'
+                        );
+                        continue;
+                    }
+                    const integrity = auditAutosaveStructuralIntegrity(projectData);
+                    if (!integrity.valid) {
+                        blockedCandidate = true;
+                        const floors = integrity.issues.map(issue => {
+                            if (issue.reason) return `${issue.floorId}: ${issue.reason}`;
+                            return `${issue.floorId}: ${issue.activeColumns} columns / ${issue.activeRegularSlabs + issue.activeCantilevers} slab regions`;
+                        }).join('; ');
+                        quarantineStartupAutosave(
+                            raw,
+                            projectData,
+                            'structural integrity',
+                            `Unsupported autosave state (${floors}).`
+                        );
+                        continue;
+                    }
+                    applyLoadedProject(projectData, projectData.autosaveMeta?.sourceName || 'autosave', {
+                        silent: true,
+                        skipAutosave: true,
+                        quarantineHiddenGeometry: true,
+                        forceQuarantineHiddenGeometry: false
+                    });
+                    if (candidate.fallback && blockedCandidate) {
+                        startupAutosaveWarning = {
+                            reason: 'healthy fallback restored',
+                            detail: 'The current autosave was rejected. The last known healthy browser snapshot was restored.',
+                            savedAt: projectData.autosaveMeta?.savedAt || projectData.savedAt || '',
+                            sourceName: projectData.autosaveMeta?.sourceName || ''
+                        };
+                    }
+                    return true;
+                } catch (err) {
+                    blockedCandidate = true;
+                    if (raw) quarantineStartupAutosave(raw, projectData, 'corrupted autosave', err.message);
+                    console.warn('Autosave candidate restore failed:', err);
                 }
-                const integrity = auditAutosaveStructuralIntegrity(projectData);
-                if (!integrity.valid) {
-                    const floors = integrity.issues.map(issue =>
-                        `${issue.floorId}: ${issue.activeColumns} columns / ${issue.activeRegularSlabs + issue.activeCantilevers} slab regions`
-                    ).join('; ');
-                    quarantineStartupAutosave(
-                        raw,
-                        projectData,
-                        'structural integrity',
-                        `Unsupported autosave state (${floors}). Open the saved .fstr file.`
-                    );
-                    return false;
-                }
-                applyLoadedProject(projectData, projectData.autosaveMeta?.sourceName || 'autosave', {
-                    silent: true,
-                    skipAutosave: true,
-                    quarantineHiddenGeometry: true,
-                    forceQuarantineHiddenGeometry: false
-                });
-                return true;
-            } catch (err) {
-                console.warn('Autosave restore failed:', err);
-                return false;
             }
+            return false;
         }
 
         function getHiddenGeometryPayload(floor) {
@@ -15555,6 +15826,8 @@
             const wasSuppressed = autosaveSuppressed;
             try {
                 if (options.skipAutosave) autosaveSuppressed = true;
+                currentProjectId = String(projectData?.projectId || createProjectIdentifier('project'));
+                currentProjectRevisionId = String(projectData?.revisionMeta?.revisionId || '');
                 state.xSpans = projectData.xSpans || state.xSpans;
                 state.ySpans = projectData.ySpans || state.ySpans;
                 state.gridBubbleOffsetPx = Number.isFinite(Number(projectData.gridBubbleOffsetPx))
@@ -15704,7 +15977,9 @@
             fitView();
 
             currentProjectFileName = sourceName || currentProjectFileName || getDefaultProjectFileName();
-            currentProjectBaselineFloorCount = state.floors.length;
+            const baselineData = cloneSerializable(projectData, {});
+            if (!baselineData.projectId) baselineData.projectId = currentProjectId;
+            establishProjectBaseline(baselineData, collectCurrentProjectSummary(baselineData));
             console.log('v3.0: Project loaded!', projectData);
             if (!options.silent) {
                 alert(`Project loaded${ currentProjectFileName ? ': ' + currentProjectFileName : ' successfully!' }`);
@@ -15792,6 +16067,11 @@
             state.gfSuspended = false;
             currentProjectFileHandle = null;
             currentProjectFileName = '';
+            currentProjectId = createProjectIdentifier('project');
+            currentProjectRevisionId = '';
+            currentProjectBaselineData = null;
+            currentProjectBaselineSummary = null;
+            currentProjectBaselineFloorCount = null;
             state.columns = [];
             state.beams = [];
             state.slabs = [];
@@ -15883,6 +16163,123 @@
                 (payload?.lockedSlabs || []).length;
         }
 
+        function escapeRecoveryHtml(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function renderReleaseProvenance() {
+            const manifest = getReleaseManifest();
+            const target = document.getElementById('releaseProvenance');
+            if (!target) return;
+            target.innerHTML = `
+                <strong>Build provenance:</strong>
+                v${escapeRecoveryHtml(manifest.appVersion)} / ${escapeRecoveryHtml(manifest.buildId)} &nbsp;
+                <strong>FSTR schema:</strong> ${escapeRecoveryHtml(manifest.fstrSchemaVersion)} &nbsp;
+                <strong>Commit:</strong> ${escapeRecoveryHtml(String(manifest.gitCommit || '').slice(0, 12))} &nbsp;
+                <strong>Build date:</strong> ${escapeRecoveryHtml(manifest.buildDate || '-')}
+            `;
+        }
+
+        function showReleaseInfo() {
+            setPlanTab('recovery');
+            renderReleaseProvenance();
+        }
+
+        function getProtectedRevisionSummaryText(summary) {
+            const totals = summary?.totals || {};
+            const beamSummary = totals.activeBeams != null && Number.isFinite(Number(totals.activeBeams))
+                ? `${Number(totals.activeBeams)}B`
+                : 'B n/a';
+            return `${totals.floors ?? 0}F / ${totals.activeColumns ?? 0}C / ` +
+                `${beamSummary} / ${totals.activeSlabs ?? 0}S; ` +
+                `${totals.voids ?? 0} void / ${totals.deletions ?? 0} deleted / ${totals.offsets ?? 0} offsets`;
+        }
+
+        async function populateProtectedRevisionList() {
+            const body = document.getElementById('protectedRevisionBody');
+            if (!body) return;
+            try {
+                const revisions = await getProtectedRevisionService().listRevisions(ensureCurrentProjectId());
+                body.innerHTML = revisions.map(revision => {
+                    const date = revision.createdAt ? new Date(revision.createdAt).toLocaleString() : '-';
+                    const health = revision.health || { score: 0, label: 'Unknown' };
+                    const healthColor = health.valid ? 'var(--success)' : health.score >= 60 ? 'var(--warning)' : 'var(--danger)';
+                    return `
+                        <tr>
+                            <td>${escapeRecoveryHtml(date)}</td>
+                            <td>${escapeRecoveryHtml(revision.projectName || revision.sourceName || 'Untitled')}</td>
+                            <td>${escapeRecoveryHtml(revision.buildId || revision.appVersion || '-')} / ${escapeRecoveryHtml(revision.schemaVersion || '-')}</td>
+                            <td style="text-align:left; white-space:normal; min-width:260px;">${escapeRecoveryHtml(getProtectedRevisionSummaryText(revision.summary))}</td>
+                            <td style="color:${healthColor}; font-weight:700;">${escapeRecoveryHtml(`${health.score ?? 0}/100 ${health.label || ''}`)}</td>
+                            <td>${escapeRecoveryHtml(revision.reason || '-')}</td>
+                            <td style="white-space:nowrap;">
+                                <button class="mini-action-btn" onclick="recoveryRestoreProtectedRevision('${escapeRecoveryHtml(revision.id)}')">Restore</button>
+                                <button class="mini-action-btn" onclick="recoveryDownloadProtectedRevision('${escapeRecoveryHtml(revision.id)}')">Download</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('') || '<tr><td colspan="7">No protected revisions yet. The first file overwrite will create one.</td></tr>';
+            } catch (err) {
+                body.innerHTML = `<tr><td colspan="7" style="color:var(--danger);">Revision storage unavailable: ${escapeRecoveryHtml(err.message)}</td></tr>`;
+            }
+        }
+
+        async function recoveryRestoreProtectedRevision(revisionId) {
+            try {
+                const revisions = getProtectedRevisionService();
+                const revision = await revisions.getRevision(revisionId);
+                if (!revision?.projectData) throw new Error('Revision data was not found.');
+                const date = revision.createdAt ? new Date(revision.createdAt).toLocaleString() : revisionId;
+                if (!confirm(`Restore the protected revision from ${date}?\n\nThe current in-memory model will first be protected as a pre-restore revision.`)) return;
+
+                const currentData = buildProjectData();
+                const currentSummary = collectCurrentProjectSummary(currentData);
+                await storeProtectedRevision(currentData, {
+                    sourceName: currentProjectFileName || 'current model',
+                    reason: 'pre-restore',
+                    summary: currentSummary,
+                    delta: revisions.compareSummaries(revision.summary, currentSummary)
+                });
+
+                const restoredData = cloneSerializable(revision.projectData, {});
+                restoredData.projectId = revision.projectId || restoredData.projectId || ensureCurrentProjectId();
+                applyLoadedProject(restoredData, revision.sourceName || revision.projectName || 'protected revision', {
+                    silent: true,
+                    skipAutosave: true,
+                    quarantineHiddenGeometry: true,
+                    forceQuarantineHiddenGeometry: false
+                });
+                scheduleProjectAutosave('protected-revision-restore');
+                await populateRecoveryPanel();
+                alert(`Protected revision restored: ${date}`);
+            } catch (err) {
+                console.error('Protected revision restore failed:', err);
+                alert('Protected revision restore failed: ' + err.message);
+            }
+        }
+
+        async function recoveryDownloadProtectedRevision(revisionId) {
+            try {
+                const revision = await getProtectedRevisionService().getRevision(revisionId);
+                if (!revision?.projectData) throw new Error('Revision data was not found.');
+                const stamp = String(revision.createdAt || new Date().toISOString()).replace(/[:.]/g, '-');
+                const sourceBase = String(revision.sourceName || revision.projectName || 'FutolStructure')
+                    .replace(/\.(fstr|json)$/i, '')
+                    .replace(/[^a-z0-9_-]+/gi, '_');
+                downloadProjectJson(
+                    JSON.stringify(revision.projectData, null, 2),
+                    withFstrExtension(`${sourceBase}_revision_${stamp}`)
+                );
+            } catch (err) {
+                alert('Protected revision download failed: ' + err.message);
+            }
+        }
+
         function getRecoverySnapshot() {
             let autosave = null;
             const rawAutosave = (() => {
@@ -15906,7 +16303,19 @@
 
             const activeFloor = state.floors[state.currentFloorIndex] || null;
             const uiCantilevers = normalizeCantileverSet(state.cantilevers, state.xSpans.length, state.ySpans.length);
+            const projectData = buildProjectData();
+            const currentSummary = collectCurrentProjectSummary(projectData);
+            const revisions = window.FSProtectedRevisions;
             return {
+                releaseManifest: getReleaseManifest(),
+                projectId: ensureCurrentProjectId(),
+                projectName: currentProjectFileName || 'Untitled project',
+                sourceRevisionId: currentProjectRevisionId || '',
+                health: revisions?.assessHealth(currentSummary) || null,
+                baselineDelta: currentProjectBaselineSummary && revisions
+                    ? revisions.compareSummaries(currentProjectBaselineSummary, currentSummary)
+                    : null,
+                summary: currentSummary,
                 currentFloorIndex: state.currentFloorIndex,
                 currentFloorId: activeFloor?.id || '',
                 xSpans: [...state.xSpans],
@@ -15930,7 +16339,7 @@
             };
         }
 
-        function populateRecoveryPanel() {
+        async function populateRecoveryPanel() {
             const snapshot = getRecoverySnapshot();
             const currentFloor = state.floors[state.currentFloorIndex];
             const activeWarnings = recoveryCantileverWarnings(currentFloor);
@@ -15943,6 +16352,9 @@
             if (status) {
                 status.innerHTML = `
                     ${reviewStatus ? `<div style="margin-bottom:6px; color:var(--warning);"><strong>${reviewStatus.label}:</strong> ${reviewStatus.detail}</div>` : ''}
+                    <strong>Project:</strong> ${escapeRecoveryHtml(snapshot.projectName)} &nbsp;
+                    <strong>ID:</strong> <span title="${escapeRecoveryHtml(snapshot.projectId)}">${escapeRecoveryHtml(snapshot.projectId.slice(0, 20))}</span> &nbsp;
+                    <strong>Health:</strong> ${escapeRecoveryHtml(`${snapshot.health?.score ?? 0}/100 ${snapshot.health?.label || ''}`)} &nbsp;
                     <strong>Active floor:</strong> ${snapshot.currentFloorId || '-'} &nbsp;
                     <strong>Grid:</strong> ${snapshot.xSpans.length}x${snapshot.ySpans.length} &nbsp;
                     <strong>UI cantilevers:</strong> ${recoveryCantileverCount(snapshot.uiCantilevers)} active &nbsp;
@@ -15971,6 +16383,8 @@
 
             const raw = document.getElementById('recoveryRawState');
             if (raw) raw.textContent = JSON.stringify(snapshot, null, 2);
+            renderReleaseProvenance();
+            await populateProtectedRevisionList();
         }
 
         function recoveryRefreshPanel() {
@@ -17301,6 +17715,8 @@ function generatePDFReport() {
     const paper = PLOT_PAPER_SIZES[plotSettings.paperSize] || PLOT_PAPER_SIZES.A4;
     const pageCss = getPlotPageCss(plotSettings);
     const pageMargin = plotSettings.marginMm;
+    const provenance = getProjectProvenance();
+    const releaseManifest = provenance.releaseManifest;
 
     // Build HTML report content
     let report = '<!DOCTYPE html><html><head><meta charset="utf-8">';
@@ -17322,7 +17738,10 @@ function generatePDFReport() {
     report += '<h1>STRUCTURAL COMPUTATION REPORT</h1>';
     report += '<table><tr><td>Project:</td><td>FutolStructure Analysis</td></tr>';
     report += '<tr><td>Date:</td><td>' + new Date().toLocaleDateString() + '</td></tr>';
-    report += '<tr><td>Software:</td><td>FutolStructure v3.x</td></tr>';
+    report += '<tr><td>Software:</td><td>FutolStructure v' + escapeInfoText(releaseManifest.appVersion) + ' / ' + escapeInfoText(releaseManifest.buildId) + '</td></tr>';
+    report += '<tr><td>FSTR schema:</td><td>' + escapeInfoText(provenance.fstrSchemaVersion) + '</td></tr>';
+    report += '<tr><td>Source revision:</td><td>' + escapeInfoText(provenance.sourceRevisionId || 'unsaved working state') + '</td></tr>';
+    report += '<tr><td>Git commit:</td><td>' + escapeInfoText(releaseManifest.gitCommit || '-') + '</td></tr>';
     report += '<tr><td>Code:</td><td>NSCP 2015 / ACI 318-14</td></tr>';
     report += '<tr><td>Paper:</td><td>' + paper.label + ' ' + plotSettings.orientation + ', margin ' + pageMargin + ' mm</td></tr></table>';
 
@@ -17615,6 +18034,8 @@ function buildTANReportHtml() {
     const pageCss = getPlotPageCss(plotSettings);
     const pageMargin = plotSettings.marginMm;
     const now = new Date();
+    const provenance = getProjectProvenance();
+    const releaseManifest = provenance.releaseManifest;
     const totalX = tanGetTotalSpan(state.xSpans);
     const totalY = tanGetTotalSpan(state.ySpans);
     const footprintArea = totalX * totalY;
@@ -17667,8 +18088,10 @@ function buildTANReportHtml() {
     html += tanTable(['Field', 'Value'], [
         ['Project', tanGetProjectName()],
         ['Date generated', now.toLocaleString()],
-        ['Software', 'FutolStructure v3.16'],
-        ['Model file type', FSTR_FILE_TYPE + ' / schema ' + FSTR_SCHEMA_VERSION],
+        ['Software', 'FutolStructure v' + releaseManifest.appVersion + ' / ' + releaseManifest.buildId],
+        ['Model file type', FSTR_FILE_TYPE + ' / schema ' + provenance.fstrSchemaVersion],
+        ['Source model revision', provenance.sourceRevisionId || 'unsaved working state'],
+        ['Release commit', releaseManifest.gitCommit || '-'],
         ['Units', 'm, mm, kN, kPa, MPa'],
         ['Paper setup', paper.label + ' ' + plotSettings.orientation + ', margin ' + pageMargin + ' mm'],
         ['Prepared by', '____________________'],

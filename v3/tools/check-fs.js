@@ -10,6 +10,7 @@ const { spawn, spawnSync, execFileSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..', '..');
 const V3 = path.join(ROOT, 'v3');
 const INDEX = path.join(V3, 'index.html');
+const HISTORICAL_FSTR_FIXTURE = path.join(V3, 'tools', 'fixtures', 'legacy-v2.8-2floor.fstr');
 const DXF_VALIDATOR = path.join(V3, 'tools', 'validate-dxf.py');
 const DEFAULT_PORT = Number(process.env.FS_CDP_PORT || 9234);
 const KEEP_BROWSER = process.env.FS_KEEP_BROWSER === '1' || process.argv.includes('--keep-browser');
@@ -45,20 +46,34 @@ function checkReleaseManifest() {
     const manifestPath = path.join(V3, 'release-manifest.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     const html = fs.readFileSync(INDEX, 'utf8');
-    assert(manifest.appVersion === '3.16.117', 'Release manifest app version is stale', manifest);
-    assert(manifest.buildId === 'FS-117', 'Release manifest build ID is stale', manifest);
-    assert(manifest.releaseName === 'DXF R12 Hotfix', 'Release manifest name is stale', manifest);
+    assert(manifest.appVersion === '3.16.118', 'Release manifest app version is stale', manifest);
+    assert(manifest.buildId === 'FS-118', 'Release manifest build ID is stale', manifest);
+    assert(manifest.releaseName === 'Protected Project Revisions', 'Release manifest name is stale', manifest);
     assert(manifest.fstrSchemaVersion === '0.1.0', 'Release manifest FSTR schema is stale', manifest);
     const allowUnstampedManifest = process.env.FS_ALLOW_UNSTAMPED_MANIFEST === '1';
     assert(
         /^[0-9a-f]{40}$/.test(manifest.gitCommit || '') || (allowUnstampedManifest && !manifest.gitCommit),
-        'Release manifest must contain the real FS-117 release commit SHA',
+        'Release manifest must contain the real FS-118 release commit SHA',
         manifest
     );
     assert(html.includes('v' + manifest.appVersion), 'Build badge does not match release manifest', manifest);
     assert(html.includes(`const FSTR_BUILD_ID = '${manifest.buildId}'`), 'Runtime build ID does not match release manifest', manifest);
-    assert(!html.includes('persistence/project-revisions.js'), 'FS-117 must not include Protected Project Revisions');
+    assert(html.includes('persistence/project-revisions.js'), 'Protected revision module is not loaded by the app');
+    assert(
+        manifest.validatedFixtures?.includes('legacy-v2.8-2floor') &&
+        manifest.validatedFixtures?.includes('Olango_2026-07-14_3Floors_GF-2F-RF'),
+        'Release manifest does not identify both FS-118 compatibility fixtures',
+        manifest
+    );
     return manifest;
+}
+
+function checkHistoricalFstrFixture() {
+    const fixture = JSON.parse(fs.readFileSync(HISTORICAL_FSTR_FIXTURE, 'utf8'));
+    assert(fixture.version === '2.8' && !fixture.schemaVersion, 'Historical FSTR fixture is not a legacy pre-schema shape', fixture);
+    assert(Array.isArray(fixture.floors) && fixture.floors.length === 2, 'Historical FSTR fixture floor count is invalid', fixture);
+    assert(fixture.floors[0].voidSlabs.includes('S1'), 'Historical FSTR fixture is missing intentional hidden geometry', fixture.floors[0]);
+    return { file: path.relative(ROOT, HISTORICAL_FSTR_FIXTURE), version: fixture.version, floors: fixture.floors.length };
 }
 
 function checkDxfSourceContract() {
@@ -438,15 +453,19 @@ async function waitForAppReady(tab) {
     throw new Error(`App did not become ready for browser smoke check${lastError ? `: ${lastError.message}` : ''}.${diagnostic}`);
 }
 
-async function runBrowserSmoke() {
+async function runBrowserSmoke(historicalFixture) {
     const browser = await ensureBrowser(DEFAULT_PORT);
     const tab = await openAppTab(browser.base);
     const screenshotPath = path.join(os.tmpdir(), 'futolstructure-smoke.png');
     const stair3DScreenshotPath = path.join(os.tmpdir(), 'futolstructure-stair-3d.png');
+    const revisionScreenshotPath = path.join(os.tmpdir(), 'futolstructure-protected-revisions.png');
+    const serializedHistoricalFixture = JSON.stringify(historicalFixture);
 
     try {
         const result = await tab.evaluate(`(() => {
             localStorage.removeItem('FutolStructure.autosave.v1');
+            localStorage.removeItem('FutolStructure.autosave.healthy.v1');
+            localStorage.removeItem('FutolStructure.autosave.quarantine.v1');
             state.xSpans = [4.0, 4.0];
             state.ySpans = [5.0, 5.0];
             state.cantilevers = { top: [0, 0], bottom: [0, 0], left: [0, 0], right: [0, 0] };
@@ -1298,7 +1317,10 @@ async function runBrowserSmoke() {
                 restored: invalidStructuralAutosaveRestored,
                 warningReason: startupAutosaveWarning?.reason || '',
                 quarantineBackup: !!localStorage.getItem(PROJECT_AUTOSAVE_QUARANTINE_KEY),
-                invalidFloorId
+                invalidFloorId,
+                fallbackActiveColumns: state.columns.filter(column =>
+                    isColumnActiveOnFloor(column, invalidFloorId)).length,
+                fallbackFloorIds: state.floors.map(floor => floor.id)
             };
             localStorage.removeItem(PROJECT_AUTOSAVE_KEY);
             localStorage.removeItem(PROJECT_AUTOSAVE_QUARANTINE_KEY);
@@ -1687,7 +1709,7 @@ async function runBrowserSmoke() {
         assert(!result.initial.initError && !result.initError, 'Init error shown in app', result);
         assert(result.initial.columns === 9, 'Default 2x2 model did not initialize 9 columns', result.initial);
         assert(
-            result.uiCleanupAudit.buildBadge === 'v3.16.117' &&
+            result.uiCleanupAudit.buildBadge === 'v3.16.118' &&
             result.uiCleanupAudit.rebuildButton === true &&
             result.uiCleanupAudit.etabsButton === true &&
             result.uiCleanupAudit.etabsQaBadge === 1 &&
@@ -1916,24 +1938,25 @@ async function runBrowserSmoke() {
         assert(result.intentionalHidden.hidden.voidSlabs.includes('S1'), 'Intentional saved void slab was quarantined instead of preserved', result.intentionalHidden);
         assert(result.intentionalHidden.voidRegular.includes('S1') && result.intentionalHidden.activeRegularSlabs === 11, 'Intentional saved void slab did not affect active slab geometry after load', result.intentionalHidden);
         assert(
-            result.autosaveHidden.restored === false &&
-            result.autosaveHidden.warningReason === 'incompatible revision' &&
+            result.autosaveHidden.restored === true &&
+            result.autosaveHidden.warningReason === 'healthy fallback restored' &&
             result.autosaveHidden.quarantineBackup &&
             result.autosaveHidden.hidden.voidSlabs.length === 0 &&
             result.autosaveHidden.hidden.deletedBeams.length === 0 &&
             result.autosaveHidden.quarantinedCount === 0 &&
             result.autosaveHidden.activeRegularSlabs === 12 &&
             result.autosaveHidden.voidRegular.length === 0,
-            'Outdated autosave was applied instead of being quarantined before startup restore',
+            'Outdated autosave was not quarantined and replaced by the last healthy snapshot',
             result.autosaveHidden
         );
         assert(result.trustedAutosaveHidden.hidden.voidSlabs.includes('S1'), 'Trusted current-build autosave did not preserve intentional void slab state', result.trustedAutosaveHidden);
         assert(result.trustedAutosaveHidden.quarantinedCount === 0 && result.trustedAutosaveHidden.activeRegularSlabs === 11 && result.trustedAutosaveHidden.voidRegular.includes('S1'), 'Trusted current-build autosave void slab was not active after restore', result.trustedAutosaveHidden);
         assert(
-            result.invalidStructuralAutosave.restored === false &&
-            result.invalidStructuralAutosave.warningReason === 'structural integrity' &&
-            result.invalidStructuralAutosave.quarantineBackup,
-            'Structurally impossible autosave was silently restored',
+            result.invalidStructuralAutosave.restored === true &&
+            result.invalidStructuralAutosave.warningReason === 'healthy fallback restored' &&
+            result.invalidStructuralAutosave.quarantineBackup &&
+            result.invalidStructuralAutosave.fallbackActiveColumns >= 2,
+            'Structurally impossible autosave was not replaced by the last healthy snapshot',
             result.invalidStructuralAutosave
         );
         assert(
@@ -2084,8 +2107,10 @@ async function runBrowserSmoke() {
             result.dxfLayerAudit.hasR2000LinetypeAlignmentCodes === false &&
             result.dxfLayerAudit.crlfOnly === true &&
             result.dxfLayerAudit.packageAudit.dxfVersion === 'AC1009' &&
-            result.dxfLayerAudit.packageAudit.lineEnding === 'CRLF',
-            'DXF envelope is not a clean AutoCAD R12 ASCII document',
+            result.dxfLayerAudit.packageAudit.lineEnding === 'CRLF' &&
+            result.dxfLayerAudit.packageAudit.build === 'FS-118' &&
+            result.dxfLayerAudit.packageAudit.writerBuild === 'FS-117',
+            'DXF envelope or app/writer provenance is inconsistent',
             result.dxfLayerAudit
         );
         assert(result.dxfLayerAudit.hasCenter2Linetype === true, 'DXF export did not define/use CENTER2 for grid lines', result.dxfLayerAudit);
@@ -2146,7 +2171,7 @@ async function runBrowserSmoke() {
             dxfParserAudit
         );
 
-        await tab.evaluate(`(() => {
+        const beforeReloadAutosave = await tab.evaluate(`(() => {
             state.xSpans = [2.05, 4.38, 4.58, 2.91];
             state.ySpans = [4.06, 4.0, 2.8];
             state.cantilevers = {
@@ -2183,9 +2208,32 @@ async function runBrowserSmoke() {
                 floor.recoveryQuarantinedHiddenGeometry = null;
             });
             calculate();
-            writeProjectAutosave('qa-browser-reload');
-            return true;
+            const writeResult = writeProjectAutosave('qa-browser-reload');
+            localStorage.setItem(PROJECT_AUTOSAVE_KEY, '{corrupted-json');
+            const fallbackRestored = restoreAutosavedProjectOnStartup();
+            const fallbackWarning = startupAutosaveWarning?.reason || '';
+            const rewriteResult = writeProjectAutosave('qa-browser-reload-after-fallback');
+            return {
+                writeResult,
+                fallbackRestored,
+                fallbackWarning,
+                rewriteResult,
+                primary: !!localStorage.getItem(PROJECT_AUTOSAVE_KEY),
+                healthy: !!localStorage.getItem(PROJECT_LAST_HEALTHY_AUTOSAVE_KEY),
+                quarantine: !!localStorage.getItem(PROJECT_AUTOSAVE_QUARANTINE_KEY),
+                warning: startupAutosaveWarning
+            };
         })()`);
+        assert(
+            beforeReloadAutosave.writeResult === true &&
+            beforeReloadAutosave.fallbackRestored === true &&
+            beforeReloadAutosave.fallbackWarning === 'healthy fallback restored' &&
+            beforeReloadAutosave.rewriteResult === true &&
+            beforeReloadAutosave.primary === true &&
+            beforeReloadAutosave.healthy === true,
+            'Healthy browser autosave was not persisted before reload',
+            beforeReloadAutosave
+        );
         await tab.send('Page.reload', { ignoreCache: true });
         await waitForAppReady(tab);
         const afterReload = await tab.evaluate(`(() => ({
@@ -2212,6 +2260,226 @@ async function runBrowserSmoke() {
         assert(afterReload.columns === 20 && afterReload.visibleColumns === 20, 'Browser reload did not restore visible columns', afterReload);
         assert(afterReload.regularSlabs === 12, 'Browser reload did not restore regular slabs', afterReload);
         assert(afterReload.hidden.voidSlabs.length === 0 && afterReload.hidden.deletedBeams.length === 0 && afterReload.hidden.deletedColumns.length === 0, 'Browser reload restored hidden geometry as active state', afterReload);
+
+        const revisionProtection = await tab.evaluate(`(async () => {
+            await FSProtectedRevisions.clearAll();
+            const originalConfirm = window.confirm;
+            const originalAlert = window.alert;
+            const projectData = buildProjectData({ revisionId: 'qa-protected-baseline' });
+            const summary = collectCurrentProjectSummary(projectData);
+            const health = FSProtectedRevisions.assessHealth(summary);
+            const saved = await FSProtectedRevisions.saveRevision({
+                projectId: projectData.projectId,
+                projectName: 'QA protected project',
+                sourceName: 'qa-protected.fstr',
+                reason: 'qa-pre-overwrite',
+                projectData,
+                summary,
+                health
+            });
+            const serializedBaseline = JSON.stringify(projectData);
+            const captured = await capturePreOverwriteRevision({
+                name: 'qa-protected.fstr',
+                getFile: async () => ({
+                    name: 'qa-protected.fstr',
+                    size: serializedBaseline.length,
+                    text: async () => serializedBaseline
+                })
+            }, summary, null);
+
+            const originalSaveFilePicker = window.showSaveFilePicker;
+            let normalSaveWritten = '';
+            currentProjectFileName = 'qa-normal-save.fstr';
+            establishProjectBaseline(projectData, summary);
+            currentProjectFileHandle = {
+                name: currentProjectFileName,
+                getFile: async () => ({
+                    name: currentProjectFileName,
+                    size: serializedBaseline.length,
+                    text: async () => serializedBaseline
+                }),
+                createWritable: async () => ({
+                    write: async value => { normalSaveWritten = String(value); },
+                    close: async () => {}
+                })
+            };
+            window.showSaveFilePicker = async () => currentProjectFileHandle;
+            window.confirm = () => true;
+            window.alert = () => {};
+            await saveProject(false);
+            const normalSaveData = normalSaveWritten ? JSON.parse(normalSaveWritten) : {};
+            const normalSaveRevisions = await FSProtectedRevisions.listRevisions(projectData.projectId);
+            const normalSaveAudit = {
+                writtenBytes: normalSaveWritten.length,
+                revisionId: normalSaveData.revisionMeta?.revisionId || '',
+                parentRevisionId: normalSaveData.revisionMeta?.parentRevisionId || '',
+                releaseBuildId: normalSaveData.releaseManifest?.buildId || '',
+                protectedCount: normalSaveRevisions.length,
+                preOverwriteCount: normalSaveRevisions.filter(revision => revision.reason === 'pre-overwrite').length
+            };
+            currentProjectFileHandle = null;
+            if (originalSaveFilePicker) window.showSaveFilePicker = originalSaveFilePicker;
+            else delete window.showSaveFilePicker;
+            window.confirm = originalConfirm;
+            window.alert = originalAlert;
+
+            const reducedSummary = cloneSerializable(summary, {});
+            reducedSummary.totals.activeSlabs = Math.max(0, reducedSummary.totals.activeSlabs - 1);
+            reducedSummary.totals.lockedBeams = Math.max(0, reducedSummary.totals.lockedBeams - 1);
+            reducedSummary.totals.voids += 1;
+            const destructiveDelta = FSProtectedRevisions.compareSummaries(summary, reducedSummary);
+            const invalidHealth = FSProtectedRevisions.assessHealth({
+                totals: { floors: 0, activeColumns: 0, activeBeams: 0, activeSlabs: 1 },
+                perFloor: []
+            });
+
+            state.floors[0].voidSlabs = ['S1'];
+            calculate();
+            window.confirm = () => true;
+            window.alert = () => {};
+            await recoveryRestoreProtectedRevision(saved.id);
+            window.confirm = originalConfirm;
+            window.alert = originalAlert;
+            const restored = await FSProtectedRevisions.getRevision(saved.id);
+
+            const originalDownloadProjectJson = window.downloadProjectJson;
+            let downloadAudit = null;
+            window.downloadProjectJson = (json, filename) => {
+                const downloaded = JSON.parse(json);
+                downloadAudit = {
+                    filename,
+                    projectId: downloaded.projectId || '',
+                    revisionId: downloaded.revisionMeta?.revisionId || ''
+                };
+            };
+            window.alert = () => {};
+            try {
+                await recoveryDownloadProtectedRevision(saved.id);
+            } finally {
+                window.downloadProjectJson = originalDownloadProjectJson;
+                window.alert = originalAlert;
+            }
+
+            const retentionProjectId = projectData.projectId + '-retention';
+            for (let index = 0; index < 55; index += 1) {
+                await FSProtectedRevisions.saveRevision({
+                    projectId: retentionProjectId,
+                    projectName: 'QA retention project',
+                    sourceName: 'qa-retention.fstr',
+                    reason: 'retention-' + index,
+                    createdAt: new Date(Date.UTC(2026, 6, 14, 0, 0, index)).toISOString(),
+                    projectData,
+                    summary,
+                    health
+                });
+            }
+            const retained = await FSProtectedRevisions.listRevisions(retentionProjectId);
+            const listed = await FSProtectedRevisions.listRevisions(projectData.projectId);
+            await populateRecoveryPanel();
+            const rowCount = document.querySelectorAll('#protectedRevisionBody tr').length;
+
+            const historical = validateProjectData(${serializedHistoricalFixture});
+            applyLoadedProject(historical, 'legacy-v2.8-2floor.fstr', {
+                silent: true,
+                skipAutosave: true,
+                quarantineHiddenGeometry: true
+            });
+            const firstRoundTrip = buildProjectData({ revisionId: 'qa-migrated-1' });
+            applyLoadedProject(firstRoundTrip, 'legacy-v2.8-roundtrip.fstr', {
+                silent: true,
+                skipAutosave: true,
+                quarantineHiddenGeometry: true
+            });
+            const secondRoundTrip = buildProjectData({ revisionId: 'qa-migrated-2' });
+            const historicalRoundTrip = {
+                schemaVersion: firstRoundTrip.schemaVersion,
+                floorIds: secondRoundTrip.floors.map(floor => floor.id),
+                voidSlabs: secondRoundTrip.floors[0].voidSlabs.slice(),
+                deletedBeams: secondRoundTrip.floors[0].deletedBeams.slice(),
+                lockedBeams: secondRoundTrip.floors[0].lockedBeams.slice(),
+                columnPositionLocked: secondRoundTrip.columnPositionLocked,
+                beamOffset: secondRoundTrip.beamAlignmentOverrides?.['2F:BX-1-2']?.offset ?? null
+            };
+            applyLoadedProject(projectData, 'qa-protected.fstr', {
+                silent: true,
+                skipAutosave: true,
+                quarantineHiddenGeometry: true
+            });
+            return {
+                savedId: saved.id,
+                capturedId: captured?.id || '',
+                listedCount: listed.length,
+                restoredProjectId: restored?.projectData?.projectId || '',
+                restoredVoidSlabs: state.floors[0].voidSlabs.slice(),
+                sourceRevisionId: currentProjectRevisionId,
+                destructive: destructiveDelta.destructive,
+                significant: destructiveDelta.significant,
+                invalidHealth,
+                rowCount,
+                releaseVersion: projectData.releaseManifest?.appVersion || '',
+                releaseBuildId: projectData.releaseManifest?.buildId || '',
+                schemaVersion: projectData.schemaVersion || '',
+                normalSaveAudit,
+                downloadAudit,
+                retention: {
+                    count: retained.length,
+                    newestReason: retained[0]?.reason || '',
+                    oldestReason: retained[retained.length - 1]?.reason || '',
+                    uniqueIds: new Set(retained.map(revision => revision.id)).size
+                },
+                historicalRoundTrip
+            };
+        })()`);
+        assert(
+            /^revision-/.test(revisionProtection.savedId) &&
+            /^revision-/.test(revisionProtection.capturedId) &&
+            revisionProtection.listedCount >= 3 &&
+            revisionProtection.restoredProjectId.length > 0 &&
+            revisionProtection.restoredVoidSlabs.length === 0 &&
+            revisionProtection.sourceRevisionId === 'qa-protected-baseline' &&
+            revisionProtection.significant === true &&
+            revisionProtection.destructive.some(item => item.includes('activeSlabs')) &&
+            revisionProtection.destructive.some(item => item.includes('voids')) &&
+            revisionProtection.invalidHealth.valid === false &&
+            revisionProtection.rowCount >= 1 &&
+            revisionProtection.releaseVersion === '3.16.118' &&
+            revisionProtection.releaseBuildId === 'FS-118' &&
+            revisionProtection.schemaVersion === '0.1.0' &&
+            revisionProtection.normalSaveAudit.writtenBytes > 0 &&
+            /^model-revision-/.test(revisionProtection.normalSaveAudit.revisionId) &&
+            revisionProtection.normalSaveAudit.parentRevisionId === 'qa-protected-baseline' &&
+            revisionProtection.normalSaveAudit.releaseBuildId === 'FS-118' &&
+            revisionProtection.normalSaveAudit.protectedCount >= 3 &&
+            revisionProtection.normalSaveAudit.preOverwriteCount >= 2 &&
+            revisionProtection.downloadAudit?.filename.endsWith('.fstr') &&
+            revisionProtection.downloadAudit?.projectId === revisionProtection.restoredProjectId &&
+            revisionProtection.downloadAudit?.revisionId === 'qa-protected-baseline' &&
+            revisionProtection.retention.count === 50 &&
+            revisionProtection.retention.uniqueIds === 50 &&
+            revisionProtection.retention.newestReason === 'retention-54' &&
+            revisionProtection.retention.oldestReason === 'retention-5' &&
+            revisionProtection.historicalRoundTrip.schemaVersion === '0.1.0' &&
+            JSON.stringify(revisionProtection.historicalRoundTrip.floorIds) === JSON.stringify(['2F', 'RF']) &&
+            revisionProtection.historicalRoundTrip.voidSlabs.includes('S1') &&
+            revisionProtection.historicalRoundTrip.deletedBeams.includes('BX-1-1') &&
+            revisionProtection.historicalRoundTrip.lockedBeams.includes('BX-1-2') &&
+            revisionProtection.historicalRoundTrip.columnPositionLocked === true &&
+            Math.abs(revisionProtection.historicalRoundTrip.beamOffset - 0.1) < 0.000001,
+            'Protected revision save, delta, health, restore, download, retention, provenance, or migration flow failed',
+            revisionProtection
+        );
+        await tab.evaluate(`(async () => {
+            setPlanTab('recovery');
+            await populateRecoveryPanel();
+            return document.querySelectorAll('#protectedRevisionBody tr').length;
+        })()`);
+        await wait(150);
+        await tab.screenshot(revisionScreenshotPath);
+        await tab.evaluate(`(async () => {
+            await FSProtectedRevisions.clearAll();
+            setPlanTab('structural');
+            return true;
+        })()`);
 
         await tab.evaluate(`(() => {
             state.stairs = [];
@@ -2276,7 +2544,17 @@ async function runBrowserSmoke() {
         await wait(150);
         await tab.screenshot(stair3DScreenshotPath);
         const relevantLogs = tab.logs.filter(log => ['error', 'warning', 'exception'].includes(log.type));
-        return { result, dxfParserAudit, afterReload, screenshotPath, stair3DScreenshotPath, relevantLogs };
+        return {
+            result,
+            dxfParserAudit,
+            beforeReloadAutosave,
+            afterReload,
+            revisionProtection,
+            screenshotPath,
+            stair3DScreenshotPath,
+            revisionScreenshotPath,
+            relevantLogs
+        };
     } finally {
         tab.close();
         if (browser.process && !KEEP_BROWSER) {
@@ -2959,6 +3237,7 @@ async function main() {
         engines: [],
         displayMarks: checkDisplayMarkOrdering(),
         releaseManifest: checkReleaseManifest(),
+        historicalFixture: checkHistoricalFstrFixture(),
         dxfSourceContract: checkDxfSourceContract()
     };
     const projectPath = getArgValue('--project');
@@ -2967,7 +3246,7 @@ async function main() {
     const ifcPath = getArgValue('--write-ifc');
     const dxfPath = getArgValue('--write-dxf');
 
-    ['v3/engine/loads.js', 'v3/engine/tributary.js'].forEach(file => {
+    ['v3/engine/loads.js', 'v3/engine/tributary.js', 'v3/persistence/project-revisions.js'].forEach(file => {
         checkNodeSyntax(file);
         summary.engines.push(file);
     });
@@ -2979,7 +3258,8 @@ async function main() {
         return;
     }
 
-    const browser = await runBrowserSmoke();
+    const historicalFixture = JSON.parse(fs.readFileSync(HISTORICAL_FSTR_FIXTURE, 'utf8'));
+    const browser = await runBrowserSmoke(historicalFixture);
     const project = projectPath ? await runProjectSmoke(projectPath, etabsScriptPath, staadPath, ifcPath, dxfPath) : null;
     console.log(JSON.stringify({ ok: true, ...summary, browser, project }, null, 2));
 }
