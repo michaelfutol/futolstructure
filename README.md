@@ -14,7 +14,7 @@ FutolStructure is a browser-based structural engineering workbench for reinforce
   <a href="SECURITY.md">Security</a>
 </p>
 
-[![Build](https://img.shields.io/badge/build-v3.16.116-2563eb)](https://futolstructure.vercel.app)
+[![Build](https://img.shields.io/badge/build-v3.16.117-2563eb)](https://futolstructure.vercel.app)
 [![Validation](https://github.com/michaelfutol/futolstructure/actions/workflows/validate.yml/badge.svg)](https://github.com/michaelfutol/futolstructure/actions/workflows/validate.yml)
 ![Platform](https://img.shields.io/badge/platform-browser-0f766e)
 ![Maturity](https://img.shields.io/badge/maturity-technical%20preview-f59e0b)
@@ -64,7 +64,7 @@ FutolStructure uses a shared active-model payload so geometry counts and member 
 
 | Target | Current status |
 | --- | --- |
-| DXF | Every floor exports layout and tributary plans, plus foundation/base reactions, synchronized schedules, load summary, and preliminary BOQ tables on governed structural layers. |
+| DXF | AutoCAD R12 ASCII (`AC1009`) exports every floor layout and tributary plan, foundation/base reactions, synchronized schedules, load summary, and preliminary BOQ tables on governed structural layers. Output is parser-audited and round-trip checked with `ezdxf`; the recovered Olango package also opens in AutoCAD 2025 Core Engine without recovery. |
 | IFC2x3 | Active columns, beams, slabs, and storey organization are exported for BIM review. |
 | STAAD.Pro | The gravity baseline, frame/plate geometry, beam insertion offsets, and statics balance were validated in STAAD.Pro 2024. |
 | ETABS 22 | The OAPI builder creates a dated working copy, assigns the governed mass baseline, runs modal analysis, and exports audit artifacts. |
@@ -95,10 +95,17 @@ node v3/tools/check-fs.js --no-browser
 Run the full browser smoke check with Chrome or Edge installed:
 
 ```bash
+python -m pip install -r v3/tools/requirements-dxf.txt
 node v3/tools/check-fs.js
 ```
 
-The browser smoke covers initialization, plan geometry, slab ownership, cantilever behavior, persistence and recovery guards, member locking, measurement tools, stair persistence, 3D rendering, coordinated DXF package completeness, and export payload parity.
+The browser smoke covers initialization, plan geometry, slab ownership, cantilever behavior, persistence and recovery guards, member locking, measurement tools, stair persistence, 3D rendering, coordinated DXF completeness, strict DXF open/audit/save/reopen validation, and export payload parity.
+
+Where AutoCAD 2025 is installed, run the native read gate against a generated package without modifying it:
+
+```powershell
+powershell -File v3/tools/check-dxf-autocad.ps1 -DxfPath "path/to/package.dxf"
+```
 
 ## Repository Layout
 

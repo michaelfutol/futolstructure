@@ -5,11 +5,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const vm = require('vm');
-const { spawn, execFileSync } = require('child_process');
+const { spawn, spawnSync, execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const V3 = path.join(ROOT, 'v3');
 const INDEX = path.join(V3, 'index.html');
+const DXF_VALIDATOR = path.join(V3, 'tools', 'validate-dxf.py');
 const DEFAULT_PORT = Number(process.env.FS_CDP_PORT || 9234);
 const KEEP_BROWSER = process.env.FS_KEEP_BROWSER === '1' || process.argv.includes('--keep-browser');
 const HIDDEN_GEOMETRY_POLICY = 'preserve-intentional-hidden-geometry';
@@ -40,10 +41,115 @@ function parseInlineScripts() {
     return { inlineScripts: scripts.length };
 }
 
+function checkReleaseManifest() {
+    const manifestPath = path.join(V3, 'release-manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    const html = fs.readFileSync(INDEX, 'utf8');
+    assert(manifest.appVersion === '3.16.117', 'Release manifest app version is stale', manifest);
+    assert(manifest.buildId === 'FS-117', 'Release manifest build ID is stale', manifest);
+    assert(manifest.releaseName === 'DXF R12 Hotfix', 'Release manifest name is stale', manifest);
+    assert(manifest.fstrSchemaVersion === '0.1.0', 'Release manifest FSTR schema is stale', manifest);
+    const allowUnstampedManifest = process.env.FS_ALLOW_UNSTAMPED_MANIFEST === '1';
+    assert(
+        /^[0-9a-f]{40}$/.test(manifest.gitCommit || '') || (allowUnstampedManifest && !manifest.gitCommit),
+        'Release manifest must contain the real FS-117 release commit SHA',
+        manifest
+    );
+    assert(html.includes('v' + manifest.appVersion), 'Build badge does not match release manifest', manifest);
+    assert(html.includes(`const FSTR_BUILD_ID = '${manifest.buildId}'`), 'Runtime build ID does not match release manifest', manifest);
+    assert(!html.includes('persistence/project-revisions.js'), 'FS-117 must not include Protected Project Revisions');
+    return manifest;
+}
+
+function checkDxfSourceContract() {
+    const html = fs.readFileSync(INDEX, 'utf8');
+    const writer = fs.readFileSync(path.join(V3, 'dxf-export.js'), 'utf8');
+    const requirementsPath = path.join(V3, 'tools', 'requirements-dxf.txt');
+    assert(!html.includes('AC1015') && !writer.includes('AC1015'), 'DXF source still advertises AutoCAD 2000 while using the R12 writer');
+    assert(html.includes('AC1009') && writer.includes('AC1009'), 'DXF source does not advertise AutoCAD R12');
+    assert(html.includes('BYLAYER') && html.includes('BYBLOCK') && html.includes('txt.shx'), 'DXF R12 standard table records are incomplete');
+    assert(!html.includes('\\n370\\n') && !writer.includes('\\n370\\n'), 'DXF R12 writer still emits the R2000 lineweight group');
+    assert(!html.includes('\\n74\\n') && !writer.includes('\\n74\\n'), 'DXF R12 writer still emits unsupported linetype alignment groups');
+    assert(fs.existsSync(DXF_VALIDATOR), 'DXF strict validator is missing', { path: DXF_VALIDATOR });
+    assert(fs.existsSync(requirementsPath) && fs.readFileSync(requirementsPath, 'utf8').includes('ezdxf'), 'DXF parser dependency is not pinned');
+    return {
+        version: 'AC1009',
+        validator: path.relative(ROOT, DXF_VALIDATOR),
+        requirements: path.relative(ROOT, requirementsPath)
+    };
+}
+
 function checkNodeSyntax(relativeFile) {
     execFileSync(process.execPath, ['--check', path.join(ROOT, relativeFile)], {
         stdio: 'pipe'
     });
+}
+
+let cachedDxfPython = null;
+
+function resolveDxfPython() {
+    if (cachedDxfPython) return cachedDxfPython;
+    const candidates = [];
+    if (process.env.FS_PYTHON) candidates.push({ command: process.env.FS_PYTHON, args: [] });
+    if (process.platform === 'win32') {
+        candidates.push(
+            { command: 'py', args: ['-3.12'] },
+            { command: 'py', args: ['-3.11'] },
+            { command: 'python', args: [] }
+        );
+    } else {
+        candidates.push({ command: 'python3', args: [] }, { command: 'python', args: [] });
+    }
+
+    const attempts = [];
+    for (const candidate of candidates) {
+        const probe = spawnSync(candidate.command, [...candidate.args, '-c', 'import ezdxf'], {
+            encoding: 'utf8',
+            windowsHide: true
+        });
+        attempts.push({
+            command: [candidate.command, ...candidate.args].join(' '),
+            status: probe.status,
+            error: probe.error?.message || '',
+            stderr: String(probe.stderr || '').trim()
+        });
+        if (probe.status === 0) {
+            cachedDxfPython = candidate;
+            return candidate;
+        }
+    }
+    throw Object.assign(new Error('DXF acceptance requires Python with ezdxf installed.'), { details: attempts });
+}
+
+function validateDxfWithEzdxf(dxfContent, label = 'generated') {
+    assert(fs.existsSync(DXF_VALIDATOR), 'DXF parser validator is missing', { path: DXF_VALIDATOR });
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'futolstructure-dxf-'));
+    const dxfPath = path.join(tempDir, `${String(label).replace(/[^A-Za-z0-9_.-]+/g, '-')}.dxf`);
+    fs.writeFileSync(dxfPath, dxfContent, 'utf8');
+    try {
+        const python = resolveDxfPython();
+        const validation = spawnSync(
+            python.command,
+            [...python.args, DXF_VALIDATOR, dxfPath, '--expected-version', 'AC1009'],
+            { encoding: 'utf8', windowsHide: true }
+        );
+        let audit = null;
+        try {
+            audit = JSON.parse(String(validation.stdout || '').trim());
+        } catch (error) {
+            throw Object.assign(new Error('DXF parser validator did not return JSON.'), {
+                details: {
+                    status: validation.status,
+                    stdout: String(validation.stdout || '').trim(),
+                    stderr: String(validation.stderr || '').trim()
+                }
+            });
+        }
+        assert(validation.status === 0 && audit.ok === true, 'DXF failed strict parser or round-trip validation', audit);
+        return audit;
+    } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
 }
 
 function sortSlabsTopLeftForQa(a, b) {
@@ -119,7 +225,11 @@ function findChrome() {
         'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
         'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
         'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-        'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
+        'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser'
     ].filter(Boolean);
 
     return candidates.find(candidate => fs.existsSync(candidate));
@@ -147,14 +257,19 @@ async function ensureBrowser(port) {
     }
     fs.mkdirSync(profileDir, { recursive: true });
 
-    const child = spawn(browser, [
+    const browserArgs = [
         `--remote-debugging-port=${port}`,
         `--user-data-dir=${profileDir}`,
         '--no-first-run',
         '--disable-extensions',
-        '--disable-background-networking',
-        'about:blank'
-    ], {
+        '--disable-background-networking'
+    ];
+    if (process.env.CI === 'true' || process.env.CI === '1' || process.env.FS_HEADLESS === '1') {
+        browserArgs.push('--headless=new', '--no-sandbox', '--disable-dev-shm-usage');
+    }
+    browserArgs.push('about:blank');
+
+    const child = spawn(browser, browserArgs, {
         detached: false,
         stdio: 'ignore'
     });
@@ -357,7 +472,7 @@ async function runBrowserSmoke() {
                 const previousTab = currentPlanTab || 'structural';
                 if (typeof showSchedulesModal === 'function') showSchedulesModal();
                 const audit = {
-                    buildBadge: Array.from(document.querySelectorAll('header span')).map(el => el.textContent.trim()).find(text => /^v3\\./.test(text)) || '',
+                    buildBadge: document.getElementById('buildVersionBadge')?.textContent.trim() || '',
                     rebuildButton: Array.from(document.querySelectorAll('.header-actions .tool-btn')).some(btn => btn.textContent.trim() === 'Rebuild'),
                     etabsButton: Array.from(document.querySelectorAll('.header-actions .tool-btn')).some(btn => btn.textContent.trim() === 'ETABS'),
                     etabsQaBadge: document.querySelectorAll('.header-actions .export-validation-badge').length,
@@ -1397,6 +1512,7 @@ async function runBrowserSmoke() {
 
             const dxfLayerAudit = (() => {
                 const dxf = generateDXFContent();
+                const normalizedDxf = dxf.replace(/\\r\\n/g, '\\n');
                 const packageAudit = JSON.parse(JSON.stringify(window.lastDXFExportAudit || {}));
                 const requiredLayers = [
                     'S-CONC-FOUND',
@@ -1431,7 +1547,7 @@ async function runBrowserSmoke() {
                 const missingPlanTitles = floorIds.flatMap(floorId => [
                     floorId + ' - STRUCTURAL LAYOUT PLAN',
                     floorId + ' - TRIBUTARY PLAN'
-                ]).filter(title => !dxf.includes('\\n1\\n' + title + '\\n'));
+                ]).filter(title => !normalizedDxf.includes('\\n1\\n' + title + '\\n'));
                 const requiredTableTitles = [
                     'DRAWING PACKAGE INDEX',
                     'MODEL SUMMARY',
@@ -1444,20 +1560,28 @@ async function runBrowserSmoke() {
                 ];
                 const layerChunk = (name) => {
                     const marker = '0\\nLAYER\\n2\\n' + name + '\\n';
-                    const start = dxf.indexOf(marker);
-                    return start >= 0 ? dxf.slice(start, start + 180) : '';
+                    const start = normalizedDxf.indexOf(marker);
+                    return start >= 0 ? normalizedDxf.slice(start, start + 180) : '';
                 };
 
                 return {
-                    missingRequiredLayers: requiredLayers.filter(name => !dxf.includes('\\n2\\n' + name + '\\n')),
-                    missingEntityLayers: exportedEntityLayers.filter(name => !dxf.includes('\\n8\\n' + name + '\\n')),
-                    legacyLayerHits: legacyLayers.filter(name => dxf.includes('\\n2\\n' + name + '\\n') || dxf.includes('\\n8\\n' + name + '\\n')),
-                    hasCenter2Linetype: dxf.includes('\\n2\\nCENTER2\\n') && dxf.includes('\\n6\\nCENTER2\\n'),
-                    hasHidden2Linetype: dxf.includes('\\n2\\nHIDDEN2\\n'),
-                    hasFoundationPlanTitle: dxf.includes('\\n1\\nFOUNDATION PLAN\\n') || dxf.includes('\\n1\\nBASE REACTION PLAN\\n'),
+                    missingRequiredLayers: requiredLayers.filter(name => !normalizedDxf.includes('\\n2\\n' + name + '\\n')),
+                    missingEntityLayers: exportedEntityLayers.filter(name => !normalizedDxf.includes('\\n8\\n' + name + '\\n')),
+                    legacyLayerHits: legacyLayers.filter(name => normalizedDxf.includes('\\n2\\n' + name + '\\n') || normalizedDxf.includes('\\n8\\n' + name + '\\n')),
+                    hasR12Version: normalizedDxf.includes('9\\n$ACADVER\\n1\\nAC1009\\n'),
+                    hasLayerZero: normalizedDxf.includes('0\\nLAYER\\n2\\n0\\n'),
+                    hasByLayerByBlock: normalizedDxf.includes('\\n2\\nBYLAYER\\n') && normalizedDxf.includes('\\n2\\nBYBLOCK\\n'),
+                    hasCenter2Linetype: normalizedDxf.includes('\\n2\\nCENTER2\\n') && normalizedDxf.includes('\\n6\\nCENTER2\\n'),
+                    hasCorrectCenter2Length: normalizedDxf.includes('2\\nCENTER2\\n70\\n0\\n3\\nCenter ____ _ ____ _ ____\\n72\\n65\\n73\\n4\\n40\\n1.125\\n'),
+                    hasHidden2Linetype: normalizedDxf.includes('\\n2\\nHIDDEN2\\n'),
+                    hasR2000LineweightCodes: normalizedDxf.includes('\\n370\\n'),
+                    hasR2000LinetypeAlignmentCodes: normalizedDxf.includes('\\n74\\n'),
+                    hasTxtShxStyle: normalizedDxf.includes('\\n3\\ntxt.shx\\n'),
+                    crlfOnly: dxf.includes('\\r\\n') && !dxf.replace(/\\r\\n/g, '').includes('\\n'),
+                    hasFoundationPlanTitle: normalizedDxf.includes('\\n1\\nFOUNDATION PLAN\\n') || normalizedDxf.includes('\\n1\\nBASE REACTION PLAN\\n'),
                     missingPlanTitles,
-                    missingTableTitles: requiredTableTitles.filter(title => !dxf.includes('\\n1\\n' + title + '\\n')),
-                    validTerminator: dxf.endsWith('0\\nEOF\\n'),
+                    missingTableTitles: requiredTableTitles.filter(title => !normalizedDxf.includes('\\n1\\n' + title + '\\n')),
+                    validTerminator: dxf.endsWith('0\\r\\nEOF\\r\\n'),
                     packageAudit,
                     beamLayerChunk: layerChunk('S-CONC-BEAM'),
                     columnLayerChunk: layerChunk('S-CONC-COL'),
@@ -1546,7 +1670,7 @@ async function runBrowserSmoke() {
         assert(!result.initial.initError && !result.initError, 'Init error shown in app', result);
         assert(result.initial.columns === 9, 'Default 2x2 model did not initialize 9 columns', result.initial);
         assert(
-            result.uiCleanupAudit.buildBadge === 'v3.16.116' &&
+            result.uiCleanupAudit.buildBadge === 'v3.16.117' &&
             result.uiCleanupAudit.rebuildButton === true &&
             result.uiCleanupAudit.etabsButton === true &&
             result.uiCleanupAudit.etabsQaBadge === 1 &&
@@ -1933,6 +2057,20 @@ async function runBrowserSmoke() {
         assert(result.dxfLayerAudit.missingRequiredLayers.length === 0, 'DXF export is missing structural layer-map layers', result.dxfLayerAudit);
         assert(result.dxfLayerAudit.missingEntityLayers.length === 0, 'DXF export did not place generated entities on structural layers', result.dxfLayerAudit);
         assert(result.dxfLayerAudit.legacyLayerHits.length === 0, 'DXF export still emits legacy layer names', result.dxfLayerAudit);
+        assert(
+            result.dxfLayerAudit.hasR12Version === true &&
+            result.dxfLayerAudit.hasLayerZero === true &&
+            result.dxfLayerAudit.hasByLayerByBlock === true &&
+            result.dxfLayerAudit.hasCorrectCenter2Length === true &&
+            result.dxfLayerAudit.hasTxtShxStyle === true &&
+            result.dxfLayerAudit.hasR2000LineweightCodes === false &&
+            result.dxfLayerAudit.hasR2000LinetypeAlignmentCodes === false &&
+            result.dxfLayerAudit.crlfOnly === true &&
+            result.dxfLayerAudit.packageAudit.dxfVersion === 'AC1009' &&
+            result.dxfLayerAudit.packageAudit.lineEnding === 'CRLF',
+            'DXF envelope is not a clean AutoCAD R12 ASCII document',
+            result.dxfLayerAudit
+        );
         assert(result.dxfLayerAudit.hasCenter2Linetype === true, 'DXF export did not define/use CENTER2 for grid lines', result.dxfLayerAudit);
         assert(result.dxfLayerAudit.hasHidden2Linetype === true, 'DXF export did not define HIDDEN2 for hidden corner-slab framing', result.dxfLayerAudit);
         assert(
@@ -1963,8 +2101,8 @@ async function runBrowserSmoke() {
             'DXF package is incomplete or structurally invalid',
             result.dxfLayerAudit
         );
-        assert(/62\n1\n/.test(result.dxfLayerAudit.beamLayerChunk) && /370\n50\n/.test(result.dxfLayerAudit.beamLayerChunk), 'DXF beam layer does not match FT layer color/lineweight', result.dxfLayerAudit);
-        assert(/62\n2\n/.test(result.dxfLayerAudit.columnLayerChunk) && /370\n70\n/.test(result.dxfLayerAudit.columnLayerChunk), 'DXF column layer does not match FT layer color/lineweight', result.dxfLayerAudit);
+        assert(/62\n1\n/.test(result.dxfLayerAudit.beamLayerChunk) && /6\nCONTINUOUS\n/.test(result.dxfLayerAudit.beamLayerChunk), 'DXF beam layer does not match FT layer color/linetype', result.dxfLayerAudit);
+        assert(/62\n2\n/.test(result.dxfLayerAudit.columnLayerChunk) && /6\nCONTINUOUS\n/.test(result.dxfLayerAudit.columnLayerChunk), 'DXF column layer does not match FT layer color/linetype', result.dxfLayerAudit);
         assert(/62\n250\n/.test(result.dxfLayerAudit.gridLayerChunk) && /6\nCENTER2\n/.test(result.dxfLayerAudit.gridLayerChunk), 'DXF grid layer does not match FT layer color/linetype', result.dxfLayerAudit);
         assert(
             result.memberTagAudit.tag.startsWith(`B - ${result.memberTagAudit.floorId} -`) &&
@@ -1974,6 +2112,21 @@ async function runBrowserSmoke() {
             !result.memberTagAudit.designText.includes(result.memberTagAudit.beamId),
             'Beam tables are not synchronized with plan-style member tags',
             result.memberTagAudit
+        );
+
+        const dxfParserAudit = validateDxfWithEzdxf(
+            await tab.evaluate('generateDXFContent()'),
+            'browser-drawing-package'
+        );
+        const parserRequiredLayers = ['0', 'S-GRID', 'S-CONC-COL', 'S-CONC-BEAM', 'S-CONC-SLAB', 'S-TEXT'];
+        assert(
+            parserRequiredLayers.every(layer => dxfParserAudit.original.layers.includes(layer)) &&
+            dxfParserAudit.original.entityCounts.LINE > 0 &&
+            dxfParserAudit.original.entityCounts.TEXT > 0 &&
+            dxfParserAudit.original.entityCounts.CIRCLE > 0 &&
+            Object.values(dxfParserAudit.retained).every(Boolean),
+            'DXF parser audit lost required layers or entities',
+            dxfParserAudit
         );
 
         await tab.evaluate(`(() => {
@@ -2106,7 +2259,7 @@ async function runBrowserSmoke() {
         await wait(150);
         await tab.screenshot(stair3DScreenshotPath);
         const relevantLogs = tab.logs.filter(log => ['error', 'warning', 'exception'].includes(log.type));
-        return { result, afterReload, screenshotPath, stair3DScreenshotPath, relevantLogs };
+        return { result, dxfParserAudit, afterReload, screenshotPath, stair3DScreenshotPath, relevantLogs };
     } finally {
         tab.close();
         if (browser.process && !KEEP_BROWSER) {
@@ -2766,6 +2919,10 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
             fs.writeFileSync(resolvedDXFPath, dxfContent, 'utf8');
             result.dxfExportAudit = await tab.evaluate('JSON.parse(JSON.stringify(window.lastDXFExportAudit || {}))');
             result.dxfExportAudit.writtenPath = resolvedDXFPath;
+            result.dxfParserAudit = validateDxfWithEzdxf(
+                dxfContent,
+                path.basename(resolvedDXFPath, path.extname(resolvedDXFPath))
+            );
         }
 
         await tab.screenshot(screenshotPath);
@@ -2783,7 +2940,9 @@ async function main() {
     const summary = {
         syntax: parseInlineScripts(),
         engines: [],
-        displayMarks: checkDisplayMarkOrdering()
+        displayMarks: checkDisplayMarkOrdering(),
+        releaseManifest: checkReleaseManifest(),
+        dxfSourceContract: checkDxfSourceContract()
     };
     const projectPath = getArgValue('--project');
     const etabsScriptPath = getArgValue('--write-etabs-script');

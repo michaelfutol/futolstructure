@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const DXF_PACKAGE_BUILD = 'FS-116';
+    const DXF_PACKAGE_BUILD = 'FS-117';
     const DXF_TEXT_LAYER = 'S-TEXT';
     const GRID_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 
@@ -122,16 +122,11 @@
     }
 
     function generatePackageLinetypeTable() {
-        let dxf = '0\nTABLE\n2\nLTYPE\n70\n3\n';
-        dxf += '0\nLTYPE\n2\nCONTINUOUS\n70\n0\n3\nSolid line\n72\n65\n73\n0\n40\n0.0\n';
-        dxf += '0\nLTYPE\n2\nCENTER2\n70\n0\n3\nCenter ____ _ ____ _ ____\n72\n65\n73\n4\n40\n1.25\n49\n0.75\n74\n0\n49\n-0.125\n74\n0\n49\n0.125\n74\n0\n49\n-0.125\n74\n0\n';
-        dxf += '0\nLTYPE\n2\nHIDDEN2\n70\n0\n3\nHidden __ __ __ __\n72\n65\n73\n2\n40\n0.5\n49\n0.25\n74\n0\n49\n-0.25\n74\n0\n';
-        dxf += '0\nENDTAB\n';
-        return dxf;
+        return generateDXFLinetypeTable();
     }
 
     function generatePackageTextStyleTable() {
-        return '0\nTABLE\n2\nSTYLE\n70\n1\n0\nSTYLE\n2\nSTANDARD\n70\n0\n40\n0\n41\n1\n50\n0\n71\n0\n42\n0.2\n3\ntxt\n4\n\n0\nENDTAB\n';
+        return generateDXFTextStyleTable();
     }
 
     function getGridCoordinates() {
@@ -730,6 +725,8 @@
 
         const modelRows = [
             { item: 'Build', value: DXF_PACKAGE_BUILD },
+            { item: 'FSTR schema', value: window.getProjectProvenance?.().fstrSchemaVersion || 'unknown' },
+            { item: 'Source revision', value: window.getProjectProvenance?.().sourceRevisionId || 'unsaved working state' },
             { item: 'Floors', value: state.floors?.length || 0 },
             { item: 'Grid', value: `${state.xSpans?.length || 0}x${state.ySpans?.length || 0}` },
             { item: 'Concrete', value: `fc'=${finite(state.fc, 21)} MPa` },
@@ -830,9 +827,7 @@
             ? writer.bounds
             : { minX: 0, minY: 0, maxX: 100, maxY: 100 };
         let dxf = '0\nSECTION\n2\nHEADER\n';
-        dxf += '9\n$ACADVER\n1\nAC1015\n';
-        dxf += '9\n$INSUNITS\n70\n6\n';
-        dxf += '9\n$MEASUREMENT\n70\n1\n';
+        dxf += '9\n$ACADVER\n1\nAC1009\n';
         dxf += `9\n$EXTMIN\n10\n${fixed(bounds.minX)}\n20\n${fixed(bounds.minY)}\n30\n0\n`;
         dxf += `9\n$EXTMAX\n10\n${fixed(bounds.maxX)}\n20\n${fixed(bounds.maxY)}\n30\n0\n`;
         dxf += '0\nENDSEC\n';
@@ -844,7 +839,7 @@
         dxf += '0\nSECTION\n2\nENTITIES\n';
         dxf += writer.content();
         dxf += '0\nENDSEC\n0\nEOF\n';
-        return dxf;
+        return dxf.replace(/\r?\n/g, '\r\n');
     }
 
     function generateCoordinatedDXFContent() {
@@ -893,7 +888,9 @@
         audit.entityCounts = { ...writer.entityCounts };
         audit.layerUsage = { ...writer.layerUsage };
         audit.bytes = new TextEncoder().encode(dxf).length;
-        audit.validTerminator = dxf.endsWith('0\nEOF\n');
+        audit.dxfVersion = 'AC1009';
+        audit.lineEnding = 'CRLF';
+        audit.validTerminator = dxf.endsWith('0\r\nEOF\r\n');
         audit.requiredLayerEntities = [DXF_LAYER.GRID, DXF_LAYER.TEXT, DXF_LAYER.COLUMN, DXF_LAYER.BEAM, DXF_LAYER.SLAB]
             .every(layer => (writer.layerUsage[layer] || 0) > 0);
         window.lastDXFExportAudit = audit;
