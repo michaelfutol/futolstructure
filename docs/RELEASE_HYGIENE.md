@@ -20,6 +20,7 @@ Use this checklist before pushing a public FutolStructure update.
 - `v3/assets/futolstructure-icon.png`
 - `v3/assets/screenshots/`
 - `v3/engine/`
+- `v3/persistence/`
 - `v3/dxf-export.js`
 - `v3/tools/check-fs.js`
 - `v3/tools/check-dxf-autocad.ps1`
@@ -42,6 +43,8 @@ For browser-sensitive changes, also run:
 python -m pip install -r v3/tools/requirements-dxf.txt
 node v3/tools/check-fs.js
 ```
+
+For persistence releases, the browser gate must also prove pre-overwrite capture, destructive-delta review, health blocking, restore/download behavior, exact 50-revision retention, and legacy `.fstr` round-trip compatibility.
 
 For a DXF release on a workstation with AutoCAD 2025:
 

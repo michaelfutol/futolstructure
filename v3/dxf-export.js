@@ -724,7 +724,7 @@
         stackY = indexTable.bottomY - 1;
 
         const modelRows = [
-            { item: 'Build', value: DXF_PACKAGE_BUILD },
+            { item: 'Build', value: `${audit.build} / DXF ${audit.writerBuild}` },
             { item: 'FSTR schema', value: window.getProjectProvenance?.().fstrSchemaVersion || 'unknown' },
             { item: 'Source revision', value: window.getProjectProvenance?.().sourceRevisionId || 'unsaved working state' },
             { item: 'Floors', value: state.floors?.length || 0 },
@@ -848,8 +848,10 @@
         const floorGeometryById = collect3DFloorGeometry();
         const planBounds = calculatePlanBounds(floorGeometryById);
         const writer = new DxfWriter();
+        const releaseBuild = window.getReleaseManifest?.().buildId || DXF_PACKAGE_BUILD;
         const audit = {
-            build: DXF_PACKAGE_BUILD,
+            build: releaseBuild,
+            writerBuild: DXF_PACKAGE_BUILD,
             layerSource: 'FT_LayerMap.xlsx structural mapping embedded in FutolStructure',
             floorIds: state.floors.map(floor => floor.id),
             plans: { layouts: 0, tributary: 0, foundation: 0 },
@@ -861,7 +863,7 @@
         const cellHeight = planBounds.height + 5.2;
         const packageTop = 0;
         writer.text(0, packageTop + 4.1, 'FUTOLSTRUCTURE - COORDINATED DXF DRAWING PACKAGE', DXF_LAYER.TEXT, 0.48);
-        writer.text(0, packageTop + 3.45, `${DXF_PACKAGE_BUILD} | UNITS: METERS | GENERATED ${localDateStamp()}`, DXF_LAYER.TEXT, 0.2);
+        writer.text(0, packageTop + 3.45, `${releaseBuild} | DXF WRITER ${DXF_PACKAGE_BUILD} | UNITS: METERS | GENERATED ${localDateStamp()}`, DXF_LAYER.TEXT, 0.2);
         writer.text(0, packageTop + 3.05, 'Plans, schedules, load summary, and preliminary BOQ use FT structural layer mapping.', DXF_LAYER.TEXT, 0.18);
 
         (state.floors || []).forEach((floor, rowIndex) => {

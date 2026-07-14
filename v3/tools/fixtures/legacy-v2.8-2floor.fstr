@@ -1,0 +1,84 @@
+{
+  "format": "FSTR_JSON",
+  "version": "2.8",
+  "hiddenGeometryPolicy": "preserve-intentional-hidden-geometry",
+  "savedAt": "2026-04-26T00:00:00.000Z",
+  "xSpans": [4, 4],
+  "ySpans": [5, 5],
+  "cantilevers": {
+    "top": [0.5, 0],
+    "right": [0, 0],
+    "bottom": [0, 0],
+    "left": [0, 0]
+  },
+  "floors": [
+    {
+      "id": "2F",
+      "name": "2nd Floor",
+      "dlSuper": 2,
+      "liveLoad": 2,
+      "slabThickness": 150,
+      "height": 3,
+      "wallLoad": 6,
+      "isRoof": false,
+      "cantilevers": {
+        "top": [0.5, 0],
+        "right": [0, 0],
+        "bottom": [0, 0],
+        "left": [0, 0]
+      },
+      "customBeams": [],
+      "voidSlabs": ["S1"],
+      "cornerSlabs": [],
+      "slabOpenings": [],
+      "deletedBeams": ["BX-1-1"],
+      "deletedColumns": [],
+      "lockedBeams": ["BX-1-2"],
+      "lockedSlabs": []
+    },
+    {
+      "id": "RF",
+      "name": "Roof",
+      "dlSuper": 1.5,
+      "liveLoad": 1,
+      "slabThickness": 120,
+      "height": 3,
+      "wallLoad": 0,
+      "isRoof": true,
+      "cantilevers": {
+        "top": [0.5, 0],
+        "right": [0, 0],
+        "bottom": [0, 0],
+        "left": [0, 0]
+      },
+      "customBeams": [],
+      "voidSlabs": [],
+      "cornerSlabs": [],
+      "slabOpenings": [],
+      "deletedBeams": [],
+      "deletedColumns": [],
+      "lockedBeams": [],
+      "lockedSlabs": []
+    }
+  ],
+  "currentFloorIndex": 0,
+  "columnPositionLocked": true,
+  "beamAlignmentOverrides": {
+    "2F:BX-1-2": {
+      "offset": 0.1
+    }
+  },
+  "foundationMode": "plan",
+  "columnAlignment": "outer",
+  "gfSuspended": false,
+  "fc": 21,
+  "fy": 415,
+  "soilBearing": 150,
+  "concreteDensity": 24,
+  "defaultColumnB": 300,
+  "defaultColumnH": 300,
+  "defaultBeamB": 250,
+  "defaultBeamH": 400,
+  "tieBeamWidth": 200,
+  "tieBeamDepth": 350
+}
