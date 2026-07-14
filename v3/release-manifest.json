@@ -3,7 +3,7 @@
   "buildId": "FS-117",
   "releaseName": "DXF R12 Hotfix",
   "fstrSchemaVersion": "0.1.0",
-  "gitCommit": "",
+  "gitCommit": "58edb71ce88b0060a8a2d9901664e91ac61dfcc2",
   "buildDate": "2026-07-14",
   "validatedFixtures": [
     "Olango_2026-07-14_3Floors_GF-2F-RF"
