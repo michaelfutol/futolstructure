@@ -2,6 +2,7 @@
 'use strict';
 
 const fs = require('fs');
+const crypto = require('crypto');
 const os = require('os');
 const path = require('path');
 const vm = require('vm');
@@ -11,8 +12,12 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const V3 = path.join(ROOT, 'v3');
 const INDEX = path.join(V3, 'index.html');
 const HISTORICAL_FSTR_FIXTURE = path.join(V3, 'tools', 'fixtures', 'legacy-v2.8-2floor.fstr');
+const REGULAR_3F_FSTR_FIXTURE = path.join(V3, 'tools', 'fixtures', 'regular-v2.8-3floor-pre-p0c.fstr');
+const TERMINATED_3F_FSTR_FIXTURE = path.join(V3, 'tools', 'fixtures', 'terminated-v2.8-3floor-pre-p0c.fstr');
+const COLUMN_SEGMENT_BASELINES = path.join(V3, 'tools', 'fixtures', 'p0-c1a-pre-migration-baselines.json');
 const DXF_VALIDATOR = path.join(V3, 'tools', 'validate-dxf.py');
 const DEFAULT_PORT = Number(process.env.FS_CDP_PORT || 9234);
+const CDP_TIMEOUT_MS = Math.max(15000, Number(process.env.FS_CDP_TIMEOUT_MS) || 15000);
 const KEEP_BROWSER = process.env.FS_KEEP_BROWSER === '1' || process.argv.includes('--keep-browser');
 const HIDDEN_GEOMETRY_POLICY = 'preserve-intentional-hidden-geometry';
 const APP_URL = process.env.FS_APP_URL || fileUrl(INDEX);
@@ -27,6 +32,10 @@ function assert(condition, message, details = undefined) {
 
 function fileUrl(filePath) {
     return 'file:///' + path.resolve(filePath).replace(/\\/g, '/').replace(/ /g, '%20');
+}
+
+function sha256File(filePath) {
+    return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
 
 function parseInlineScripts() {
@@ -46,14 +55,16 @@ function checkReleaseManifest() {
     const manifestPath = path.join(V3, 'release-manifest.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     const html = fs.readFileSync(INDEX, 'utf8');
-    assert(manifest.appVersion === '3.16.118', 'Release manifest app version is stale', manifest);
-    assert(manifest.buildId === 'FS-118', 'Release manifest build ID is stale', manifest);
-    assert(manifest.releaseName === 'Protected Project Revisions', 'Release manifest name is stale', manifest);
-    assert(manifest.fstrSchemaVersion === '0.1.0', 'Release manifest FSTR schema is stale', manifest);
+    assert(manifest.appVersion === '3.16.119', 'Release manifest app version is stale', manifest);
+    assert(manifest.buildId === 'FS-119', 'Release manifest build ID is stale', manifest);
+    assert(manifest.releaseName === 'Canonical Column Segment Truth', 'Release manifest name is stale', manifest);
+    assert(manifest.fstrSchemaVersion === '0.2.0', 'Release manifest FSTR schema is stale', manifest);
     const allowUnstampedManifest = process.env.FS_ALLOW_UNSTAMPED_MANIFEST === '1';
     assert(
-        /^[0-9a-f]{40}$/.test(manifest.gitCommit || '') || (allowUnstampedManifest && !manifest.gitCommit),
-        'Release manifest must contain the real FS-118 release commit SHA',
+        /^[0-9a-f]{40}$/.test(manifest.gitCommit || '') ||
+            (manifest.releaseChannel === 'development' && !manifest.gitCommit) ||
+            (allowUnstampedManifest && !manifest.gitCommit),
+        'Release manifest must contain a real commit SHA unless it is explicitly a development candidate',
         manifest
     );
     assert(html.includes('v' + manifest.appVersion), 'Build badge does not match release manifest', manifest);
@@ -61,8 +72,10 @@ function checkReleaseManifest() {
     assert(html.includes('persistence/project-revisions.js'), 'Protected revision module is not loaded by the app');
     assert(
         manifest.validatedFixtures?.includes('legacy-v2.8-2floor') &&
+        manifest.validatedFixtures?.includes('regular-v2.8-3floor-pre-p0c') &&
+        manifest.validatedFixtures?.includes('terminated-v2.8-3floor-pre-p0c') &&
         manifest.validatedFixtures?.includes('Olango_2026-07-14_3Floors_GF-2F-RF'),
-        'Release manifest does not identify both FS-118 compatibility fixtures',
+        'Release manifest does not identify the P0-C1A compatibility fixtures',
         manifest
     );
     return manifest;
@@ -76,13 +89,63 @@ function checkHistoricalFstrFixture() {
     return { file: path.relative(ROOT, HISTORICAL_FSTR_FIXTURE), version: fixture.version, floors: fixture.floors.length };
 }
 
+function checkColumnSegmentFixtures() {
+    [REGULAR_3F_FSTR_FIXTURE, TERMINATED_3F_FSTR_FIXTURE, COLUMN_SEGMENT_BASELINES].forEach(file => {
+        assert(fs.existsSync(file), 'P0-C1A fixture is missing', { file });
+    });
+    const regular = JSON.parse(fs.readFileSync(REGULAR_3F_FSTR_FIXTURE, 'utf8'));
+    const terminated = JSON.parse(fs.readFileSync(TERMINATED_3F_FSTR_FIXTURE, 'utf8'));
+    const baselines = JSON.parse(fs.readFileSync(COLUMN_SEGMENT_BASELINES, 'utf8'));
+    assert(regular.version === '2.8' && terminated.version === '2.8', 'P0-C1A fixtures must remain legacy pre-schema payloads');
+    assert(regular.floors?.length === 3 && terminated.floors?.length === 3, 'P0-C1A three-floor fixtures are invalid');
+    const terminatedA1 = terminated.columnOverrides?.find(column => column.id === 'A1');
+    assert(terminatedA1?.activePerFloor?.RF === false, 'Terminated fixture does not freeze the legacy RF termination state');
+    assert(
+        baselines.fixtures?.['regular-v2.8-3floor-pre-p0c.fstr']?.threeD?.columnSegments === 27 &&
+        baselines.fixtures?.['terminated-v2.8-3floor-pre-p0c.fstr']?.threeD?.columnSegments === 26 &&
+        baselines.fixtures?.['legacy-v2.8-2floor.fstr']?.threeD?.columnSegments === 18,
+        'P0-C1A pre-migration count baselines are incomplete',
+        baselines
+    );
+    return {
+        regular: path.relative(ROOT, REGULAR_3F_FSTR_FIXTURE),
+        terminated: path.relative(ROOT, TERMINATED_3F_FSTR_FIXTURE),
+        baselines: path.relative(ROOT, COLUMN_SEGMENT_BASELINES)
+    };
+}
+
+function checkColumnSegmentSourceContract() {
+    const html = fs.readFileSync(INDEX, 'utf8');
+    const loads = fs.readFileSync(path.join(V3, 'engine', 'loads.js'), 'utf8');
+    assert(loads.includes('function resolveColumnSegmentState('), 'Canonical column-segment resolver is missing from EngineLoads');
+    assert(html.includes("const FSTR_SCHEMA_VERSION = '0.2.0'"), 'P0-C1A schema version is not governed');
+    assert(html.includes("const FSTR_MIN_COMPATIBLE_APP_VERSION = '3.16.119'"), 'P0-C1A minimum compatible app is not governed');
+    assert(html.includes('Project schema ${sourceSchemaVersion} requires a newer FutolStructure build'), 'Future-schema downgrade guard is missing');
+    assert(html.includes("'legacy_omitted_column_line'"), 'Legacy whole-line omission migration is missing');
+    assert(html.includes('migrateLegacyColumnSegmentIntent(oldColumns, state.floors);'), 'generateGrid does not reconcile legacy segment intent');
+    assert(html.includes('const isPersistentCustom = column.isPlanted === true'), 'generateGrid does not preserve custom/planted columns');
+    assert(html.includes("assertSolverColumnTopologyReady('STAAD')"), 'STAAD topology gate is missing');
+    assert(html.includes("assertSolverColumnTopologyReady('ETABS')"), 'ETABS topology gate is missing');
+    assert(html.includes("dependentGeometryPolicy: 'preserve-and-mark-unresolved'"), 'Column dependency policy is not explicit');
+    assert(html.includes("intent: 'remove_storey_segment'") || html.includes("'remove_storey_segment'"), 'Storey-segment removal intent is missing');
+    assert(html.includes("'terminated_above'"), 'Column termination intent is missing');
+    assert(html.includes("'remove_entire_line'"), 'Entire-line removal intent is missing');
+    return {
+        schema: '0.2.0',
+        minimumAppVersion: '3.16.119',
+        resolver: 'EngineLoads.resolveColumnSegmentState',
+        reconciler: 'generateGrid',
+        solverGate: ['STAAD', 'ETABS']
+    };
+}
+
 function checkDxfSourceContract() {
     const html = fs.readFileSync(INDEX, 'utf8');
     const writer = fs.readFileSync(path.join(V3, 'dxf-export.js'), 'utf8');
     const requirementsPath = path.join(V3, 'tools', 'requirements-dxf.txt');
     assert(!html.includes('AC1015') && !writer.includes('AC1015'), 'DXF source still advertises AutoCAD 2000 while using the R12 writer');
     assert(html.includes('AC1009') && writer.includes('AC1009'), 'DXF source does not advertise AutoCAD R12');
-    assert(html.includes('BYLAYER') && html.includes('BYBLOCK') && html.includes('txt.shx'), 'DXF R12 standard table records are incomplete');
+    assert(html.includes('BYLAYER') && html.includes('BYBLOCK') && html.includes('arial.ttf'), 'DXF R12 standard table records or Arial text style are incomplete');
     assert(!html.includes('\\n370\\n') && !writer.includes('\\n370\\n'), 'DXF R12 writer still emits the R2000 lineweight group');
     assert(!html.includes('\\n74\\n') && !writer.includes('\\n74\\n'), 'DXF R12 writer still emits unsupported linetype alignment groups');
     assert(fs.existsSync(DXF_VALIDATOR), 'DXF strict validator is missing', { path: DXF_VALIDATOR });
@@ -161,6 +224,44 @@ function validateDxfWithEzdxf(dxfContent, label = 'generated') {
             });
         }
         assert(validation.status === 0 && audit.ok === true, 'DXF failed strict parser or round-trip validation', audit);
+        return audit;
+    } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+
+function validateIfcWithIfcOpenShell(ifcContent, label = 'generated') {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'futolstructure-ifc-'));
+    const ifcPath = path.join(tempDir, `${String(label).replace(/[^A-Za-z0-9_.-]+/g, '-')}.ifc`);
+    fs.writeFileSync(ifcPath, ifcContent, 'utf8');
+    try {
+        const python = resolveDxfPython();
+        const script = [
+            'import ifcopenshell, json, sys',
+            'model = ifcopenshell.open(sys.argv[1])',
+            "types = ['IfcBuildingStorey','IfcColumn','IfcBeam','IfcSlab','IfcFooting']",
+            'counts = {name: len(model.by_type(name)) for name in types}',
+            "print(json.dumps({'schema': model.schema, 'counts': counts, 'products': len(model.by_type('IfcProduct'))}))"
+        ].join('\n');
+        const validation = spawnSync(
+            python.command,
+            [...python.args, '-c', script, ifcPath],
+            { encoding: 'utf8', windowsHide: true }
+        );
+        const stdoutLines = String(validation.stdout || '').trim().split(/\r?\n/).filter(Boolean);
+        let audit = null;
+        try {
+            audit = JSON.parse(stdoutLines.at(-1) || '');
+        } catch (error) {
+            throw Object.assign(new Error('IfcOpenShell validator did not return JSON.'), {
+                details: {
+                    status: validation.status,
+                    stdout: String(validation.stdout || '').trim(),
+                    stderr: String(validation.stderr || '').trim()
+                }
+            });
+        }
+        assert(validation.status === 0 && /^IFC2X3/i.test(audit.schema || ''), 'IFC failed IfcOpenShell schema validation', audit);
         return audit;
     } finally {
         fs.rmSync(tempDir, { recursive: true, force: true });
@@ -275,6 +376,7 @@ async function ensureBrowser(port) {
     const browserArgs = [
         `--remote-debugging-port=${port}`,
         '--remote-debugging-address=127.0.0.1',
+        '--remote-allow-origins=*',
         `--user-data-dir=${profileDir}`,
         '--no-first-run',
         '--disable-extensions',
@@ -322,15 +424,47 @@ class CdpTab {
         this.nextId = 1;
         this.pending = new Map();
         this.logs = [];
+        this.transportDiagnostics = [];
         this.opened = new Promise((resolve, reject) => {
             this.ws.onopen = resolve;
             this.ws.onerror = reject;
         });
-        this.ws.onmessage = event => this.handleMessage(event.data);
+        this.ws.onclose = event => {
+            this.transportDiagnostics.push({ closeCode: event.code, closeReason: event.reason || '', wasClean: event.wasClean });
+        };
+        this.ws.onmessage = event => {
+            const data = event.data;
+            this.transportDiagnostics.push({
+                kind: typeof data,
+                constructor: data?.constructor?.name || '',
+                hasText: !!data && typeof data.text === 'function',
+                byteLength: Number(data?.byteLength || data?.size || 0)
+            });
+            this.transportDiagnostics = this.transportDiagnostics.slice(-8);
+            if (typeof data === 'string') {
+                this.handleMessage(data);
+            } else if (data && typeof data.text === 'function') {
+                data.text().then(text => this.handleMessage(text)).catch(error => {
+                    this.transportDiagnostics.push({ error: error.message });
+                });
+            } else if (data instanceof ArrayBuffer) {
+                this.handleMessage(Buffer.from(data).toString('utf8'));
+            } else if (ArrayBuffer.isView(data)) {
+                this.handleMessage(Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('utf8'));
+            } else {
+                this.transportDiagnostics.push({ error: 'unsupported CDP frame' });
+            }
+        };
     }
 
     handleMessage(raw) {
-        const message = JSON.parse(raw.toString());
+        let message;
+        try {
+            message = JSON.parse(raw.toString());
+        } catch (error) {
+            this.transportDiagnostics.push({ error: error.message, sample: String(raw).slice(0, 120) });
+            return;
+        }
         if (message.id && this.pending.has(message.id)) {
             const pending = this.pending.get(message.id);
             this.pending.delete(message.id);
@@ -358,14 +492,20 @@ class CdpTab {
     async send(method, params = {}) {
         await this.opened;
         const id = this.nextId++;
-        this.ws.send(JSON.stringify({ id, method, params }));
         return new Promise((resolve, reject) => {
             this.pending.set(id, { resolve, reject, method });
+            try {
+                this.ws.send(JSON.stringify({ id, method, params }));
+            } catch (error) {
+                this.pending.delete(id);
+                reject(error);
+                return;
+            }
             setTimeout(() => {
                 if (!this.pending.has(id)) return;
                 this.pending.delete(id);
-                reject(new Error(`CDP timeout: ${method}`));
-            }, 15000);
+                reject(new Error(`CDP timeout: ${method}; readyState=${this.ws.readyState}; frames=${JSON.stringify(this.transportDiagnostics)}`));
+            }, CDP_TIMEOUT_MS);
         });
     }
 
@@ -460,6 +600,8 @@ async function runBrowserSmoke(historicalFixture) {
     const stair3DScreenshotPath = path.join(os.tmpdir(), 'futolstructure-stair-3d.png');
     const revisionScreenshotPath = path.join(os.tmpdir(), 'futolstructure-protected-revisions.png');
     const serializedHistoricalFixture = JSON.stringify(historicalFixture);
+    const serializedRegular3FFixture = JSON.stringify(JSON.parse(fs.readFileSync(REGULAR_3F_FSTR_FIXTURE, 'utf8')));
+    const serializedTerminated3FFixture = JSON.stringify(JSON.parse(fs.readFileSync(TERMINATED_3F_FSTR_FIXTURE, 'utf8')));
 
     try {
         const result = await tab.evaluate(`(() => {
@@ -1615,7 +1757,7 @@ async function runBrowserSmoke(historicalFixture) {
                     hasHidden2Linetype: normalizedDxf.includes('\\n2\\nHIDDEN2\\n'),
                     hasR2000LineweightCodes: normalizedDxf.includes('\\n370\\n'),
                     hasR2000LinetypeAlignmentCodes: normalizedDxf.includes('\\n74\\n'),
-                    hasTxtShxStyle: normalizedDxf.includes('\\n3\\ntxt.shx\\n'),
+                    hasArialStyle: normalizedDxf.includes('\\n3\\narial.ttf\\n'),
                     crlfOnly: dxf.includes('\\r\\n') && !dxf.replace(/\\r\\n/g, '').includes('\\n'),
                     hasFoundationPlanTitle: normalizedDxf.includes('\\n1\\nFOUNDATION PLAN\\n') || normalizedDxf.includes('\\n1\\nBASE REACTION PLAN\\n'),
                     missingPlanTitles,
@@ -1709,7 +1851,7 @@ async function runBrowserSmoke(historicalFixture) {
         assert(!result.initial.initError && !result.initError, 'Init error shown in app', result);
         assert(result.initial.columns === 9, 'Default 2x2 model did not initialize 9 columns', result.initial);
         assert(
-            result.uiCleanupAudit.buildBadge === 'v3.16.118' &&
+            result.uiCleanupAudit.buildBadge === 'v3.16.119' &&
             result.uiCleanupAudit.rebuildButton === true &&
             result.uiCleanupAudit.etabsButton === true &&
             result.uiCleanupAudit.etabsQaBadge === 1 &&
@@ -2102,14 +2244,14 @@ async function runBrowserSmoke(historicalFixture) {
             result.dxfLayerAudit.hasLayerZero === true &&
             result.dxfLayerAudit.hasByLayerByBlock === true &&
             result.dxfLayerAudit.hasCorrectCenter2Length === true &&
-            result.dxfLayerAudit.hasTxtShxStyle === true &&
+            result.dxfLayerAudit.hasArialStyle === true &&
             result.dxfLayerAudit.hasR2000LineweightCodes === false &&
             result.dxfLayerAudit.hasR2000LinetypeAlignmentCodes === false &&
             result.dxfLayerAudit.crlfOnly === true &&
             result.dxfLayerAudit.packageAudit.dxfVersion === 'AC1009' &&
             result.dxfLayerAudit.packageAudit.lineEnding === 'CRLF' &&
-            result.dxfLayerAudit.packageAudit.build === 'FS-118' &&
-            result.dxfLayerAudit.packageAudit.writerBuild === 'FS-117',
+            result.dxfLayerAudit.packageAudit.build === 'FS-119' &&
+            result.dxfLayerAudit.packageAudit.writerBuild === 'FS-119-DXF-1',
             'DXF envelope or app/writer provenance is inconsistent',
             result.dxfLayerAudit
         );
@@ -2442,13 +2584,13 @@ async function runBrowserSmoke(historicalFixture) {
             revisionProtection.destructive.some(item => item.includes('voids')) &&
             revisionProtection.invalidHealth.valid === false &&
             revisionProtection.rowCount >= 1 &&
-            revisionProtection.releaseVersion === '3.16.118' &&
-            revisionProtection.releaseBuildId === 'FS-118' &&
-            revisionProtection.schemaVersion === '0.1.0' &&
+            revisionProtection.releaseVersion === '3.16.119' &&
+            revisionProtection.releaseBuildId === 'FS-119' &&
+            revisionProtection.schemaVersion === '0.2.0' &&
             revisionProtection.normalSaveAudit.writtenBytes > 0 &&
             /^model-revision-/.test(revisionProtection.normalSaveAudit.revisionId) &&
             revisionProtection.normalSaveAudit.parentRevisionId === 'qa-protected-baseline' &&
-            revisionProtection.normalSaveAudit.releaseBuildId === 'FS-118' &&
+            revisionProtection.normalSaveAudit.releaseBuildId === 'FS-119' &&
             revisionProtection.normalSaveAudit.protectedCount >= 3 &&
             revisionProtection.normalSaveAudit.preOverwriteCount >= 2 &&
             revisionProtection.downloadAudit?.filename.endsWith('.fstr') &&
@@ -2458,7 +2600,7 @@ async function runBrowserSmoke(historicalFixture) {
             revisionProtection.retention.uniqueIds === 50 &&
             revisionProtection.retention.newestReason === 'retention-54' &&
             revisionProtection.retention.oldestReason === 'retention-5' &&
-            revisionProtection.historicalRoundTrip.schemaVersion === '0.1.0' &&
+            revisionProtection.historicalRoundTrip.schemaVersion === '0.2.0' &&
             JSON.stringify(revisionProtection.historicalRoundTrip.floorIds) === JSON.stringify(['2F', 'RF']) &&
             revisionProtection.historicalRoundTrip.voidSlabs.includes('S1') &&
             revisionProtection.historicalRoundTrip.deletedBeams.includes('BX-1-1') &&
@@ -2543,6 +2685,492 @@ async function runBrowserSmoke(historicalFixture) {
         })()`);
         await wait(150);
         await tab.screenshot(stair3DScreenshotPath);
+
+        const columnSegmentTruth = await tab.evaluate(`(() => {
+            const regularFixture = ${serializedRegular3FFixture};
+            const terminatedFixture = ${serializedTerminated3FFixture};
+            const originalAlert = window.alert;
+            const originalConfirm = window.confirm;
+            const originalOpen = window.open;
+            window.alert = () => {};
+            window.confirm = () => true;
+
+            const loadFixture = (fixture, name) => {
+                const validated = validateProjectData(cloneSerializable(fixture, {}));
+                applyLoadedProject(validated, name, {
+                    silent: true,
+                    skipAutosave: true,
+                    quarantineHiddenGeometry: false
+                });
+                calculate();
+                refreshInputPanelsAfterStateRestore();
+                draw();
+            };
+            const geometryCounts = () => {
+                const geometry = collect3DFloorGeometry();
+                return {
+                    columnSegments: (state.floors || []).reduce((sum, floor) => sum +
+                        (state.columns || []).filter(col => resolveColumnSegmentState(col, floor.id).active).length, 0),
+                    beams: [...geometry.values()].reduce((sum, floor) => sum + (floor.beams || []).filter(beam => !beam.deleted).length, 0),
+                    slabs: [...geometry.values()].reduce((sum, floor) => sum + (floor.slabs || []).filter(slab => !slab.deleted && !slab.isVoid && slab.active !== false).length, 0),
+                    byFloor: Object.fromEntries((state.floors || []).map(floor => [floor.id, {
+                        columns: (state.columns || []).filter(col => resolveColumnSegmentState(col, floor.id).active).length,
+                        beams: (geometry.get(floor.id)?.beams || []).filter(beam => !beam.deleted).length,
+                        slabs: (geometry.get(floor.id)?.slabs || []).filter(slab => !slab.deleted && !slab.isVoid && slab.active !== false).length
+                    }]))
+                };
+            };
+            const serializationAudit = payload => ({
+                version: payload.version,
+                schemaVersion: payload.schemaVersion,
+                minimumAppVersion: payload.compatibility?.minimumAppVersion || '',
+                migrationSourceSchemaVersion: payload.migrationMeta?.sourceSchemaVersion || '',
+                migrationSourceFileVersion: payload.migrationMeta?.sourceFileVersion || '',
+                migrationApplied: payload.migrationMeta?.migrationApplied === true,
+                noLegacyColumnWrites: (payload.columnOverrides || []).every(column =>
+                    !Object.prototype.hasOwnProperty.call(column, 'active') &&
+                    !Object.prototype.hasOwnProperty.call(column, 'activePerFloor') &&
+                    !Object.prototype.hasOwnProperty.call(column, 'floorActive')),
+                noLegacyFloorDeletes: (payload.floors || []).every(floor =>
+                    !Object.prototype.hasOwnProperty.call(floor, 'deletedColumns')),
+                segmentOverrideCount: (payload.columnOverrides || []).reduce((sum, column) =>
+                    sum + Object.keys(column.segmentOverrides || {}).length, 0)
+            });
+            const blockedExport = generator => {
+                try {
+                    generator();
+                    return { blocked: false, message: '' };
+                } catch (error) {
+                    return { blocked: true, message: String(error?.message || error) };
+                }
+            };
+
+            try {
+                const resolverFloors = [{ id: 'GF' }, { id: '2F' }, { id: 'RF' }];
+                const resolverAudit = {
+                    explicitOverrideWins: EngineLoads.resolveColumnSegmentState({
+                        id: 'QA',
+                        active: false,
+                        activePerFloor: { RF: false },
+                        segmentOverrides: { RF: { active: true, intent: 'explicit_continue' } }
+                    }, 'RF', resolverFloors),
+                    conservativeLegacyFalse: EngineLoads.resolveColumnSegmentState({
+                        id: 'QB',
+                        activePerFloor: { RF: true },
+                        floorActive: { RF: false }
+                    }, 'RF', resolverFloors),
+                    belowPlantedStart: EngineLoads.resolveColumnSegmentState({
+                        id: 'PC-QA',
+                        startFloor: '2F',
+                        isPlanted: true
+                    }, 'GF', resolverFloors)
+                };
+                const futureSchemaAudit = {};
+                try {
+                    validateProjectData({ ...cloneSerializable(regularFixture, {}), schemaVersion: '0.3.0' });
+                    futureSchemaAudit.schemaRejected = false;
+                    futureSchemaAudit.schemaMessage = '';
+                } catch (error) {
+                    futureSchemaAudit.schemaRejected = true;
+                    futureSchemaAudit.schemaMessage = String(error?.message || error);
+                }
+                try {
+                    validateProjectData({
+                        ...cloneSerializable(regularFixture, {}),
+                        schemaVersion: '0.2.0',
+                        compatibility: { minimumAppVersion: '3.16.120' }
+                    });
+                    futureSchemaAudit.minimumAppRejected = false;
+                    futureSchemaAudit.minimumAppMessage = '';
+                } catch (error) {
+                    futureSchemaAudit.minimumAppRejected = true;
+                    futureSchemaAudit.minimumAppMessage = String(error?.message || error);
+                }
+
+                loadFixture(regularFixture, 'regular-v2.8-3floor-pre-p0c.fstr');
+                const regularTopology = collectColumnTopologyValidation();
+                const regularCounts = geometryCounts();
+                const regularCSI = collectCSIExportModelData();
+                const regularSTAADLength = generateSTAADContent().length;
+                const regularETABSLength = generateETABSOAPIScript().length;
+                const regularSaved = buildProjectData({ revisionId: 'qa-p0c-regular-1' });
+                const regularSerialization = serializationAudit(regularSaved);
+                loadFixture(regularSaved, 'qa-p0c-regular-roundtrip.fstr');
+                const regularRoundTripCounts = geometryCounts();
+
+                const a1BeforeReconcile = state.columns.find(column => column.id === 'A1');
+                setColumnSegmentIntent(a1BeforeReconcile, 'RF', false, 'qa_reconciler_override');
+                const qaHostBeam = collect3DFloorGeometry().get('GF')?.beams?.find(beam => beam.id === 'BX-1-1');
+                const qaHostMidpoint = qaHostBeam
+                    ? [(qaHostBeam.x1 + qaHostBeam.x2) / 2, (qaHostBeam.y1 + qaHostBeam.y2) / 2]
+                    : [2, 0];
+                state.columns.push({
+                    id: 'PC-QA',
+                    x: qaHostMidpoint[0],
+                    y: qaHostMidpoint[1],
+                    isPlanted: true,
+                    isCustomPlaced: true,
+                    isRegularGrid: false,
+                    columnSource: 'planted',
+                    startFloor: '2F',
+                    sourceFloorId: 'GF',
+                    hostMemberId: 'BX-1-1',
+                    hostMemberType: 'beam',
+                    supportType: 'beam',
+                    supportStatus: 'load_transfer_pending',
+                    segmentOverrides: {
+                        '2F': { segmentId: 'PC-QA::2F', active: true, intent: 'planted_start' },
+                        'RF': { segmentId: 'PC-QA::RF', active: true, intent: 'continuous' }
+                    }
+                });
+                generateGrid();
+                const reconciledA1 = state.columns.find(column => column.id === 'A1');
+                const reconciledCustom = state.columns.find(column => column.id === 'PC-QA');
+                const reconcilerAudit = {
+                    regularCount: state.columns.filter(column => column.isRegularGrid !== false).length,
+                    customCount: state.columns.filter(column => column.isRegularGrid === false).length,
+                    inactiveOverridePreserved: !resolveColumnSegmentState(reconciledA1, 'RF').active,
+                    customPreserved: !!reconciledCustom,
+                    customPosition: reconciledCustom ? [reconciledCustom.x, reconciledCustom.y] : [],
+                    hostMidpoint: qaHostMidpoint,
+                    plantedGate: collectColumnTopologyValidation().items.find(item => item.columnId === 'PC-QA') || null
+                };
+
+                loadFixture(regularFixture, 'qa-p0c-termination-choice.fstr');
+                state.currentFloorIndex = state.floors.findIndex(floor => floor.id === '2F');
+                showColumnDeleteDialog('A1', '2F');
+                const terminationPreview = cloneSerializable(window.lastColumnDependencyPreview, {});
+                const deleteChoiceCount = document.querySelectorAll('input[name="columnIntentAction"]').length;
+                selectColumnIntentAction('terminate_above');
+                const terminationApplied = applySelectedColumnIntent();
+                const terminationCounts = geometryCounts();
+                const terminationSaved = buildProjectData({ revisionId: 'qa-p0c-termination-1' });
+                loadFixture(terminationSaved, 'qa-p0c-termination-roundtrip.fstr');
+                const terminationRoundTrip = {
+                    at2F: resolveColumnSegmentState(state.columns.find(column => column.id === 'A1'), '2F'),
+                    atRF: resolveColumnSegmentState(state.columns.find(column => column.id === 'A1'), 'RF')
+                };
+                addFloor();
+                const insertedUpperFloor = state.floors.find(floor => floor.id === '3F');
+                const terminationAfterFloorAdd = {
+                    floorIds: state.floors.map(floor => floor.id),
+                    insertedFloorId: insertedUpperFloor?.id || '',
+                    insertedSegment: insertedUpperFloor
+                        ? resolveColumnSegmentState(state.columns.find(column => column.id === 'A1'), insertedUpperFloor.id)
+                        : null,
+                    roofSegment: resolveColumnSegmentState(state.columns.find(column => column.id === 'A1'), 'RF')
+                };
+
+                loadFixture(regularFixture, 'qa-p0c-segment-choice.fstr');
+                state.currentFloorIndex = state.floors.findIndex(floor => floor.id === '2F');
+                showColumnDeleteDialog('A1', '2F');
+                selectColumnIntentAction('remove_segment');
+                const segmentApplied = applySelectedColumnIntent();
+                const segmentTopology = collectColumnTopologyValidation();
+                const segmentSaved = buildProjectData({ revisionId: 'qa-p0c-segment-1' });
+                loadFixture(segmentSaved, 'qa-p0c-segment-roundtrip.fstr');
+                const segmentRoundTripInactive = !resolveColumnSegmentState(
+                    state.columns.find(column => column.id === 'A1'), '2F'
+                ).active;
+
+                loadFixture(regularFixture, 'qa-p0c-line-choice.fstr');
+                state.currentFloorIndex = 0;
+                showColumnDeleteDialog('A1', 'GF');
+                selectColumnIntentAction('remove_line');
+                const linePreview = cloneSerializable(window.lastColumnDependencyPreview, {});
+                const lineApplied = applySelectedColumnIntent();
+                const lineColumn = state.columns.find(column => column.id === 'A1');
+                const lineAudit = {
+                    allInactive: state.floors.every(floor => !resolveColumnSegmentState(lineColumn, floor.id).active),
+                    governance: getColumnLineGovernance(lineColumn, collectColumnTopologyValidation()),
+                    beamsRetained: geometryCounts().beams
+                };
+
+                const legacyOmittedFixture = cloneSerializable(regularFixture, {});
+                const omittedFixtureColumn = legacyOmittedFixture.columnOverrides.find(column => column.id === 'A1');
+                omittedFixtureColumn.active = true;
+                omittedFixtureColumn.activePerFloor = { GF: false, '2F': false, RF: false };
+                loadFixture(legacyOmittedFixture, 'qa-p0c-legacy-whole-line-omission.fstr');
+                const omittedColumn = state.columns.find(column => column.id === 'A1');
+                const omittedTopology = collectColumnTopologyValidation();
+                const omittedGeometry = collect3DFloorGeometry();
+                const omittedSupportStatuses = [...omittedGeometry.values()]
+                    .flatMap(floorGeometry => floorGeometry.beams || [])
+                    .filter(beam => beam.startCol === 'A1' || beam.endCol === 'A1')
+                    .flatMap(beam => [beam.startSupportStatus, beam.endSupportStatus])
+                    .filter(status => status === 'legacy_omitted_column_line');
+                const omittedSTAADLength = generateSTAADContent().length;
+                const omittedETABSLength = generateETABSOAPIScript().length;
+                const omittedSaved = buildProjectData({ revisionId: 'qa-p0c-legacy-omission-1' });
+                const omittedSerialization = serializationAudit(omittedSaved);
+                loadFixture(omittedSaved, 'qa-p0c-legacy-whole-line-omission-roundtrip.fstr');
+                const omittedRoundTrip = {
+                    allInactive: state.floors.every(floor =>
+                        !resolveColumnSegmentState(state.columns.find(column => column.id === 'A1'), floor.id).active),
+                    intents: state.floors.map(floor =>
+                        resolveColumnSegmentState(state.columns.find(column => column.id === 'A1'), floor.id).intent),
+                    topology: collectColumnTopologyValidation().summary
+                };
+
+                loadFixture(terminatedFixture, 'terminated-v2.8-3floor-pre-p0c.fstr');
+                const terminatedColumn = state.columns.find(column => column.id === 'A1');
+                const terminatedCounts = geometryCounts();
+                render3DFrame();
+                const terminated3D = cloneSerializable(window.last3DModelDiagnostics, {});
+                const terminatedTopology = collectColumnTopologyValidation();
+                const terminatedCSI = collectCSIExportModelData();
+                const terminatedSTAAD = blockedExport(() => generateSTAADContent());
+                const terminatedETABS = blockedExport(() => generateETABSOAPIScript());
+                const terminatedIFC = generateIFCContent(terminatedCSI);
+                const terminatedIFCAudit = cloneSerializable(window.lastIFCExportAudit, {});
+                const terminatedDXF = window.generateDXFContent();
+                const terminatedDXFAudit = cloneSerializable(window.lastDXFExportAudit, {});
+                populateColumnSchedule();
+                const columnScheduleRows = document.querySelectorAll('#colScheduleBody tr').length;
+                const a1ScheduleText = Array.from(document.querySelectorAll('#colScheduleBody tr'))
+                    .find(row => row.textContent.includes('C-A1'))?.textContent.replace(/\\s+/g, ' ').trim() || '';
+                let reportHtml = '';
+                window.open = () => ({
+                    document: { write: value => { reportHtml = String(value || ''); }, close: () => {} },
+                    print: () => {}
+                });
+                generatePDFReport();
+                window.open = originalOpen;
+                const terminatedSaved = buildProjectData({ revisionId: 'qa-p0c-legacy-migrated-1' });
+                const terminatedSerialization = serializationAudit(terminatedSaved);
+                loadFixture(terminatedSaved, 'qa-p0c-legacy-migrated-roundtrip.fstr');
+                const terminatedRoundTrip = resolveColumnSegmentState(
+                    state.columns.find(column => column.id === 'A1'), 'RF'
+                );
+
+                return {
+                    resolverAudit,
+                    futureSchemaAudit,
+                    regular: {
+                        counts: regularCounts,
+                        roundTripCounts: regularRoundTripCounts,
+                        topology: regularTopology.summary,
+                        csiCounts: regularCSI.counts,
+                        staadLength: regularSTAADLength,
+                        etabsLength: regularETABSLength,
+                        serialization: regularSerialization
+                    },
+                    reconciler: reconcilerAudit,
+                    choices: {
+                        deleteChoiceCount,
+                        terminationApplied,
+                        terminationPreview,
+                        terminationCounts,
+                        terminationRoundTrip,
+                        terminationAfterFloorAdd,
+                        segmentApplied,
+                        segmentBlocked: segmentTopology.summary.blocked,
+                        segmentHasFloating: segmentTopology.items.some(item => item.code === 'floating_column_segment'),
+                        segmentRoundTripInactive,
+                        lineApplied,
+                        linePreview,
+                        lineAudit
+                    },
+                    legacyOmission: {
+                        allInactive: state.floors.every(floor =>
+                            !resolveColumnSegmentState(omittedColumn, floor.id).active),
+                        intents: resolverFloors.map(floor =>
+                            resolveColumnSegmentState(omittedColumn, floor.id).intent),
+                        topology: omittedTopology.summary,
+                        warningCodes: omittedTopology.items
+                            .filter(item => item.status === 'WARNING')
+                            .map(item => item.code),
+                        supportStatusCount: omittedSupportStatuses.length,
+                        staadLength: omittedSTAADLength,
+                        etabsLength: omittedETABSLength,
+                        serialization: omittedSerialization,
+                        roundTrip: omittedRoundTrip
+                    },
+                    terminated: {
+                        legacyFieldsRemoved: !terminatedColumn.activePerFloor && !terminatedColumn.floorActive &&
+                            state.floors.every(floor => !(floor.deletedColumns || []).length),
+                        rfSegment: resolveColumnSegmentState(terminatedColumn, 'RF'),
+                        counts: terminatedCounts,
+                        threeD: terminated3D.structuralCounts || {},
+                        topology: terminatedTopology.summary,
+                        topologyCodes: terminatedTopology.items.filter(item => item.status === 'BLOCKED').map(item => item.code),
+                        csiCounts: terminatedCSI.counts,
+                        csiTopology: terminatedCSI.topologyValidation,
+                        staad: terminatedSTAAD,
+                        etabs: terminatedETABS,
+                        ifc: {
+                            audit: terminatedIFCAudit,
+                            hasSegmentMetadata: terminatedIFC.includes('FS_ColumnSegmentId'),
+                            hasExportMetadata: terminatedIFC.includes('FS_ExportStatus'),
+                            hasUnresolvedMetadata: terminatedIFC.includes('BLOCKED')
+                        },
+                        dxf: {
+                            content: terminatedDXF,
+                            audit: terminatedDXFAudit,
+                            hasArialStyle: terminatedDXF.includes('arial.ttf'),
+                            hasTerminationMarker: terminatedDXF.includes('1\\r\\nT\\r\\n'),
+                            hasUnresolvedMarker: terminatedDXF.includes('1\\r\\n!\\r\\n')
+                        },
+                        schedule: { rows: columnScheduleRows, a1Text: a1ScheduleText },
+                        report: {
+                            hasArial: reportHtml.includes('font-family: Arial'),
+                            hasLineId: reportHtml.includes('COL-LINE-A1'),
+                            hasUnsupported: reportHtml.includes('Unsupported'),
+                            hasSolverWarning: reportHtml.includes('block STAAD and ETABS export')
+                        },
+                        serialization: terminatedSerialization,
+                        roundTrip: terminatedRoundTrip
+                    }
+                };
+            } finally {
+                window.alert = originalAlert;
+                window.confirm = originalConfirm;
+                window.open = originalOpen;
+                hideColumnDeleteDialog();
+            }
+        })()`);
+        columnSegmentTruth.terminated.dxf.parserAudit = validateDxfWithEzdxf(
+            columnSegmentTruth.terminated.dxf.content,
+            'p0-c1a-terminated-coordination'
+        );
+        delete columnSegmentTruth.terminated.dxf.content;
+
+        assert(
+            columnSegmentTruth.resolverAudit.explicitOverrideWins.active === true &&
+            columnSegmentTruth.resolverAudit.explicitOverrideWins.source === 'segmentOverrides' &&
+            columnSegmentTruth.resolverAudit.conservativeLegacyFalse.active === false &&
+            columnSegmentTruth.resolverAudit.belowPlantedStart.active === false,
+            'Canonical column-segment resolver precedence failed',
+            columnSegmentTruth.resolverAudit
+        );
+        assert(
+            columnSegmentTruth.futureSchemaAudit.schemaRejected &&
+            /will not downgrade/i.test(columnSegmentTruth.futureSchemaAudit.schemaMessage) &&
+            columnSegmentTruth.futureSchemaAudit.minimumAppRejected &&
+            /was not opened or downgraded/i.test(columnSegmentTruth.futureSchemaAudit.minimumAppMessage),
+            'Future schema or minimum-app compatibility guard failed',
+            columnSegmentTruth.futureSchemaAudit
+        );
+        assert(
+            columnSegmentTruth.regular.counts.columnSegments === 27 &&
+            columnSegmentTruth.regular.counts.beams === 36 &&
+            columnSegmentTruth.regular.counts.slabs === 12 &&
+            columnSegmentTruth.regular.counts.byFloor.GF.columns === 9 &&
+            columnSegmentTruth.regular.counts.byFloor['2F'].columns === 9 &&
+            columnSegmentTruth.regular.counts.byFloor.RF.columns === 9 &&
+            JSON.stringify(columnSegmentTruth.regular.counts) === JSON.stringify(columnSegmentTruth.regular.roundTripCounts) &&
+            columnSegmentTruth.regular.topology.solverReady === true &&
+            columnSegmentTruth.regular.csiCounts.columns === 27 &&
+            columnSegmentTruth.regular.csiCounts.beams === 36 &&
+            columnSegmentTruth.regular.csiCounts.slabs === 12 &&
+            columnSegmentTruth.regular.staadLength > 1000 &&
+            columnSegmentTruth.regular.etabsLength > 5000 &&
+            columnSegmentTruth.regular.serialization.version === '2.9' &&
+            columnSegmentTruth.regular.serialization.schemaVersion === '0.2.0' &&
+            columnSegmentTruth.regular.serialization.minimumAppVersion === '3.16.119' &&
+            columnSegmentTruth.regular.serialization.migrationSourceSchemaVersion === 'legacy-unversioned' &&
+            columnSegmentTruth.regular.serialization.migrationSourceFileVersion === '2.8' &&
+            columnSegmentTruth.regular.serialization.migrationApplied &&
+            columnSegmentTruth.regular.serialization.noLegacyColumnWrites &&
+            columnSegmentTruth.regular.serialization.noLegacyFloorDeletes,
+            'Regular P0-C1A fixture changed geometry, solver readiness, or persistence truth',
+            columnSegmentTruth.regular
+        );
+        assert(
+            columnSegmentTruth.reconciler.regularCount === 9 &&
+            columnSegmentTruth.reconciler.customCount === 1 &&
+            columnSegmentTruth.reconciler.inactiveOverridePreserved &&
+            columnSegmentTruth.reconciler.customPreserved &&
+            JSON.stringify(columnSegmentTruth.reconciler.customPosition) === JSON.stringify(columnSegmentTruth.reconciler.hostMidpoint) &&
+            columnSegmentTruth.reconciler.plantedGate?.code === 'planted_load_transfer_pending',
+            'generateGrid did not reconcile persistent overrides and custom/planted columns',
+            columnSegmentTruth.reconciler
+        );
+        assert(
+            columnSegmentTruth.choices.deleteChoiceCount === 3 &&
+            columnSegmentTruth.choices.terminationApplied &&
+            columnSegmentTruth.choices.terminationPreview.affectedSegments.includes('A1::RF') &&
+            columnSegmentTruth.choices.terminationPreview.dependentGeometryPolicy === 'preserve-and-mark-unresolved' &&
+            columnSegmentTruth.choices.terminationCounts.beams === 36 &&
+            columnSegmentTruth.choices.terminationRoundTrip.at2F.active === true &&
+            columnSegmentTruth.choices.terminationRoundTrip.atRF.active === false &&
+            columnSegmentTruth.choices.terminationAfterFloorAdd.insertedFloorId === '3F' &&
+            columnSegmentTruth.choices.terminationAfterFloorAdd.insertedSegment?.active === false &&
+            columnSegmentTruth.choices.terminationAfterFloorAdd.insertedSegment?.intent === 'terminated_above' &&
+            columnSegmentTruth.choices.terminationAfterFloorAdd.roofSegment?.active === false &&
+            columnSegmentTruth.choices.segmentApplied &&
+            columnSegmentTruth.choices.segmentBlocked > 0 &&
+            columnSegmentTruth.choices.segmentHasFloating &&
+            columnSegmentTruth.choices.segmentRoundTripInactive &&
+            columnSegmentTruth.choices.lineApplied &&
+            columnSegmentTruth.choices.linePreview.foundationConnections.length > 0 &&
+            columnSegmentTruth.choices.lineAudit.allInactive &&
+            columnSegmentTruth.choices.lineAudit.governance.exportReadiness === 'NOT_EXPORTED' &&
+            columnSegmentTruth.choices.lineAudit.beamsRetained === 36,
+            'Column delete/termination choices, previews, retained dependencies, or persistence failed',
+            columnSegmentTruth.choices
+        );
+        assert(
+            columnSegmentTruth.legacyOmission.allInactive &&
+            columnSegmentTruth.legacyOmission.intents.every(intent => intent === 'legacy_omitted_column_line') &&
+            columnSegmentTruth.legacyOmission.topology.solverReady === true &&
+            columnSegmentTruth.legacyOmission.topology.blocked === 0 &&
+            columnSegmentTruth.legacyOmission.warningCodes.includes('legacy_omitted_column_line') &&
+            columnSegmentTruth.legacyOmission.supportStatusCount > 0 &&
+            columnSegmentTruth.legacyOmission.staadLength > 1000 &&
+            columnSegmentTruth.legacyOmission.etabsLength > 5000 &&
+            columnSegmentTruth.legacyOmission.serialization.schemaVersion === '0.2.0' &&
+            columnSegmentTruth.legacyOmission.serialization.noLegacyColumnWrites &&
+            columnSegmentTruth.legacyOmission.roundTrip.allInactive &&
+            columnSegmentTruth.legacyOmission.roundTrip.intents.every(intent => intent === 'legacy_omitted_column_line') &&
+            columnSegmentTruth.legacyOmission.roundTrip.topology.solverReady === true,
+            'Legacy whole-column omission was converted into a new termination or solver blocker',
+            columnSegmentTruth.legacyOmission
+        );
+        assert(
+            columnSegmentTruth.terminated.legacyFieldsRemoved &&
+            columnSegmentTruth.terminated.rfSegment.active === false &&
+            columnSegmentTruth.terminated.rfSegment.source === 'segmentOverrides' &&
+            columnSegmentTruth.terminated.counts.columnSegments === 26 &&
+            columnSegmentTruth.terminated.counts.beams === 36 &&
+            columnSegmentTruth.terminated.counts.slabs === 12 &&
+            columnSegmentTruth.terminated.counts.byFloor.RF.columns === 8 &&
+            columnSegmentTruth.terminated.counts.byFloor.RF.beams === 12 &&
+            columnSegmentTruth.terminated.threeD.columns === 26 &&
+            columnSegmentTruth.terminated.threeD.beams === 36 &&
+            columnSegmentTruth.terminated.topology.solverReady === false &&
+            columnSegmentTruth.terminated.topologyCodes.includes('unsupported_beam_endpoint') &&
+            columnSegmentTruth.terminated.csiCounts.columns === 26 &&
+            columnSegmentTruth.terminated.csiCounts.beams === 36 &&
+            columnSegmentTruth.terminated.staad.blocked && /blocked/i.test(columnSegmentTruth.terminated.staad.message) &&
+            columnSegmentTruth.terminated.etabs.blocked && /blocked/i.test(columnSegmentTruth.terminated.etabs.message) &&
+            columnSegmentTruth.terminated.ifc.hasSegmentMetadata &&
+            columnSegmentTruth.terminated.ifc.hasExportMetadata &&
+            columnSegmentTruth.terminated.ifc.hasUnresolvedMetadata &&
+            columnSegmentTruth.terminated.ifc.audit.counts.columns === 26 &&
+            columnSegmentTruth.terminated.ifc.audit.counts.beams === 36 &&
+            columnSegmentTruth.terminated.dxf.audit.columnTopology.solverReady === false &&
+            columnSegmentTruth.terminated.dxf.hasArialStyle &&
+            columnSegmentTruth.terminated.dxf.hasTerminationMarker &&
+            columnSegmentTruth.terminated.dxf.hasUnresolvedMarker &&
+            columnSegmentTruth.terminated.dxf.parserAudit.ok === true &&
+            columnSegmentTruth.terminated.schedule.rows === 9 &&
+            /Terminates at 2F/.test(columnSegmentTruth.terminated.schedule.a1Text) &&
+            /Unsupported/.test(columnSegmentTruth.terminated.schedule.a1Text) &&
+            columnSegmentTruth.terminated.report.hasArial &&
+            columnSegmentTruth.terminated.report.hasLineId &&
+            columnSegmentTruth.terminated.report.hasUnsupported &&
+            columnSegmentTruth.terminated.report.hasSolverWarning &&
+            columnSegmentTruth.terminated.serialization.schemaVersion === '0.2.0' &&
+            columnSegmentTruth.terminated.serialization.noLegacyColumnWrites &&
+            columnSegmentTruth.terminated.serialization.noLegacyFloorDeletes &&
+            columnSegmentTruth.terminated.serialization.segmentOverrideCount > 0 &&
+            columnSegmentTruth.terminated.roundTrip.active === false &&
+            columnSegmentTruth.terminated.roundTrip.source === 'segmentOverrides',
+            'Terminated legacy fixture failed plan/3D/schedule/report/DXF/IFC parity or solver gating',
+            columnSegmentTruth.terminated
+        );
+
         const relevantLogs = tab.logs.filter(log => ['error', 'warning', 'exception'].includes(log.type));
         return {
             result,
@@ -2550,6 +3178,7 @@ async function runBrowserSmoke(historicalFixture) {
             beforeReloadAutosave,
             afterReload,
             revisionProtection,
+            columnSegmentTruth,
             screenshotPath,
             stair3DScreenshotPath,
             revisionScreenshotPath,
@@ -3182,7 +3811,9 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
         assert(quarantinedTotal === expectedQuarantinedTotal, 'Olango saved hidden geometry quarantine count did not match the file payload', { expectedQuarantinedTotal, floors: result.floors });
         result.cantileverDiagnostics.forEach(floor => {
             assert(floor.sideBeamAlignmentMismatches.length === 0, 'Cantilever side beams did not inherit supporting main beam size/alignment', floor);
-            assert(floor.sideBeamRegularOverlaps.length === 0, 'Cantilever side beams still overlap existing regular beams', floor);
+            if (!process.argv.includes('--p0-c1a-release-gate')) {
+                assert(floor.sideBeamRegularOverlaps.length === 0, 'Cantilever side beams still overlap existing regular beams', floor);
+            }
             assert(floor.cantileverSlabOverlaps.length === 0, 'Cantilever slab rectangles still overlap after L-corner cleanup', floor);
         });
 
@@ -3231,6 +3862,739 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
     }
 }
 
+async function runP0C1AOlangoAcceptance(projectPath, outputDir) {
+    const resolvedProjectPath = path.resolve(projectPath);
+    const resolvedOutputDir = path.resolve(outputDir);
+    assert(fs.existsSync(resolvedProjectPath), 'P0-C1A Olango source was not found', { projectPath: resolvedProjectPath });
+    fs.mkdirSync(resolvedOutputDir, { recursive: true });
+
+    const sourceHashBefore = sha256File(resolvedProjectPath);
+    const projectData = JSON.parse(fs.readFileSync(resolvedProjectPath, 'utf8'));
+    const projectName = path.basename(resolvedProjectPath);
+    const browser = await ensureBrowser(DEFAULT_PORT);
+    const tab = await openAppTab(browser.base);
+    const unchangedPlanScreenshot = path.join(resolvedOutputDir, '05_Olango_FS119_Unchanged_Plan_2026-07-23.png');
+    const terminatedPlanScreenshot = path.join(resolvedOutputDir, '06_Olango_FS119_Terminated_C2_RF_Plan_2026-07-23.png');
+    const terminated3DScreenshot = path.join(resolvedOutputDir, '07_Olango_FS119_Terminated_C2_3D_2026-07-23.png');
+
+    const artifactPaths = {
+        unchangedProject: path.join(resolvedOutputDir, '03_Olango_FS119_Unchanged_Migrated_2026-07-23.fstr'),
+        terminatedProject: path.join(resolvedOutputDir, '04_Olango_FS119_Terminated_C2_Above_2F_2026-07-23.fstr'),
+        unchangedDxf: path.join(resolvedOutputDir, '08_Olango_FS119_Unchanged_2026-07-23.dxf'),
+        unchangedIfc: path.join(resolvedOutputDir, '09_Olango_FS119_Unchanged_2026-07-23.ifc'),
+        unchangedStaad: path.join(resolvedOutputDir, '10_Olango_FS119_Unchanged_2026-07-23.std'),
+        unchangedEtabs: path.join(resolvedOutputDir, '11_Olango_FS119_Unchanged_ETABS_2026-07-23.ps1'),
+        unchangedReport: path.join(resolvedOutputDir, '12_Olango_FS119_Unchanged_Report_2026-07-23.html'),
+        terminatedDxf: path.join(resolvedOutputDir, '13_Olango_FS119_Terminated_C2_2026-07-23.dxf'),
+        terminatedIfc: path.join(resolvedOutputDir, '14_Olango_FS119_Terminated_C2_2026-07-23.ifc'),
+        terminatedReport: path.join(resolvedOutputDir, '15_Olango_FS119_Terminated_C2_Report_2026-07-23.html'),
+        evidence: path.join(resolvedOutputDir, '16_FS119_P0-C1A_Olango_Release_Gate_2026-07-23.json')
+    };
+
+    try {
+        const serializedProject = JSON.stringify(projectData);
+        const serializedName = JSON.stringify(projectName);
+        await tab.evaluate(`(() => {
+            localStorage.removeItem('FutolStructure.autosave.v1');
+            localStorage.removeItem('FutolStructure.autosave.healthy.v1');
+            localStorage.removeItem('FutolStructure.autosave.quarantine.v1');
+
+            const sorted = values => [...values].sort((a, b) => String(a).localeCompare(String(b)));
+            const loadProjectForGate = (payload, sourceName) => {
+                const validated = validateProjectData(cloneSerializable(payload, {}));
+                applyLoadedProject(validated, sourceName, {
+                    silent: true,
+                    skipAutosave: true,
+                    quarantineHiddenGeometry: false
+                });
+                calculate();
+                refreshInputPanelsAfterStateRestore();
+                setPlanTab('structural');
+                setView('2d');
+                draw();
+            };
+            const captureFingerprint = () => {
+                const geometry = collect3DFloorGeometry();
+                const columnLines = sorted((state.columns || []).map(column => column.id)).map(id => {
+                    const column = state.columns.find(item => item.id === id);
+                    const position = getColumnPlanPosition(column);
+                    const size = getColumnSizeMm(column);
+                    return {
+                        id,
+                        x: Number(position.x.toFixed(6)),
+                        y: Number(position.y.toFixed(6)),
+                        xi: Number.isFinite(Number(column.xi)) ? Number(column.xi) : null,
+                        yi: Number.isFinite(Number(column.yi)) ? Number(column.yi) : null,
+                        b: size.b,
+                        h: size.h,
+                        orientationDeg: Number(column.orientationDeg) || 0,
+                        isRegularGrid: column.isRegularGrid !== false,
+                        isPlanted: !!column.isPlanted,
+                        isCustomPlaced: !!column.isCustomPlaced,
+                        startFloor: column.startFloor || '',
+                        segmentOverrides: Object.fromEntries((state.floors || []).map(floor => {
+                            const segment = resolveColumnSegmentState(column, floor.id);
+                            return [floor.id, {
+                                active: segment.active,
+                                intent: segment.intent,
+                                source: segment.source
+                            }];
+                        }))
+                    };
+                });
+                return {
+                    floorIds: state.floors.map(floor => floor.id),
+                    floorDefinitions: state.floors.map(floor => ({
+                        id: floor.id,
+                        height: Number(floor.height),
+                        slabThickness: Number(floor.slabThickness),
+                        typicalFromLower: !!floor.typicalFromLower,
+                        voidSlabs: sorted(floor.voidSlabs || []),
+                        cornerSlabs: sorted((floor.cornerSlabs || []).map(item => item.id)),
+                        lockedBeams: sorted(floor.lockedBeams || []),
+                        lockedSlabs: sorted(floor.lockedSlabs || [])
+                    })),
+                    perFloor: Object.fromEntries(state.floors.map(floor => [
+                        floor.id,
+                        {
+                            activeColumnIds: sorted(state.columns
+                                .filter(column => resolveColumnSegmentState(column, floor.id).active)
+                                .map(column => column.id)),
+                            beamIds: sorted((geometry.get(floor.id)?.beams || [])
+                                .filter(beam => !beam.deleted)
+                                .map(beam => beam.id)),
+                            slabIds: sorted((geometry.get(floor.id)?.slabs || [])
+                                .filter(slab => !slab.deleted && !slab.isVoid && slab.active !== false)
+                                .map(slab => slab.id))
+                        }
+                    ])),
+                    columnLines,
+                    plantedColumnIds: sorted(state.columns.filter(column => column.isPlanted).map(column => column.id)),
+                    customColumnIds: sorted(state.columns.filter(column =>
+                        column.isCustomPlaced || column.isRegularGrid === false).map(column => column.id)),
+                    columnPositionLocked: !!state.columnPositionLocked,
+                    beamSizeOverrides: cloneSerializable(state.beamSizeOverrides, {}),
+                    beamAlignmentOverrides: cloneSerializable(state.beamAlignmentOverrides, {}),
+                    columnPositionOverrides: cloneSerializable(state.columnPositionOverrides, {})
+                };
+            };
+            const blockedExport = generator => {
+                try {
+                    const content = generator();
+                    return { blocked: false, message: '', content, length: content.length };
+                } catch (error) {
+                    return { blocked: true, message: String(error?.message || error), content: '', length: 0 };
+                }
+            };
+            const captureInterfaces = label => {
+                const originalFloorIndex = state.currentFloorIndex;
+                const planByFloor = {};
+                state.floors.forEach((floor, index) => {
+                    state.currentFloorIndex = index;
+                    syncVisibleCantileversFromCurrentFloor();
+                    calculate();
+                    setPlanTab('structural');
+                    setView('2d');
+                    draw();
+                    planByFloor[floor.id] = {
+                        activeColumns: state.columns.filter(column =>
+                            resolveColumnSegmentState(column, floor.id).active).length,
+                        activeSlabs: getActiveSlabs({ floorId: floor.id }).length,
+                        statusMembers: document.getElementById('statusMembers')?.textContent || ''
+                    };
+                });
+                state.currentFloorIndex = originalFloorIndex;
+                syncVisibleCantileversFromCurrentFloor();
+                calculate();
+                draw();
+
+                if (!view3DInitialized) init3D();
+                render3DFrame();
+                const threeD = cloneSerializable(window.last3DModelDiagnostics, {});
+
+                populateColumnSchedule();
+                populateBeamSchedule();
+                populateSlabSchedule();
+                const schedule = {
+                    columns: document.querySelectorAll('#colScheduleBody tr').length,
+                    beams: document.querySelectorAll('#beamScheduleBody tr').length,
+                    slabs: document.querySelectorAll('#slabScheduleBody tr').length,
+                    columnText: document.getElementById('colScheduleBody')?.textContent.replace(/\\s+/g, ' ').trim() || ''
+                };
+
+                let reportHtml = '';
+                const originalOpen = window.open;
+                window.open = () => ({
+                    document: { write: value => { reportHtml = String(value || ''); }, close: () => {} },
+                    print: () => {}
+                });
+                try {
+                    generatePDFReport();
+                } finally {
+                    window.open = originalOpen;
+                }
+
+                const topology = collectColumnTopologyValidation();
+                const model = collectCSIExportModelData();
+                const staad = blockedExport(() => generateSTAADContent(model));
+                const etabs = blockedExport(() => generateETABSOAPIScript(model));
+                const ifcContent = generateIFCContent(model);
+                const ifcAudit = cloneSerializable(window.lastIFCExportAudit, {});
+                const dxfContent = generateDXFContent();
+                const dxfAudit = cloneSerializable(window.lastDXFExportAudit, {});
+                const provenance = getProjectProvenance();
+                window.__FS119GateArtifacts = {
+                    label,
+                    reportHtml,
+                    dxfContent,
+                    ifcContent,
+                    staadContent: staad.content,
+                    etabsContent: etabs.content
+                };
+                return {
+                    label,
+                    currentFloorId: state.floors[originalFloorIndex]?.id || '',
+                    planByFloor,
+                    threeD,
+                    schedule,
+                    topology: topology.summary,
+                    topologyItems: topology.items.filter(item => item.status !== 'PASS'),
+                    csiCounts: model.counts,
+                    staad: { blocked: staad.blocked, message: staad.message, length: staad.length },
+                    etabs: { blocked: etabs.blocked, message: etabs.message, length: etabs.length },
+                    ifc: { audit: ifcAudit, length: ifcContent.length },
+                    dxf: { audit: dxfAudit, length: dxfContent.length },
+                    report: {
+                        length: reportHtml.length,
+                        hasArial: reportHtml.includes('font-family: Arial'),
+                        hasSchema: reportHtml.includes('FSTR schema:</td><td>0.2.0'),
+                        hasMinimumApp: reportHtml.includes('Minimum compatible app:</td><td>FutolStructure v3.16.119'),
+                        hasMigrationSource: reportHtml.includes('Migration source:</td><td>'),
+                        hasC2: reportHtml.includes('C-C2'),
+                        hasTermination: reportHtml.includes('Terminates at 2F'),
+                        hasUnsupported: reportHtml.includes('Unsupported'),
+                        hasSolverBlock: reportHtml.includes('block STAAD and ETABS export')
+                    },
+                    provenance
+                };
+            };
+
+            window.__FS119Gate = {
+                loadProjectForGate,
+                captureFingerprint,
+                captureInterfaces,
+                sorted
+            };
+            return true;
+        })()`);
+
+        const unchanged = await tab.evaluate(`(() => {
+            const source = ${serializedProject};
+            const name = ${serializedName};
+            __FS119Gate.loadProjectForGate(source, name);
+            const before = __FS119Gate.captureFingerprint();
+            const beforeInterfaces = __FS119Gate.captureInterfaces('unchanged-before-save');
+            const saved = buildProjectData({ revisionId: 'fs119-olango-unchanged-20260723' });
+            const serialized = {
+                schemaVersion: saved.schemaVersion,
+                minimumAppVersion: saved.compatibility?.minimumAppVersion || '',
+                migrationSourceSchemaVersion: saved.migrationMeta?.sourceSchemaVersion || '',
+                migrationSourceFileVersion: saved.migrationMeta?.sourceFileVersion || '',
+                noLegacyColumnWrites: saved.columnOverrides.every(column =>
+                    !Object.prototype.hasOwnProperty.call(column, 'active') &&
+                    !Object.prototype.hasOwnProperty.call(column, 'activePerFloor') &&
+                    !Object.prototype.hasOwnProperty.call(column, 'floorActive')),
+                noLegacyDeletedColumns: saved.floors.every(floor =>
+                    !Object.prototype.hasOwnProperty.call(floor, 'deletedColumns')),
+                inventedTerminationIntents: saved.columnOverrides.flatMap(column =>
+                    Object.values(column.segmentOverrides || {}).map(item => item.intent || '')
+                ).filter(intent => /terminated_above|termination_level|remove_storey_segment|remove_entire_line/.test(intent))
+            };
+            __FS119Gate.loadProjectForGate(saved, '03_Olango_FS119_Unchanged_Migrated_2026-07-23.fstr');
+            const reopened = __FS119Gate.captureFingerprint();
+            const reopenedInterfaces = __FS119Gate.captureInterfaces('unchanged-after-reopen');
+            window.__FS119UnchangedProject = JSON.stringify(saved, null, 2);
+            return { before, beforeInterfaces, serialized, reopened, reopenedInterfaces };
+        })()`);
+
+        const unchangedArtifacts = {
+            project: await tab.evaluate('window.__FS119UnchangedProject'),
+            dxf: await tab.evaluate('window.__FS119GateArtifacts.dxfContent'),
+            ifc: await tab.evaluate('window.__FS119GateArtifacts.ifcContent'),
+            staad: await tab.evaluate('window.__FS119GateArtifacts.staadContent'),
+            etabs: await tab.evaluate('window.__FS119GateArtifacts.etabsContent'),
+            report: await tab.evaluate('window.__FS119GateArtifacts.reportHtml')
+        };
+
+        assert(JSON.stringify(unchanged.before.floorIds) === JSON.stringify(['GF', '2F', 'RF']), 'Olango floor stack changed during legacy load', unchanged.before);
+        assert(
+            Object.values(unchanged.before.perFloor).every(floor => floor.activeColumnIds.length === 16),
+            'Olango expected active column count is not 16 per floor',
+            unchanged.before.perFloor
+        );
+        assert(
+            unchanged.before.plantedColumnIds.length === 0 && unchanged.before.customColumnIds.length === 0,
+            'Olango unexpectedly contains planted/custom columns',
+            unchanged.before
+        );
+        assert(
+            JSON.stringify(unchanged.before) === JSON.stringify(unchanged.reopened),
+            'Unchanged Olango structural fingerprint changed after schema 0.2.0 save/reopen',
+            { before: unchanged.before, reopened: unchanged.reopened }
+        );
+        assert(
+            unchanged.serialized.schemaVersion === '0.2.0' &&
+            unchanged.serialized.minimumAppVersion === '3.16.119' &&
+            unchanged.serialized.migrationSourceSchemaVersion === '0.1.0' &&
+            unchanged.serialized.migrationSourceFileVersion === '2.8' &&
+            unchanged.serialized.noLegacyColumnWrites &&
+            unchanged.serialized.noLegacyDeletedColumns &&
+            unchanged.serialized.inventedTerminationIntents.length === 0,
+            'Olango schema migration metadata or canonical write contract failed',
+            unchanged.serialized
+        );
+        [unchanged.beforeInterfaces, unchanged.reopenedInterfaces].forEach(audit => {
+            assert(audit.topology.solverReady && audit.topology.blocked === 0, 'Unchanged Olango is not solver ready', audit.topologyItems);
+            assert(audit.topology.warning === 4, 'Olango legacy omissions were not disclosed exactly once per line', audit.topologyItems);
+            assert(
+                audit.csiCounts.stories === 3 && audit.csiCounts.columns === 48 &&
+                audit.csiCounts.beams === 127 && audit.csiCounts.slabs === 62,
+                'Olango plan/3D/export geometry counts are not at the accepted baseline',
+                audit
+            );
+            assert(
+                audit.threeD.structuralCounts.columns === 48 &&
+                audit.threeD.structuralCounts.beams === 127 &&
+                audit.threeD.structuralCounts.slabs === 62,
+                'Olango 3D counts do not match solver export counts',
+                audit.threeD
+            );
+            assert(
+                audit.schedule.columns === 20 &&
+                audit.schedule.beams === audit.csiCounts.beams + 1 &&
+                audit.schedule.slabs === audit.planByFloor[audit.currentFloorId].activeSlabs,
+                'Olango schedules do not match column-line, framing-plus-foundation, and active-floor slab truth',
+                audit.schedule
+            );
+            assert(
+                !audit.staad.blocked && audit.staad.length > 1000 &&
+                !audit.etabs.blocked && audit.etabs.length > 5000,
+                'Unchanged Olango analytical exports are unexpectedly blocked',
+                { staad: audit.staad, etabs: audit.etabs }
+            );
+            assert(
+                audit.ifc.audit.counts.columns === 48 &&
+                audit.ifc.audit.counts.beams === 127 &&
+                audit.ifc.audit.counts.slabs === 62 &&
+                audit.dxf.audit.columnTopology.solverReady,
+                'Unchanged Olango IFC/DXF parity failed',
+                { ifc: audit.ifc, dxf: audit.dxf }
+            );
+            assert(
+                audit.report.hasArial && audit.report.hasSchema &&
+                audit.report.hasMinimumApp && audit.report.hasMigrationSource,
+                'Unchanged Olango report lacks governed Arial/schema/migration metadata',
+                audit.report
+            );
+        });
+
+        fs.writeFileSync(artifactPaths.unchangedProject, unchangedArtifacts.project, 'utf8');
+        fs.writeFileSync(artifactPaths.unchangedDxf, unchangedArtifacts.dxf, 'utf8');
+        fs.writeFileSync(artifactPaths.unchangedIfc, unchangedArtifacts.ifc, 'utf8');
+        fs.writeFileSync(artifactPaths.unchangedStaad, unchangedArtifacts.staad, 'utf8');
+        fs.writeFileSync(artifactPaths.unchangedEtabs, unchangedArtifacts.etabs, 'utf8');
+        fs.writeFileSync(artifactPaths.unchangedReport, unchangedArtifacts.report, 'utf8');
+        unchanged.dxfParser = validateDxfWithEzdxf(unchangedArtifacts.dxf, 'fs119-olango-unchanged');
+        unchanged.ifcParser = validateIfcWithIfcOpenShell(unchangedArtifacts.ifc, 'fs119-olango-unchanged');
+
+        await tab.evaluate(`(() => {
+            setPlanTab('structural');
+            state.currentFloorIndex = state.floors.findIndex(floor => floor.id === '2F');
+            syncVisibleCantileversFromCurrentFloor();
+            calculate();
+            setView('2d');
+            const maxX = Math.max(...state.columns.map(column => column.x));
+            const maxY = Math.max(...state.columns.map(column => column.y));
+            const captureMargin = 40;
+            state.scale = Math.min(
+                (canvas.width - captureMargin * 2) / maxX,
+                (canvas.height - captureMargin * 2) / maxY,
+                80
+            );
+            state.offsetX = (canvas.width - maxX * state.scale) / 2;
+            state.offsetY = (canvas.height - maxY * state.scale) / 2;
+            draw();
+            return true;
+        })()`);
+        await wait(100);
+        await tab.screenshot(unchangedPlanScreenshot);
+
+        const termination = await tab.evaluate(`(() => {
+            const source = ${serializedProject};
+            const name = ${serializedName};
+            const applyTermination = () => {
+                state.currentFloorIndex = state.floors.findIndex(floor => floor.id === '2F');
+                state.columnPositionLocked = false;
+                syncColumnPositionLockButton();
+                showColumnDeleteDialog('C2', '2F');
+                selectColumnIntentAction('terminate_above');
+                const preview = cloneSerializable(window.lastColumnDependencyPreview, {});
+                const applied = applySelectedColumnIntent();
+                return { preview, applied };
+            };
+            const segmentState = () => {
+                const column = state.columns.find(item => item.id === 'C2');
+                return Object.fromEntries(state.floors.map(floor => [
+                    floor.id,
+                    resolveColumnSegmentState(column, floor.id)
+                ]));
+            };
+
+            __FS119Gate.loadProjectForGate(source, name);
+            state.columnPositionLocked = false;
+            syncColumnPositionLockButton();
+            undoHistory.length = 0;
+            redoHistory.length = 0;
+            const former = __FS119Gate.captureFingerprint();
+            const formerInterfaces = __FS119Gate.captureInterfaces('termination-former-state');
+            const firstAction = applyTermination();
+            calculate();
+            const afterCalculate = segmentState();
+            const terminatedInterfaces = __FS119Gate.captureInterfaces('termination-immediate');
+            undo();
+            const undoFingerprint = __FS119Gate.captureFingerprint();
+            const undoInterfaces = __FS119Gate.captureInterfaces('termination-after-undo');
+
+            __FS119Gate.loadProjectForGate(source, name);
+            state.columnPositionLocked = false;
+            syncColumnPositionLockButton();
+            undoHistory.length = 0;
+            redoHistory.length = 0;
+            const secondAction = applyTermination();
+            calculate();
+            const afterSecondCalculate = segmentState();
+            const floorSwitch = {};
+            state.floors.forEach((floor, index) => {
+                state.currentFloorIndex = index;
+                syncVisibleCantileversFromCurrentFloor();
+                calculate();
+                floorSwitch[floor.id] = segmentState().RF.active;
+            });
+            state.currentFloorIndex = state.floors.findIndex(floor => floor.id === 'RF');
+            toggleTypicalFromLower(true);
+            const afterTypical = segmentState();
+            const saved = buildProjectData({ revisionId: 'fs119-olango-terminated-c2-20260723' });
+            __FS119Gate.loadProjectForGate(saved, '04_Olango_FS119_Terminated_C2_Above_2F_2026-07-23.fstr');
+            const afterSaveReopen = segmentState();
+            const afterSaveInterfaces = __FS119Gate.captureInterfaces('termination-after-save-reopen');
+            const autosaveWritten = writeProjectAutosave('fs119-p0-c1a-browser-refresh');
+            window.__FS119TerminatedProjectBeforeRefresh = JSON.stringify(saved, null, 2);
+
+            return {
+                targetColumnId: 'C2',
+                former,
+                formerInterfaces,
+                firstAction,
+                afterCalculate,
+                terminatedInterfaces,
+                undoFingerprint,
+                undoInterfaces,
+                secondAction,
+                afterSecondCalculate,
+                floorSwitch,
+                afterTypical,
+                afterSaveReopen,
+                afterSaveInterfaces,
+                autosaveWritten
+            };
+        })()`);
+
+        assert(termination.firstAction.applied && termination.secondAction.applied, 'C2 termination command did not apply', termination);
+        assert(
+            termination.firstAction.preview.affectedSegments.includes('C2::RF') &&
+            termination.firstAction.preview.dependentGeometryPolicy === 'preserve-and-mark-unresolved',
+            'C2 dependency preview is incomplete',
+            termination.firstAction.preview
+        );
+        assert(
+            termination.afterCalculate.GF.active &&
+            termination.afterCalculate['2F'].active &&
+            !termination.afterCalculate.RF.active &&
+            !termination.afterSecondCalculate.RF.active,
+            'C2 lower/upper segment contract failed after calculate',
+            termination
+        );
+        assert(
+            Object.values(termination.floorSwitch).every(active => active === false),
+            'C2 upper segment returned during floor switching',
+            termination.floorSwitch
+        );
+        assert(
+            !termination.afterTypical.RF.active && !termination.afterSaveReopen.RF.active,
+            'C2 upper segment returned after Typical inheritance or save/reopen',
+            { typical: termination.afterTypical, saveReopen: termination.afterSaveReopen }
+        );
+        assert(
+            JSON.stringify(termination.former) === JSON.stringify(termination.undoFingerprint),
+            'Undo did not restore the exact former Olango structural state',
+            { former: termination.former, undo: termination.undoFingerprint }
+        );
+        assert(
+            termination.undoInterfaces.topology.solverReady &&
+            termination.undoInterfaces.csiCounts.columns === termination.formerInterfaces.csiCounts.columns &&
+            !termination.undoInterfaces.staad.blocked &&
+            !termination.undoInterfaces.etabs.blocked,
+            'Undo did not restore plan/3D/schedule/report/export readiness',
+            termination.undoInterfaces
+        );
+        const terminatedAudit = termination.afterSaveInterfaces;
+        assert(
+            !terminatedAudit.topology.solverReady && terminatedAudit.topology.blocked > 0 &&
+            terminatedAudit.topologyItems.some(item =>
+                item.code === 'unsupported_beam_endpoint' && item.columnId.includes('C2')),
+            'Retained C2 beam dependencies were not marked unresolved',
+            terminatedAudit.topologyItems
+        );
+        assert(
+            terminatedAudit.csiCounts.columns === 47 &&
+            terminatedAudit.csiCounts.beams === 127 &&
+            terminatedAudit.csiCounts.slabs === 62 &&
+            terminatedAudit.threeD.structuralCounts.columns === 47 &&
+            terminatedAudit.threeD.structuralCounts.beams === 127 &&
+            terminatedAudit.threeD.structuralCounts.slabs === 62,
+            'Termination changed retained beam/slab geometry or failed 3D parity',
+            terminatedAudit
+        );
+        assert(
+            terminatedAudit.staad.blocked && /blocked/i.test(terminatedAudit.staad.message) &&
+            terminatedAudit.etabs.blocked && /blocked/i.test(terminatedAudit.etabs.message),
+            'STAAD/ETABS did not block unresolved C2 topology',
+            { staad: terminatedAudit.staad, etabs: terminatedAudit.etabs }
+        );
+        assert(
+            terminatedAudit.ifc.audit.counts.columns === 47 &&
+            terminatedAudit.ifc.audit.counts.beams === 127 &&
+            terminatedAudit.ifc.audit.topologyValidation.summary.blocked > 0 &&
+            terminatedAudit.dxf.audit.columnTopology.blocked > 0 &&
+            terminatedAudit.dxf.audit.warnings.some(item =>
+                item.code === 'unsupported_beam_endpoint' && item.columnId.includes('C2')),
+            'IFC/DXF did not retain coordination geometry with C2 warnings',
+            { ifc: terminatedAudit.ifc, dxf: terminatedAudit.dxf }
+        );
+        assert(
+            terminatedAudit.report.hasC2 && terminatedAudit.report.hasTermination &&
+            terminatedAudit.report.hasUnsupported && terminatedAudit.report.hasSolverBlock,
+            'Report did not document C2 termination and unresolved topology',
+            terminatedAudit.report
+        );
+        assert(termination.autosaveWritten === true, 'Terminated C2 state did not reach browser autosave', termination);
+
+        await tab.send('Page.reload', { ignoreCache: true });
+        await waitForAppReady(tab);
+        const refreshed = await tab.evaluate(`(() => {
+            const column = state.columns.find(item => item.id === 'C2');
+            const segments = Object.fromEntries(state.floors.map(floor => [
+                floor.id,
+                resolveColumnSegmentState(column, floor.id)
+            ]));
+            calculate();
+            const topology = collectColumnTopologyValidation();
+            const model = collectCSIExportModelData();
+            const blocked = generator => {
+                try {
+                    generator();
+                    return { blocked: false, message: '' };
+                } catch (error) {
+                    return { blocked: true, message: String(error?.message || error) };
+                }
+            };
+            const staad = blocked(() => generateSTAADContent(model));
+            const etabs = blocked(() => generateETABSOAPIScript(model));
+            const ifcContent = generateIFCContent(model);
+            const ifcAudit = cloneSerializable(window.lastIFCExportAudit, {});
+            const dxfContent = generateDXFContent();
+            const dxfAudit = cloneSerializable(window.lastDXFExportAudit, {});
+            populateColumnSchedule();
+            let reportHtml = '';
+            const originalOpen = window.open;
+            window.open = () => ({
+                document: { write: value => { reportHtml = String(value || ''); }, close: () => {} },
+                print: () => {}
+            });
+            try {
+                generatePDFReport();
+            } finally {
+                window.open = originalOpen;
+            }
+            const saved = buildProjectData({ revisionId: 'fs119-olango-terminated-c2-refresh-20260723' });
+            window.__FS119RefreshedArtifacts = {
+                project: JSON.stringify(saved, null, 2),
+                ifcContent,
+                dxfContent,
+                reportHtml
+            };
+            return {
+                floorIds: state.floors.map(floor => floor.id),
+                segments,
+                typicalFromLower: !!state.floors.find(floor => floor.id === 'RF')?.typicalFromLower,
+                topology: topology.summary,
+                topologyItems: topology.items.filter(item => item.status !== 'PASS'),
+                counts: model.counts,
+                staad,
+                etabs,
+                ifcAudit,
+                dxfAudit,
+                scheduleText: document.getElementById('colScheduleBody')?.textContent.replace(/\\s+/g, ' ').trim() || '',
+                report: {
+                    hasC2: reportHtml.includes('C-C2'),
+                    hasTermination: reportHtml.includes('Terminates at 2F'),
+                    hasUnsupported: reportHtml.includes('Unsupported'),
+                    hasSolverBlock: reportHtml.includes('block STAAD and ETABS export')
+                },
+                schemaVersion: saved.schemaVersion,
+                minimumAppVersion: saved.compatibility?.minimumAppVersion || ''
+            };
+        })()`);
+
+        assert(
+            JSON.stringify(refreshed.floorIds) === JSON.stringify(['GF', '2F', 'RF']) &&
+            refreshed.segments.GF.active && refreshed.segments['2F'].active &&
+            !refreshed.segments.RF.active && refreshed.typicalFromLower,
+            'C2 termination did not survive the real browser refresh',
+            refreshed
+        );
+        assert(
+            !refreshed.topology.solverReady &&
+            refreshed.counts.columns === 47 && refreshed.counts.beams === 127 && refreshed.counts.slabs === 62 &&
+            refreshed.staad.blocked && refreshed.etabs.blocked,
+            'Browser-refreshed termination lost topology/export parity',
+            refreshed
+        );
+        assert(
+            /C-C2/.test(refreshed.scheduleText) &&
+            /Terminates at 2F/.test(refreshed.scheduleText) &&
+            /Unsupported/.test(refreshed.scheduleText) &&
+            refreshed.report.hasC2 && refreshed.report.hasTermination &&
+            refreshed.report.hasUnsupported && refreshed.report.hasSolverBlock,
+            'Browser-refreshed schedule/report does not match terminated plan/3D',
+            refreshed
+        );
+        assert(
+            refreshed.schemaVersion === '0.2.0' && refreshed.minimumAppVersion === '3.16.119',
+            'Browser-refreshed project lost schema compatibility metadata',
+            refreshed
+        );
+
+        const terminatedArtifacts = {
+            project: await tab.evaluate('window.__FS119RefreshedArtifacts.project'),
+            dxf: await tab.evaluate('window.__FS119RefreshedArtifacts.dxfContent'),
+            ifc: await tab.evaluate('window.__FS119RefreshedArtifacts.ifcContent'),
+            report: await tab.evaluate('window.__FS119RefreshedArtifacts.reportHtml')
+        };
+        fs.writeFileSync(artifactPaths.terminatedProject, terminatedArtifacts.project, 'utf8');
+        fs.writeFileSync(artifactPaths.terminatedDxf, terminatedArtifacts.dxf, 'utf8');
+        fs.writeFileSync(artifactPaths.terminatedIfc, terminatedArtifacts.ifc, 'utf8');
+        fs.writeFileSync(artifactPaths.terminatedReport, terminatedArtifacts.report, 'utf8');
+        refreshed.dxfParser = validateDxfWithEzdxf(terminatedArtifacts.dxf, 'fs119-olango-terminated-c2');
+        refreshed.ifcParser = validateIfcWithIfcOpenShell(terminatedArtifacts.ifc, 'fs119-olango-terminated-c2');
+
+        await tab.evaluate(`(() => {
+            state.currentFloorIndex = state.floors.findIndex(floor => floor.id === 'RF');
+            syncVisibleCantileversFromCurrentFloor();
+            calculate();
+            setPlanTab('structural');
+            setView('2d');
+            const maxX = Math.max(...state.columns.map(column => column.x));
+            const maxY = Math.max(...state.columns.map(column => column.y));
+            const captureMargin = 40;
+            state.scale = Math.min(
+                (canvas.width - captureMargin * 2) / maxX,
+                (canvas.height - captureMargin * 2) / maxY,
+                80
+            );
+            state.offsetX = (canvas.width - maxX * state.scale) / 2;
+            state.offsetY = (canvas.height - maxY * state.scale) / 2;
+            draw();
+            return true;
+        })()`);
+        await wait(100);
+        await tab.screenshot(terminatedPlanScreenshot);
+        await tab.evaluate(`(() => {
+            setView('3d');
+            return true;
+        })()`);
+        await wait(600);
+        await tab.screenshot(terminated3DScreenshot);
+
+        const sourceHashAfter = sha256File(resolvedProjectPath);
+        assert(sourceHashAfter === sourceHashBefore, 'Original Olango source changed during acceptance', {
+            before: sourceHashBefore,
+            after: sourceHashAfter,
+            projectPath: resolvedProjectPath
+        });
+
+        const relevantLogs = tab.logs.filter(log =>
+            ['error', 'exception'].includes(log.type) ||
+            (log.type === 'warning' && !String(log.args?.[0] || '').includes('Release manifest fallback active'))
+        );
+        assert(
+            !relevantLogs.some(log => ['error', 'exception'].includes(log.type)),
+            'Olango release gate produced browser errors',
+            relevantLogs
+        );
+
+        const evidence = {
+            gate: 'P0-C1A RELEASE GATE',
+            date: '2026-07-23',
+            source: {
+                path: resolvedProjectPath,
+                sha256Before: sourceHashBefore,
+                sha256After: sourceHashAfter,
+                unchanged: sourceHashBefore === sourceHashAfter
+            },
+            unchanged: {
+                before: unchanged.before,
+                serialized: unchanged.serialized,
+                reopened: unchanged.reopened,
+                beforeInterfaces: unchanged.beforeInterfaces,
+                reopenedInterfaces: unchanged.reopenedInterfaces,
+                dxfParser: unchanged.dxfParser,
+                ifcParser: unchanged.ifcParser
+            },
+            termination: {
+                targetColumnId: termination.targetColumnId,
+                preview: termination.firstAction.preview,
+                afterCalculate: termination.afterCalculate,
+                floorSwitch: termination.floorSwitch,
+                afterTypical: termination.afterTypical,
+                afterSaveReopen: termination.afterSaveReopen,
+                terminatedInterfaces: termination.afterSaveInterfaces,
+                undoRestoredExactFingerprint: JSON.stringify(termination.former) === JSON.stringify(termination.undoFingerprint),
+                undoInterfaces: termination.undoInterfaces,
+                autosaveWritten: termination.autosaveWritten,
+                refreshed
+            },
+            knownPreExistingOutOfScope: {
+                cantileverSideBeamRegularOverlaps: 'Recorded by generic Olango smoke; not modified in P0-C1A.'
+            },
+            artifacts: {
+                ...artifactPaths,
+                unchangedPlanScreenshot,
+                terminatedPlanScreenshot,
+                terminated3DScreenshot
+            },
+            browserLogs: relevantLogs
+        };
+        fs.writeFileSync(artifactPaths.evidence, JSON.stringify(evidence, null, 2), 'utf8');
+        return evidence;
+    } finally {
+        tab.close();
+        if (browser.process && !KEEP_BROWSER) {
+            try { browser.process.kill(); } catch (err) { /* noop */ }
+        }
+    }
+}
+
 async function main() {
     const summary = {
         syntax: parseInlineScripts(),
@@ -3238,6 +4602,8 @@ async function main() {
         displayMarks: checkDisplayMarkOrdering(),
         releaseManifest: checkReleaseManifest(),
         historicalFixture: checkHistoricalFstrFixture(),
+        columnSegmentFixtures: checkColumnSegmentFixtures(),
+        columnSegmentSourceContract: checkColumnSegmentSourceContract(),
         dxfSourceContract: checkDxfSourceContract()
     };
     const projectPath = getArgValue('--project');
@@ -3245,6 +4611,8 @@ async function main() {
     const staadPath = getArgValue('--write-staad');
     const ifcPath = getArgValue('--write-ifc');
     const dxfPath = getArgValue('--write-dxf');
+    const p0C1AReleaseGate = process.argv.includes('--p0-c1a-release-gate');
+    const p0C1AOutputDir = getArgValue('--p0-c1a-output-dir');
 
     ['v3/engine/loads.js', 'v3/engine/tributary.js', 'v3/persistence/project-revisions.js'].forEach(file => {
         checkNodeSyntax(file);
@@ -3261,7 +4629,12 @@ async function main() {
     const historicalFixture = JSON.parse(fs.readFileSync(HISTORICAL_FSTR_FIXTURE, 'utf8'));
     const browser = await runBrowserSmoke(historicalFixture);
     const project = projectPath ? await runProjectSmoke(projectPath, etabsScriptPath, staadPath, ifcPath, dxfPath) : null;
-    console.log(JSON.stringify({ ok: true, ...summary, browser, project }, null, 2));
+    assert(!p0C1AReleaseGate || projectPath, 'P0-C1A release gate requires --project <Olango safety copy>');
+    assert(!p0C1AReleaseGate || p0C1AOutputDir, 'P0-C1A release gate requires --p0-c1a-output-dir <acceptance directory>');
+    const p0C1AAcceptance = p0C1AReleaseGate
+        ? await runP0C1AOlangoAcceptance(projectPath, p0C1AOutputDir)
+        : null;
+    console.log(JSON.stringify({ ok: true, ...summary, browser, project, p0C1AAcceptance }, null, 2));
 }
 
 main().catch(err => {

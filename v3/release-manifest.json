@@ -1,19 +1,22 @@
 {
-  "appVersion": "3.16.118",
-  "buildId": "FS-118",
-  "releaseName": "Protected Project Revisions",
-  "fstrSchemaVersion": "0.1.0",
-  "gitCommit": "aefbd94dfbf31121e5831ad21b8cf6e54ff9fccc",
-  "buildDate": "2026-07-14",
+  "appVersion": "3.16.119",
+  "buildId": "FS-119",
+  "releaseName": "Canonical Column Segment Truth",
+  "fstrSchemaVersion": "0.2.0",
+  "releaseChannel": "release",
+  "gitCommit": "9f062f44013872a2e4799af0771c2b850a2a47cb",
+  "buildDate": "2026-07-23",
   "validatedFixtures": [
     "legacy-v2.8-2floor",
+    "regular-v2.8-3floor-pre-p0c",
+    "terminated-v2.8-3floor-pre-p0c",
     "Olango_2026-07-14_3Floors_GF-2F-RF"
   ],
   "validatedTargets": {
-    "DXF": "AutoCAD R12 ASCII parser-audited and AutoCAD 2025 core-opened",
-    "STAAD": "STAAD.Pro 2024 gravity baseline validated",
-    "ETABS": "ETABS 22.6 OAPI gravity/modal baseline validated",
-    "IFC": "IFC2x3 IfcOpenShell schema and geometry validated",
+    "DXF": "AutoCAD R12 ASCII strict parser gate with unresolved-topology disclosure",
+    "STAAD": "Unresolved column topology blocks analytical export",
+    "ETABS": "Unresolved column topology blocks analytical export",
+    "IFC": "Unresolved geometry retained with coordination metadata",
     "SAFE": "ETABS Story as SAFE V12 handoff only"
   }
 }

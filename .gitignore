@@ -42,6 +42,10 @@ node_modules/
 output/
 tmp/
 
+# Versioned regression fixtures are sanitized model payloads, not user projects.
+!v3/tools/fixtures/regular-v2.8-3floor-pre-p0c.fstr
+!v3/tools/fixtures/terminated-v2.8-3floor-pre-p0c.fstr
+
 # Local personal/recovery notes
 kira_diary/
 

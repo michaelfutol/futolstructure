@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const DXF_PACKAGE_BUILD = 'FS-117';
+    const DXF_PACKAGE_BUILD = 'FS-119-DXF-1';
     const DXF_TEXT_LAYER = 'S-TEXT';
     const GRID_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 
@@ -44,6 +44,7 @@
             this.entities = [];
             this.entityCounts = { LINE: 0, TEXT: 0, CIRCLE: 0 };
             this.layerUsage = {};
+            this.columnTopologyMarkerCount = 0;
             this.bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
         }
 
@@ -162,9 +163,8 @@
     }
 
     function getFloorColumns(floor) {
-        const deleted = new Set(floor?.deletedColumns || []);
         return (state.columns || []).filter(col =>
-            col && !deleted.has(col.id) &&
+            col &&
             (typeof isColumnActiveOnFloor !== 'function' || isColumnActiveOnFloor(col, floor?.id))
         );
     }
@@ -367,10 +367,20 @@
                 writer.text(center.x - Math.min(0.7, label.length * 0.035), center.y + geometry.beamWidthM * 0.5 + 0.16, label, DXF_LAYER.TEXT, 0.16);
             }
         }
+        if (beam.topologyStatus === 'unresolved') {
+            const markerX = beam.direction === 'Y'
+                ? center.x - geometry.beamWidthM * 0.5 - 0.2
+                : center.x + 0.2;
+            const markerY = beam.direction === 'Y'
+                ? center.y + 0.2
+                : center.y - geometry.beamWidthM * 0.5 - 0.2;
+            writer.text(markerX, markerY, '!', DXF_LAYER.TEXT, 0.16);
+            writer.columnTopologyMarkerCount += 1;
+        }
         return geometry;
     }
 
-    function drawColumns(writer, transform, floor) {
+    function drawColumns(writer, transform, floor, topology = null) {
         getFloorColumns(floor).forEach(col => {
             const position = getColumnPlanPosition(col);
             const size = getColumnSizeMm(col);
@@ -383,6 +393,24 @@
             writer.rectangle(rect.x1, rect.y1, rect.x2, rect.y2, DXF_LAYER.COLUMN);
             const center = transform.point(position.x, position.y);
             writer.text(center.x + size.b / 2000 + 0.05, center.y - 0.08, col.id, DXF_LAYER.TEXT, 0.15);
+            const governance = typeof getColumnLineGovernance === 'function'
+                ? getColumnLineGovernance(col, topology)
+                : null;
+            if (governance?.isTerminated && governance.endLevel === floor?.id) {
+                writer.text(center.x - 0.06, center.y + 0.06, 'T', DXF_LAYER.TEXT, 0.14);
+            }
+            const segmentId = typeof getColumnSegmentId === 'function'
+                ? getColumnSegmentId(col, floor?.id)
+                : `${col.id}@${floor?.id}`;
+            const topologyIssue = topology?.bySegmentId?.[segmentId] || topology?.byColumnId?.[col.id] ||
+                (topology?.items || []).find(item =>
+                    item?.status === 'BLOCKED' &&
+                    String(item.columnId || '').split(',').includes(String(col.id))
+                );
+            if (topologyIssue?.status === 'BLOCKED') {
+                writer.text(center.x - 0.04, center.y - 0.19, '!', DXF_LAYER.TEXT, 0.16);
+                writer.columnTopologyMarkerCount += 1;
+            }
         });
     }
 
@@ -422,7 +450,7 @@
         });
     }
 
-    function drawFloorPlan(writer, floor, geometry, origin, bounds, tributary) {
+    function drawFloorPlan(writer, floor, geometry, origin, bounds, tributary, topology = null) {
         return withFloorGeometry(floor, geometry, () => {
             const transform = makePlanTransform(origin.x, origin.y, bounds);
             const planName = tributary ? 'TRIBUTARY PLAN' : 'STRUCTURAL LAYOUT PLAN';
@@ -435,7 +463,7 @@
                 ? getCornerSlabHiddenBeamIds(floor.id)
                 : new Set();
             (geometry.beams || []).forEach((beam, index) => drawBeam(writer, transform, beam, floor, index + 1, hiddenBeamIds, tributary));
-            drawColumns(writer, transform, floor);
+            drawColumns(writer, transform, floor, topology);
             drawStairs(writer, transform, floor);
             return { beamCount: geometry.beams?.length || 0, slabCount: geometry.slabs?.length || 0 };
         });
@@ -454,7 +482,7 @@
         writer.line(tip.x, tip.y, tip.x + 0.12, tip.y + 0.16, DXF_LAYER.TEXT);
     }
 
-    function drawFoundationPlanPackage(writer, floor, geometry, origin, bounds) {
+    function drawFoundationPlanPackage(writer, floor, geometry, origin, bounds, topology = null) {
         return withFloorGeometry(floor, geometry, () => {
             const transform = makePlanTransform(origin.x, origin.y, bounds);
             const planEnabled = isFoundationPlanEnabled();
@@ -490,7 +518,7 @@
                     writer.text(label.x, label.y, `${row.grid} Pu=${row.factoredReactionKn.toFixed(1)} kN`, DXF_LAYER.TEXT, 0.15);
                 });
             }
-            drawColumns(writer, transform, floor);
+            drawColumns(writer, transform, floor, topology);
             return { foundationMode: planEnabled ? 'plan' : 'baseReactionsOnly', columnCount: columns.length };
         });
     }
@@ -537,18 +565,25 @@
     }
 
     function buildScheduleData(floorGeometryById) {
-        const columnRows = (state.columns || []).filter(col => (state.floors || []).some(floor =>
-            isColumnActiveOnFloor(col, floor.id) && !(floor.deletedColumns || []).includes(col.id)
-        )).map(col => {
+        const topologyValidation = typeof collectColumnTopologyValidation === 'function'
+            ? collectColumnTopologyValidation({ floorGeometry: floorGeometryById })
+            : null;
+        const columnRows = (state.columns || []).map(col => {
             const size = getColumnSizeMm(col);
-            const floors = (state.floors || []).filter(floor => isColumnActiveOnFloor(col, floor.id) && !(floor.deletedColumns || []).includes(col.id));
+            const governance = typeof getColumnLineGovernance === 'function'
+                ? getColumnLineGovernance(col, topologyValidation)
+                : null;
             return {
                 mark: `C-${col.id}`,
                 grid: getColumnGridLabel(col),
-                floors: floors.map(floor => floor.id).join(','),
+                lineId: governance?.columnLineId || `COL-LINE-${col.id}`,
+                start: governance?.startLevel || '-',
+                end: governance?.endLevel || '-',
                 size: `${size.b}x${size.h}`,
-                load: finite(col.totalLoadWithDL || col.totalLoad).toFixed(1),
-                footing: col.startFloor ? 'PLANTED' : `F-${col.id}`
+                support: (governance?.supportType || (col.startFloor ? 'planted' : 'continuous')).replace(/_/g, ' '),
+                host: governance?.hostMemberId || '-',
+                status: governance?.status || 'Continuous',
+                export: governance?.exportReadiness || 'PASS'
             };
         });
 
@@ -616,7 +651,7 @@
         (state.columns || []).forEach(col => {
             const size = getColumnSizeMm(col);
             (state.floors || []).forEach(floor => {
-                if (!isColumnActiveOnFloor(col, floor.id) || (floor.deletedColumns || []).includes(col.id)) return;
+                if (!isColumnActiveOnFloor(col, floor.id)) return;
                 columnCount += 1;
                 columnVolume += size.b / 1000 * (size.h / 1000) * finite(floor.height, 3);
             });
@@ -723,15 +758,21 @@
         ], drawingRows);
         stackY = indexTable.bottomY - 1;
 
+        const provenance = window.getProjectProvenance?.() || {};
         const modelRows = [
             { item: 'Build', value: `${audit.build} / DXF ${audit.writerBuild}` },
-            { item: 'FSTR schema', value: window.getProjectProvenance?.().fstrSchemaVersion || 'unknown' },
-            { item: 'Source revision', value: window.getProjectProvenance?.().sourceRevisionId || 'unsaved working state' },
+            { item: 'FSTR schema', value: provenance.fstrSchemaVersion || 'unknown' },
+            { item: 'Minimum app', value: provenance.minimumCompatibleAppVersion || 'unknown' },
+            { item: 'Migration source', value: `${provenance.migrationSourceSchemaVersion || 'unknown'} / ${provenance.migrationSourceFileVersion || 'unknown'}` },
+            { item: 'Source revision', value: provenance.sourceRevisionId || 'unsaved working state' },
             { item: 'Floors', value: state.floors?.length || 0 },
             { item: 'Grid', value: `${state.xSpans?.length || 0}x${state.ySpans?.length || 0}` },
             { item: 'Concrete', value: `fc'=${finite(state.fc, 21)} MPa` },
             { item: 'Rebar', value: `fy=${finite(state.fy, 415)} MPa` },
             { item: 'Foundation mode', value: isFoundationPlanEnabled() ? 'Footings' : 'Base reactions' },
+            { item: 'Column topology', value: audit.columnTopology?.solverReady
+                ? 'Solver ready'
+                : `${audit.columnTopology?.blocked || 0} unresolved - STAAD/ETABS blocked` },
             { item: 'Layer source', value: 'FT_LayerMap structural layers' }
         ];
         const modelTable = drawTable(writer, groupX, stackY, 'MODEL SUMMARY', [
@@ -768,10 +809,14 @@
         const columnTable = drawTable(writer, groupX, topY, 'COLUMN SCHEDULE', [
             { key: 'mark', label: 'MARK', width: 2.4 },
             { key: 'grid', label: 'GRID', width: 1.4 },
-            { key: 'floors', label: 'FLOORS', width: 3.1 },
+            { key: 'lineId', label: 'COLUMN LINE ID', width: 3.4 },
+            { key: 'start', label: 'START', width: 2.2 },
+            { key: 'end', label: 'END', width: 1.6 },
+            { key: 'support', label: 'SUPPORT', width: 3.0 },
+            { key: 'host', label: 'HOST', width: 2.4 },
             { key: 'size', label: 'B x H mm', width: 2.1 },
-            { key: 'load', label: 'Pu kN', width: 1.7 },
-            { key: 'footing', label: 'SUPPORT', width: 2.4 }
+            { key: 'status', label: 'STATUS', width: 3.2 },
+            { key: 'export', label: 'EXPORT', width: 1.8 }
         ], schedules.columnRows, { textHeight: 0.14 });
 
         groupX += columnTable.width + 2;
@@ -846,6 +891,9 @@
         if (!state?.floors?.length) throw new Error('No floors are available to export.');
         if (!state?.columns?.length && typeof calculate === 'function') calculate();
         const floorGeometryById = collect3DFloorGeometry();
+        const columnTopology = typeof collectColumnTopologyValidation === 'function'
+            ? collectColumnTopologyValidation({ floorGeometry: floorGeometryById })
+            : { summary: { pass: 0, warning: 0, blocked: 0, solverReady: true }, items: [] };
         const planBounds = calculatePlanBounds(floorGeometryById);
         const writer = new DxfWriter();
         const releaseBuild = window.getReleaseManifest?.().buildId || DXF_PACKAGE_BUILD;
@@ -856,8 +904,23 @@
             floorIds: state.floors.map(floor => floor.id),
             plans: { layouts: 0, tributary: 0, foundation: 0 },
             tables: {},
+            columnTopology: {
+                ...columnTopology.summary,
+                blockedColumnIds: Object.keys(columnTopology.byColumnId || {})
+                    .filter(columnId => columnTopology.byColumnId[columnId]?.status === 'BLOCKED')
+            },
             warnings: []
         };
+        columnTopology.items
+            .filter(item => item.status === 'BLOCKED')
+            .forEach(item => audit.warnings.push({
+                area: 'column_topology',
+                code: item.code,
+                floorId: item.floorId || '',
+                columnId: item.columnId || '',
+                hostMemberId: item.hostMemberId || '',
+                message: item.message || ''
+            }));
 
         const cellWidth = planBounds.width + 5.2;
         const cellHeight = planBounds.height + 5.2;
@@ -869,8 +932,8 @@
         (state.floors || []).forEach((floor, rowIndex) => {
             const geometry = floorGeometryById.get(floor.id) || { beams: [], slabs: [] };
             const rowY = packageTop - rowIndex * cellHeight;
-            drawFloorPlan(writer, floor, geometry, { x: 2, y: rowY }, planBounds, false);
-            drawFloorPlan(writer, floor, geometry, { x: 2 + cellWidth, y: rowY }, planBounds, true);
+            drawFloorPlan(writer, floor, geometry, { x: 2, y: rowY }, planBounds, false, columnTopology);
+            drawFloorPlan(writer, floor, geometry, { x: 2 + cellWidth, y: rowY }, planBounds, true, columnTopology);
             audit.plans.layouts += 1;
             audit.plans.tributary += 1;
         });
@@ -879,7 +942,7 @@
         if (foundationFloor) {
             const geometry = floorGeometryById.get(foundationFloor.id) || { beams: [], slabs: [] };
             const foundationY = packageTop - state.floors.length * cellHeight;
-            drawFoundationPlanPackage(writer, foundationFloor, geometry, { x: 2, y: foundationY }, planBounds);
+            drawFoundationPlanPackage(writer, foundationFloor, geometry, { x: 2, y: foundationY }, planBounds, columnTopology);
             audit.plans.foundation = 1;
         }
 
@@ -888,6 +951,7 @@
 
         const dxf = buildDXFDocument(writer);
         audit.entityCounts = { ...writer.entityCounts };
+        audit.columnTopology.markerCount = writer.columnTopologyMarkerCount;
         audit.layerUsage = { ...writer.layerUsage };
         audit.bytes = new TextEncoder().encode(dxf).length;
         audit.dxfVersion = 'AC1009';
