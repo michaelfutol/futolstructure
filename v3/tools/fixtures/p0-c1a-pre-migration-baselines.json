@@ -1,0 +1,47 @@
+{
+  "contract": "P0-C1A pre-migration geometry and export counts",
+  "recordedAt": "2026-07-19T01:15:00+08:00",
+  "notes": [
+    "These counts were captured before introducing the canonical column-segment resolver.",
+    "Schedule columnLineCount records logical column lines, not active storey segments.",
+    "The terminated fixture intentionally leaves the RF A1 bay unsupported and has an 87.5 percent tributary-area balance.",
+    "Regular and legacy counts must remain stable unless a test explicitly applies a new column command.",
+    "The terminated fixture records the old destructive result of 34 beams; P0-C1A intentionally retains both unsupported RF beams, producing 36 coordination beams while blocking analytical export."
+  ],
+  "fixtures": {
+    "regular-v2.8-3floor-pre-p0c.fstr": {
+      "floors": ["GF", "2F", "RF"],
+      "currentFloor": "GF",
+      "plan": { "columns": 9, "beams": 12, "slabs": 4 },
+      "threeD": { "columnSegments": 27, "beams": 36, "slabs": 12 },
+      "schedule": { "columnLineCount": 9 },
+      "foundation": { "footings": 9, "pedestals": 9, "tieBeams": 12 },
+      "csi": { "stories": 3, "columns": 27, "beams": 36, "slabs": 12 },
+      "staad": { "columns": 27, "beams": 36, "slabs": 12, "nodes": 60, "frameMembers": 63 },
+      "ifc": { "columns": 27, "beams": 36, "slabs": 12, "products": 75 }
+    },
+    "terminated-v2.8-3floor-pre-p0c.fstr": {
+      "floors": ["GF", "2F", "RF"],
+      "currentFloor": "RF",
+      "plan": { "columns": 8, "beams": 10, "slabs": 4 },
+      "threeD": { "columnSegments": 26, "beams": 34, "slabs": 12 },
+      "schedule": { "columnLineCount": 9 },
+      "foundation": { "footings": 9, "pedestals": 9, "tieBeams": 10 },
+      "csi": { "stories": 3, "columns": 26, "beams": 34, "slabs": 12 },
+      "staad": { "columns": 26, "beams": 34, "slabs": 12, "nodes": 59, "frameMembers": 60 },
+      "ifc": { "columns": 26, "beams": 34, "slabs": 12, "products": 72 },
+      "areaBalance": { "slabAreaM2": 80, "tributaryAreaM2": 70, "percent": 87.5 }
+    },
+    "legacy-v2.8-2floor.fstr": {
+      "floors": ["2F", "RF"],
+      "currentFloor": "2F",
+      "plan": { "columns": 9, "beams": 12, "slabs": 4 },
+      "threeD": { "columnSegments": 18, "beams": 27, "slabs": 9 },
+      "schedule": { "columnLineCount": 9 },
+      "foundation": { "footings": 9, "pedestals": 9, "tieBeams": 11 },
+      "csi": { "stories": 2, "columns": 18, "beams": 27, "slabs": 9 },
+      "staad": { "columns": 18, "beams": 27, "slabs": 9, "nodes": 47, "frameMembers": 45 },
+      "ifc": { "columns": 18, "beams": 27, "slabs": 9, "products": 54 }
+    }
+  }
+}

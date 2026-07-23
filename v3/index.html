@@ -1821,7 +1821,7 @@
             </div>
             <img class="logo-icon" src="assets/futolstructure-icon.png" alt="FutolStructure">
             <span style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary); letter-spacing: -0.01em;">FutolStructure</span>
-            <button id="buildVersionBadge" type="button" title="View FS-118 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.118</button>
+            <button id="buildVersionBadge" type="button" title="View FS-119 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.119</button>
         </div>
         <!-- Action Toolbar -->
         <div class="header-actions">
@@ -2232,12 +2232,18 @@
                                 <tr>
 
                                     <th style="width:35px;">No.</th>
-                                    <th style="width:70px;">ID</th>
-                                    <th style="width:50px;">Mark</th>
+                                    <th style="width:70px;">Column ID</th>
+                                    <th style="width:110px;">Column Line ID</th>
+                                    <th style="width:80px;">Start</th>
+                                    <th style="width:65px;">End</th>
+                                    <th style="width:105px;">Support Type</th>
+                                    <th style="width:90px;">Host Member</th>
                                     <th style="width:55px;">B/X (mm)</th>
                                     <th style="width:55px;">H/Y (mm)</th>
-                                    <th style="width:70px;">Load (kN)</th>
-                                    <th style="width:70px;">Footing ID</th>
+                                    <th style="width:55px;">Orientation</th>
+                                    <th style="width:120px;">Status</th>
+                                    <th style="width:75px;">Export</th>
+                                    <th style="width:70px;">Pu (kN)</th>
                                 </tr>
                             </thead>
                             <tbody id="colScheduleBody"></tbody>
@@ -3717,7 +3723,7 @@
         <div id="columnMenuTitle"
             style="padding:8px 16px; color:#00d4ff; font-weight:bold; border-bottom:1px solid rgba(255,255,255,0.1); margin-bottom:4px;">
             Column A1</div>
-        <button class="ctx-menu-btn" onclick="toggleSelectedColumn()">🔄 Toggle Active</button>
+        <button class="ctx-menu-btn" onclick="showColumnDeleteDialog()" style="color:#fca5a5;">Delete / Terminate...</button>
         <button class="ctx-menu-btn" onclick="moveSelectedColumn()">Move / Nudge...</button>
         <button class="ctx-menu-btn" onclick="resetSelectedColumnPosition()">Reset Position</button>
         <button class="ctx-menu-btn" onclick="moveAllColumns()">Move All Columns...</button>
@@ -3729,6 +3735,41 @@
         </div>
         <button class="ctx-menu-btn" onclick="clearPlantedFloor()" style="color:#ef4444;">🚫 Clear Planted
             (Ground)</button>
+    </div>
+
+    <div id="columnDeleteModal" role="dialog" aria-modal="true" aria-labelledby="columnDeleteTitle"
+        style="display:none; position:fixed; inset:0; z-index:12000; background:rgba(2,6,23,0.78); align-items:center; justify-content:center; padding:20px;">
+        <div style="width:min(680px,96vw); max-height:88vh; overflow:auto; background:#111827; border:1px solid #475569; border-radius:8px; box-shadow:0 24px 60px rgba(0,0,0,0.55); color:#e5e7eb;">
+            <div style="padding:18px 20px 14px; border-bottom:1px solid #334155;">
+                <h3 id="columnDeleteTitle" style="margin:0; font:600 1rem Arial,sans-serif; color:#f8fafc;">Column intent</h3>
+                <div id="columnDeleteSubtitle" style="margin-top:6px; font:0.78rem Arial,sans-serif; color:#94a3b8;"></div>
+            </div>
+            <div style="padding:16px 20px;">
+                <div style="display:grid; gap:8px;" id="columnDeleteChoices">
+                    <label style="display:flex; gap:10px; align-items:flex-start; padding:10px; border:1px solid #475569; border-radius:6px; cursor:pointer;">
+                        <input type="radio" name="columnIntentAction" value="terminate_above" checked onchange="selectColumnIntentAction(this.value)" style="margin-top:2px;">
+                        <span><strong>Terminate Above This Level</strong><br><span style="color:#94a3b8; font-size:0.75rem;">Keep this segment and all lower segments; remove upper continuation.</span></span>
+                    </label>
+                    <label style="display:flex; gap:10px; align-items:flex-start; padding:10px; border:1px solid #475569; border-radius:6px; cursor:pointer;">
+                        <input type="radio" name="columnIntentAction" value="remove_segment" onchange="selectColumnIntentAction(this.value)" style="margin-top:2px;">
+                        <span><strong>Remove This Storey Segment</strong><br><span style="color:#94a3b8; font-size:0.75rem;">Upper and lower segments remain; a floating upper segment will be blocked.</span></span>
+                    </label>
+                    <label style="display:flex; gap:10px; align-items:flex-start; padding:10px; border:1px solid #7f1d1d; border-radius:6px; cursor:pointer;">
+                        <input type="radio" name="columnIntentAction" value="remove_line" onchange="selectColumnIntentAction(this.value)" style="margin-top:2px;">
+                        <span><strong>Remove Entire Column Line</strong><br><span style="color:#fca5a5; font-size:0.75rem;">Remove every storey segment. Connected geometry is retained for review.</span></span>
+                    </label>
+                </div>
+                <div style="margin-top:14px; border-top:1px solid #334155; padding-top:14px;">
+                    <div style="font:600 0.76rem Arial,sans-serif; color:#cbd5e1; margin-bottom:8px;">DEPENDENCY PREVIEW</div>
+                    <div id="columnDeletePreview" style="font:0.76rem/1.55 Arial,sans-serif; color:#cbd5e1;"></div>
+                </div>
+                <div id="columnDeleteWarning" style="margin-top:12px; padding:10px; border-left:3px solid #f59e0b; background:#1f2937; color:#fcd34d; font:0.75rem/1.45 Arial,sans-serif;"></div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; padding:14px 20px; border-top:1px solid #334155;">
+                <button type="button" onclick="hideColumnDeleteDialog()" style="padding:8px 14px; border:1px solid #64748b; background:#1f2937; color:#e5e7eb; border-radius:5px; cursor:pointer;">Cancel</button>
+                <button id="applyColumnIntentBtn" type="button" onclick="applySelectedColumnIntent()" style="padding:8px 14px; border:1px solid #2563eb; background:#2563eb; color:white; border-radius:5px; cursor:pointer; font-weight:600;">Apply</button>
+            </div>
+        </div>
     </div>
 
     <!-- v3.2: Universal Member Context Menu (right-click on beams/slabs) -->
@@ -3937,25 +3978,36 @@
         function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
 
         const FSTR_FILE_TYPE = 'FutolStructure.StructuralModel';
-        const FSTR_SCHEMA_VERSION = '0.1.0';
+        const FSTR_SCHEMA_VERSION = '0.2.0';
+        const FSTR_MIN_COMPATIBLE_APP_VERSION = '3.16.119';
+        const FSTR_CURRENT_FILE_VERSION = '2.9';
+        const FSTR_SCHEMA_COMPATIBILITY_WARNING =
+            'Schema 0.2.0 uses canonical column segmentOverrides. Opening this project in older FutolStructure builds is not guaranteed.';
         const FSTR_HIDDEN_GEOMETRY_POLICY = 'preserve-intentional-hidden-geometry';
-        const FSTR_AUTOSAVE_STATE_REVISION = 'FS-107-floor-aware-autosave';
-        const FSTR_APP_VERSION = '3.16.118';
-        const FSTR_BUILD_ID = 'FS-118';
-        const FSTR_RELEASE_NAME = 'Protected Project Revisions';
+        const FSTR_AUTOSAVE_STATE_REVISION = 'P0-C1A-column-segment-intent';
+        const COLUMN_SEGMENT_INTENT_VERSION = 1;
+        const FSTR_APP_VERSION = '3.16.119';
+        const FSTR_BUILD_ID = 'FS-119';
+        const FSTR_RELEASE_NAME = 'Canonical Column Segment Truth';
         const FSTR_RELEASE_MANIFEST_FALLBACK = Object.freeze({
             appVersion: FSTR_APP_VERSION,
             buildId: FSTR_BUILD_ID,
             releaseName: FSTR_RELEASE_NAME,
             fstrSchemaVersion: FSTR_SCHEMA_VERSION,
-            gitCommit: 'aefbd94dfbf31121e5831ad21b8cf6e54ff9fccc',
-            buildDate: '2026-07-14',
+            releaseChannel: 'release-candidate',
+            gitCommit: '',
+            buildDate: '2026-07-23',
             validatedFixtures: [
                 'legacy-v2.8-2floor',
+                'regular-v2.8-3floor-pre-p0c',
+                'terminated-v2.8-3floor-pre-p0c',
                 'Olango_2026-07-14_3Floors_GF-2F-RF'
             ],
             validatedTargets: {
-                DXF: 'AutoCAD R12 ASCII parser-audited and AutoCAD 2025 core-opened'
+                DXF: 'AutoCAD R12 ASCII strict parser gate with unresolved-topology disclosure',
+                STAAD: 'Unresolved column topology blocks analytical export',
+                ETABS: 'Unresolved column topology blocks analytical export',
+                IFC: 'Unresolved geometry retained with coordination metadata'
             }
         });
         let fsReleaseManifest = JSON.parse(JSON.stringify(FSTR_RELEASE_MANIFEST_FALLBACK));
@@ -3965,11 +4017,19 @@
         }
 
         function getProjectProvenance() {
+            const migrationMeta = typeof currentProjectMigrationMeta !== 'undefined'
+                ? cloneSerializable(currentProjectMigrationMeta, {})
+                : {};
             return {
                 releaseManifest: getReleaseManifest(),
                 projectId: typeof currentProjectId !== 'undefined' ? currentProjectId : '',
                 sourceRevisionId: typeof currentProjectRevisionId !== 'undefined' ? currentProjectRevisionId : '',
-                fstrSchemaVersion: FSTR_SCHEMA_VERSION
+                fstrSchemaVersion: FSTR_SCHEMA_VERSION,
+                minimumCompatibleAppVersion: FSTR_MIN_COMPATIBLE_APP_VERSION,
+                migrationSourceSchemaVersion: migrationMeta.sourceSchemaVersion || FSTR_SCHEMA_VERSION,
+                migrationSourceFileVersion: migrationMeta.sourceFileVersion || FSTR_CURRENT_FILE_VERSION,
+                migrationApplied: migrationMeta.migrationApplied === true,
+                compatibilityWarning: FSTR_SCHEMA_COMPATIBILITY_WARNING
             };
         }
 
@@ -4804,6 +4864,34 @@
                 );
             }
 
+            if (typeof collectColumnTopologyValidation === 'function') {
+                const topology = collectColumnTopologyValidation({ floorGeometry: floorGeometryById || undefined });
+                if (!topology.summary.solverReady) {
+                    const examples = topology.items
+                        .filter(item => item.status === 'BLOCKED')
+                        .slice(0, 3)
+                        .map(item => `${item.floorId || '-'} ${item.columnId || item.hostMemberId || item.code}`)
+                        .join(', ');
+                    addModelReadinessWarning(
+                        warnings,
+                        'Column Topology',
+                        `${topology.summary.blocked} unresolved column/support issue(s) block STAAD and ETABS export. IFC, DXF, and reports may retain the geometry as coordination-only${examples ? `: ${examples}` : '.'}`,
+                        'blocked'
+                    );
+                } else if (topology.summary.warning > 0) {
+                    const examples = topology.items
+                        .filter(item => item.status === 'WARNING')
+                        .slice(0, 3)
+                        .map(item => `${item.columnId || item.hostMemberId || item.code}`)
+                        .join(', ');
+                    addModelReadinessWarning(
+                        warnings,
+                        'Column Topology',
+                        `${topology.summary.warning} legacy/modeling topology warning(s) are retained for coordination${examples ? `: ${examples}` : '.'}`
+                    );
+                }
+            }
+
             return warnings;
         }
 
@@ -4841,7 +4929,8 @@
             let dx = 0;
             let dy = 0;
 
-            if (state.columnAlignment === 'outer') {
+            const usesGeneratedGridAlignment = col.isRegularGrid !== false && !col.isCustomPlaced && !col.isPlanted;
+            if (state.columnAlignment === 'outer' && usesGeneratedGridAlignment) {
                 if (Math.abs((Number(col.x) || 0)) < tol) dx = bM / 2;
                 else if (Math.abs((Number(col.x) || 0) - totalX) < tol) dx = -bM / 2;
 
@@ -5032,8 +5121,10 @@
 
             const trimMode = options.trimToColumnFaces ? 'columnFace' : (options.trimToJunction ? 'junction' : null);
             if (trimMode) {
-                const startTrim = getBeamEndpointTrimAlongAxis(beam, startCol, floorId, trimMode);
-                const endTrim = getBeamEndpointTrimAlongAxis(beam, endCol, floorId, trimMode);
+                const startSupport = startCol && (!floorId || isColumnActiveOnFloor(startCol, floorId)) ? startCol : null;
+                const endSupport = endCol && (!floorId || isColumnActiveOnFloor(endCol, floorId)) ? endCol : null;
+                const startTrim = getBeamEndpointTrimAlongAxis(beam, startSupport, floorId, trimMode);
+                const endTrim = getBeamEndpointTrimAlongAxis(beam, endSupport, floorId, trimMode);
                 if (beam?.direction === 'X') {
                     const sign = x2 >= x1 ? 1 : -1;
                     x1 += sign * startTrim;
@@ -6309,7 +6400,6 @@
             targetFloor.slabOpenings = cloneSerializable(sourceFloor.slabOpenings, []);
             targetFloor.planDimensions = normalizePlanDimensionList(sourceFloor.planDimensions);
             targetFloor.deletedBeams = cloneSerializable(sourceFloor.deletedBeams, []);
-            targetFloor.deletedColumns = cloneSerializable(sourceFloor.deletedColumns, []);
             targetFloor.lockedBeams = cloneSerializable(sourceFloor.lockedBeams, []);
             targetFloor.lockedSlabs = cloneSerializable(sourceFloor.lockedSlabs, []);
             targetFloor.typicalSourceFloorId = sourceFloor.id || '';
@@ -6341,21 +6431,10 @@
         }
 
         function syncTypicalColumnVisibility(targetFloor, sourceFloor) {
-            if (!targetFloor || !sourceFloor || !Array.isArray(state.columns)) return;
-            state.columns.forEach(col => {
-                if (!col.activePerFloor || typeof col.activePerFloor !== 'object') {
-                    col.activePerFloor = {};
-                }
-                state.floors.forEach(floor => {
-                    if (!Object.prototype.hasOwnProperty.call(col.activePerFloor, floor.id)) {
-                        col.activePerFloor[floor.id] = col.active !== false;
-                    }
-                });
-                if (Object.prototype.hasOwnProperty.call(col.activePerFloor, sourceFloor.id)) {
-                    col.activePerFloor[targetFloor.id] = col.activePerFloor[sourceFloor.id] !== false;
-                }
-                col.active = Object.values(col.activePerFloor).some(v => v !== false);
-            });
+            // P0-C1A: column segment intent is vertical-model truth, not floor
+            // layout content. Typical-floor inheritance must never reactivate a
+            // removed segment or copy a lower segment over an upper termination.
+            return !!targetFloor && !!sourceFloor;
         }
 
         function applyTypicalFloorLayoutInheritance(options = {}) {
@@ -6617,7 +6696,7 @@
         }
 
         function generateDXFTextStyleTable() {
-            return '0\nTABLE\n2\nSTYLE\n70\n1\n0\nSTYLE\n2\nSTANDARD\n70\n0\n40\n0\n41\n1\n50\n0\n71\n0\n42\n0.2\n3\ntxt.shx\n4\n\n0\nENDTAB\n';
+            return '0\nTABLE\n2\nSTYLE\n70\n1\n0\nSTYLE\n2\nSTANDARD\n70\n0\n40\n0\n41\n1\n50\n0\n71\n0\n42\n0.2\n3\narial.ttf\n4\n\n0\nENDTAB\n';
         }
 
         // Update member dimensions from the table and sync with left panel
@@ -6722,9 +6801,23 @@
             if (!floorIdMap.size) return;
 
             (state.columns || []).forEach(col => {
+                if (col.segmentOverrides) {
+                    const migratedOverrides = migrateFloorBooleanMap(col.segmentOverrides, floorIdMap);
+                    Object.entries(migratedOverrides || {}).forEach(([floorId, override]) => {
+                        if (!override || typeof override !== 'object') return;
+                        override.segmentId = getColumnSegmentId(col, floorId);
+                        if (override.terminationLevelId && floorIdMap.has(override.terminationLevelId)) {
+                            override.terminationLevelId = floorIdMap.get(override.terminationLevelId);
+                        }
+                    });
+                    col.segmentOverrides = migratedOverrides;
+                }
                 if (col.activePerFloor) col.activePerFloor = migrateFloorBooleanMap(col.activePerFloor, floorIdMap);
                 if (col.floorActive) col.floorActive = migrateFloorBooleanMap(col.floorActive, floorIdMap);
                 if (col.typePerFloor) col.typePerFloor = migrateFloorBooleanMap(col.typePerFloor, floorIdMap);
+                if (col.terminationLevelId && floorIdMap.has(col.terminationLevelId)) {
+                    col.terminationLevelId = floorIdMap.get(col.terminationLevelId);
+                }
                 if (col.startFloor && floorIdMap.has(col.startFloor)) {
                     col.startFloor = floorIdMap.get(col.startFloor);
                 } else if (col.startFloor && !state.floors.some(floor => floor.id === col.startFloor)) {
@@ -6968,6 +7061,206 @@
             return EngineLoads.isFloorAtOrAbove(state.floors, floorId, startFloor);
         }
 
+        function resolveColumnSegmentState(col, floorId) {
+            return EngineLoads.resolveColumnSegmentState(col, floorId, state.floors);
+        }
+
+        function getColumnSegmentId(colOrId, floorId) {
+            const columnId = typeof colOrId === 'string' ? colOrId : colOrId?.id;
+            return `${String(columnId || 'COLUMN')}::${String(floorId || 'UNKNOWN')}`;
+        }
+
+        function updateDerivedColumnCompatibility(col) {
+            if (!col) return false;
+            const active = (state.floors || []).some(floor => resolveColumnSegmentState(col, floor.id).active);
+            // Temporary derived compatibility only. Commands never write raw
+            // active, activePerFloor, floorActive, or floor.deletedColumns.
+            col.active = active;
+            col.segmentIntentVersion = COLUMN_SEGMENT_INTENT_VERSION;
+            return active;
+        }
+
+        function setColumnSegmentIntent(col, floorId, active, intent, metadata = {}) {
+            if (!col || !floorId || !state.floors.some(floor => floor.id === floorId)) return false;
+            col.segmentOverrides = cloneSerializable(col.segmentOverrides, {});
+            col.segmentOverrides[floorId] = {
+                segmentId: getColumnSegmentId(col, floorId),
+                active: active === true,
+                intent: String(intent || (active ? 'explicit_active' : 'remove_segment')),
+                updatedAt: new Date().toISOString(),
+                ...cloneSerializable(metadata, {})
+            };
+            updateDerivedColumnCompatibility(col);
+            return true;
+        }
+
+        function getColumnTerminationLevelId(col, floors = state.floors) {
+            const validFloorIds = new Set((floors || []).map(floor => floor?.id).filter(Boolean));
+            if (validFloorIds.has(col?.terminationLevelId)) return col.terminationLevelId;
+            for (const [floorId, override] of Object.entries(col?.segmentOverrides || {})) {
+                const candidate = override?.terminationLevelId ||
+                    (override?.intent === 'termination_level' ? floorId : '');
+                if (validFloorIds.has(candidate)) return candidate;
+            }
+            return '';
+        }
+
+        function isLegacyWholeLineOmissionInput(col, floors = state.floors) {
+            const orderedFloors = (floors || []).filter(floor => floor?.id);
+            if (!col || !orderedFloors.length) return false;
+            let hasLegacySignal = false;
+            for (const floor of orderedFloors) {
+                if ((floor.deletedColumns || []).includes(col.id)) return false;
+                const flags = [];
+                if (col.activePerFloor && Object.prototype.hasOwnProperty.call(col.activePerFloor, floor.id)) {
+                    flags.push(col.activePerFloor[floor.id] !== false);
+                }
+                if (col.floorActive && Object.prototype.hasOwnProperty.call(col.floorActive, floor.id)) {
+                    flags.push(col.floorActive[floor.id] !== false);
+                }
+                if (flags.length) {
+                    hasLegacySignal = true;
+                    if (!flags.some(value => value === false)) return false;
+                } else if (col.active === false) {
+                    hasLegacySignal = true;
+                } else {
+                    return false;
+                }
+            }
+            return hasLegacySignal;
+        }
+
+        function isLegacyOmittedColumnLine(col, floors = state.floors) {
+            const orderedFloors = (floors || []).filter(floor => floor?.id);
+            return !!col && orderedFloors.length > 0 && orderedFloors.every(floor => {
+                const segment = EngineLoads.resolveColumnSegmentState(col, floor.id, orderedFloors);
+                return segment.active === false &&
+                    segment.source === 'segmentOverrides' &&
+                    segment.intent === 'legacy_omitted_column_line';
+            });
+        }
+
+        function migrateLegacyColumnSegmentIntent(columns = state.columns, floors = state.floors, options = {}) {
+            const migrated = [];
+            (columns || []).forEach(col => {
+                if (!col?.id) return;
+                const next = cloneSerializable(col.segmentOverrides, {});
+                const legacyWholeLineOmission = isLegacyWholeLineOmissionInput(col, floors);
+                const terminationLevelId = getColumnTerminationLevelId(col, floors);
+                const terminationFloorIndex = (floors || []).findIndex(floor => floor?.id === terminationLevelId);
+                const removeEntireLine = Object.values(next).some(override =>
+                    override?.active === false && override?.intent === 'remove_entire_line'
+                );
+                (floors || []).forEach((floor, floorIndex) => {
+                    if (!floor?.id || (next[floor.id] && typeof next[floor.id].active === 'boolean')) return;
+                    if (removeEntireLine) {
+                        next[floor.id] = {
+                            segmentId: getColumnSegmentId(col, floor.id),
+                            active: false,
+                            intent: 'remove_entire_line'
+                        };
+                        return;
+                    }
+                    if (terminationFloorIndex >= 0 && floorIndex > terminationFloorIndex) {
+                        next[floor.id] = {
+                            segmentId: getColumnSegmentId(col, floor.id),
+                            active: false,
+                            intent: 'terminated_above',
+                            terminationLevelId
+                        };
+                        return;
+                    }
+                    const legacyFlags = [];
+                    if (col.activePerFloor && Object.prototype.hasOwnProperty.call(col.activePerFloor, floor.id)) {
+                        legacyFlags.push(col.activePerFloor[floor.id] !== false);
+                    }
+                    if (col.floorActive && Object.prototype.hasOwnProperty.call(col.floorActive, floor.id)) {
+                        legacyFlags.push(col.floorActive[floor.id] !== false);
+                    }
+                    if ((floor.deletedColumns || []).includes(col.id)) legacyFlags.push(false);
+                    const mappedInactive = legacyFlags.some(value => value === false);
+                    const hasMappedValue = legacyFlags.length > 0;
+                    if (mappedInactive || (!hasMappedValue && col.active === false)) {
+                        next[floor.id] = {
+                            segmentId: getColumnSegmentId(col, floor.id),
+                            active: false,
+                            intent: (floor.deletedColumns || []).includes(col.id)
+                                ? 'legacy_deleted_segment'
+                                : (legacyWholeLineOmission
+                                    ? 'legacy_omitted_column_line'
+                                    : 'legacy_inactive_segment'),
+                            migratedFromLegacy: true
+                        };
+                        migrated.push(getColumnSegmentId(col, floor.id));
+                    }
+                });
+                Object.entries(next).forEach(([floorId, override]) => {
+                    if (!override || typeof override !== 'object') return;
+                    override.segmentId = getColumnSegmentId(col, floorId);
+                });
+                col.segmentOverrides = next;
+                col.segmentIntentVersion = COLUMN_SEGMENT_INTENT_VERSION;
+                if (terminationLevelId) col.terminationLevelId = terminationLevelId;
+                if (options.clearCompatibility !== false) {
+                    delete col.activePerFloor;
+                    delete col.floorActive;
+                }
+            });
+            if (options.clearCompatibility !== false) {
+                (floors || []).forEach(floor => {
+                    // Column deletion has migrated to per-line segmentOverrides.
+                    // Retain an empty runtime container for FS-118 recovery UI
+                    // compatibility; schema 0.2.0 never persists it as truth.
+                    floor.deletedColumns = [];
+                });
+            }
+            (columns || []).forEach(updateDerivedColumnCompatibility);
+            return migrated;
+        }
+
+        function getColumnActiveFloorIds(col) {
+            return (state.floors || [])
+                .filter(floor => resolveColumnSegmentState(col, floor.id).active)
+                .map(floor => floor.id);
+        }
+
+        function getColumnLineGovernance(col, topologyValidation = null) {
+            const activeFloorIds = getColumnActiveFloorIds(col);
+            const firstFloorId = activeFloorIds[0] || '';
+            const lastFloorId = activeFloorIds[activeFloorIds.length - 1] || '';
+            const lastFloorIndex = state.floors.findIndex(floor => floor.id === lastFloorId);
+            const terminatedByOverride = (state.floors || []).slice(Math.max(0, lastFloorIndex + 1)).some(floor => {
+                const override = col?.segmentOverrides?.[floor.id];
+                return override?.active === false && override.intent !== 'remove_storey_segment';
+            });
+            const isTerminated = !!col?.terminationLevelId || (!!activeFloorIds.length && terminatedByOverride);
+            const validation = topologyValidation?.byColumnId?.[col?.id] || null;
+            let status = 'Continuous';
+            if (!activeFloorIds.length) status = 'Removed';
+            else if (col?.isPlanted) status = String(col.supportType || 'Planted').replace(/_/g, ' ');
+            else if (isTerminated) status = `Terminates at ${col.terminationLevelId || lastFloorId}`;
+            if (activeFloorIds.length && validation?.status === 'BLOCKED') {
+                status = status === 'Continuous' ? 'Unsupported' : `${status}; Unsupported`;
+            }
+            const exportReadiness = !activeFloorIds.length
+                ? 'NOT_EXPORTED'
+                : (validation?.status || (col?.isPlanted ? 'BLOCKED' : 'PASS'));
+            return {
+                columnId: col?.id || '',
+                columnLineId: `COL-LINE-${col?.id || 'UNKNOWN'}`,
+                activeFloorIds,
+                startLevel: col?.isPlanted ? (firstFloorId || col.startFloor || '-') : 'BASE/FOUNDATION',
+                endLevel: isTerminated ? (col.terminationLevelId || lastFloorId || '-') : (lastFloorId || '-'),
+                supportType: col?.supportType || (col?.isPlanted ? 'unresolved_support' : 'continuous_column'),
+                hostMemberId: col?.hostMemberId || col?.supportingBeamId || '-',
+                orientationDeg: Number(col?.orientationDeg) || 0,
+                isTerminated,
+                status,
+                exportReadiness,
+                validationCode: validation?.code || (activeFloorIds.length ? 'continuous_column_segment' : 'removed_column_line')
+            };
+        }
+
         // v2.7: Toggle column active state (for L/U layouts)
         // v3.0: Now per-floor - toggling on RF doesn't affect 2F
         function toggleColumn(colId, floorId = null, options = {}) {
@@ -6979,25 +7272,19 @@
             const targetFloor = floorId || state.floors[state.currentFloorIndex].id;
             if (options.ignoreBeamLock !== true && columnEditWouldMoveLockedBeams(colId, `Column ${colId} toggle/delete`, targetFloor)) return;
 
-            // Initialize missing floor keys too; older/reloaded models may contain an empty object.
-            if (!col.activePerFloor) col.activePerFloor = {};
-            state.floors.forEach(f => {
-                if (!Object.prototype.hasOwnProperty.call(col.activePerFloor, f.id)) {
-                    col.activePerFloor[f.id] = col.active !== false;
-                }
-            });
-
             if (options.snapshot !== false && typeof saveStateSnapshot === 'function') {
                 saveStateSnapshot();
             }
 
-            // Toggle for this specific floor
-            col.activePerFloor[targetFloor] = !col.activePerFloor[targetFloor];
+            const wasActive = resolveColumnSegmentState(col, targetFloor).active;
+            setColumnSegmentIntent(
+                col,
+                targetFloor,
+                !wasActive,
+                wasActive ? 'assessment_inactive' : 'explicit_continue'
+            );
 
-            // Update legacy active flag (true if active on ANY floor)
-            col.active = Object.values(col.activePerFloor).some(v => v);
-
-            console.log(`v3.0: Column ${colId} toggled on ${targetFloor}: ${col.activePerFloor[targetFloor] ? 'ON' : 'OFF'}`);
+            console.log(`P0-C1A: Column ${colId} segment ${targetFloor}: ${wasActive ? 'INACTIVE' : 'ACTIVE'}`);
 
             calculate();  // Recalculate loads
             recalculateColumnTypes(targetFloor); // v3.0: Recalculate for THIS floor specifically
@@ -7006,7 +7293,7 @@
 
         // v3.0: Check if column is active on a specific floor
         function isColumnActiveOnFloor(col, floorId) {
-            return EngineLoads.isColumnActiveOnFloor(col, floorId, state.floors);
+            return resolveColumnSegmentState(col, floorId).active;
         }
 
         // v3.2: Update tie beam size from input controls
@@ -7636,9 +7923,8 @@
 
             if (statusMembers) {
                 const currentFloorId = state.floors[state.currentFloorIndex]?.id;
-                const currentDeletedColumns = new Set(state.floors[state.currentFloorIndex]?.deletedColumns || []);
                 const nCols = state.columns ? state.columns.filter(c =>
-                    !currentDeletedColumns.has(c.id) && (!currentFloorId || isColumnActiveOnFloor(c, currentFloorId))
+                    !currentFloorId || isColumnActiveOnFloor(c, currentFloorId)
                 ).length : 0;
                 const nBeams = state.beams ? state.beams.length : 0;
                 const nSlabs = getActiveSlabs().length;
@@ -7710,19 +7996,20 @@
                 yCoords.push(yCoords[yCoords.length - 1] + span);
             }
 
-            // Generate columns at intersections
-            // v2.7: Preserve active state from existing columns
-            const oldColumns = state.columns || [];
-
-            // v3.0: Preserve custom-placed planted columns (not at grid intersections)
-            const plantedColumns = oldColumns.filter(c => c.isPlanted === true);
-
-            state.columns = [];
+            // P0-C1A reconciles generated grid geometry with persistent column
+            // intent. Recalculation must not replace segment overrides or custom
+            // columns with a fresh all-active array.
+            const oldColumns = Array.isArray(state.columns) ? state.columns : [];
+            migrateLegacyColumnSegmentIntent(oldColumns, state.floors);
+            const oldById = new Map(oldColumns.filter(col => col?.id).map(col => [String(col.id), col]));
+            const reconciledColumns = [];
+            const regularIds = new Set();
             const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // Skip I and O
 
             for (let yi = 0; yi < yCoords.length; yi++) {
                 for (let xi = 0; xi < xCoords.length; xi++) {
                     const id = `${letters[xi]}${yi + 1}`;
+                    regularIds.add(id);
 
                     // Determine column type
                     const isCorner = (xi === 0 || xi === xCoords.length - 1) &&
@@ -7734,27 +8021,22 @@
                     if (isCorner) type = 'corner';
                     else if (isEdge) type = 'edge';
 
-                    // v2.7: Check if this column existed before and preserve its active state
-                    const oldCol = oldColumns.find(c => c.id === id);
-                    const isActive = oldCol ? oldCol.active : true;  // Preserve or default true
-                    const startFloor = oldCol?.startFloor || null;   // v3.0: Preserve planted column state
-                    const activePerFloor = oldCol?.activePerFloor || null;  // v3.0: Preserve per-floor toggle state
-                    const typePerFloor = oldCol?.typePerFloor || null;  // v3.0: Preserve per-floor TYPE state
-                    const floorActive = oldCol?.floorActive || null;  // v3.0: Preserve per-floor active state
+                    const oldCol = oldById.get(id);
                     const manualB = oldCol?.webB || oldCol?.overrideB || (oldCol?.isOverride ? oldCol?.b : null);
                     const manualH = oldCol?.webD || oldCol?.overrideH || (oldCol?.isOverride ? oldCol?.h : null);
 
-                    state.columns.push({
+                    reconciledColumns.push({
+                        ...(oldCol ? cloneSerializable(oldCol, {}) : {}),
                         id,
                         x: xCoords[xi],
                         y: yCoords[yi],
                         xi, yi,
                         type,
-                        active: isActive,  // v2.7: Preserved toggle state for L/U shapes
-                        startFloor: startFloor,  // v3.0: For planted columns (null = from ground)
-                        activePerFloor: activePerFloor,  // v3.0: Per-floor toggle state
-                        typePerFloor: typePerFloor,  // v3.0: Per-floor type (corner/edge/interior)
-                        floorActive: floorActive,    // v3.0: Per-floor active state
+                        isRegularGrid: true,
+                        segmentIntentVersion: COLUMN_SEGMENT_INTENT_VERSION,
+                        segmentOverrides: cloneSerializable(oldCol?.segmentOverrides, {}),
+                        startFloor: oldCol?.startFloor || null,
+                        typePerFloor: cloneSerializable(oldCol?.typePerFloor, null),
                         webB: manualB,
                         webD: manualH,
                         overrideB: manualB,
@@ -7768,22 +8050,28 @@
                 }
             }
 
-            // v3.0: Re-add planted columns that were placed on beams (not at grid intersections)
-            for (const pc of plantedColumns) {
-                // Check if this planted column already exists (by position)
-                const exists = state.columns.find(c =>
-                    Math.abs(c.x - pc.x) < 0.1 && Math.abs(c.y - pc.y) < 0.1
-                );
-                if (!exists) {
-                    // Preserve the planted column with all its properties
-                    state.columns.push({
-                        ...pc,
-                        loadPerFloor: 0,
-                        totalLoad: 0
-                    });
-                    console.log(`v3.0: Preserved planted column ${pc.id} at (${pc.x.toFixed(2)}, ${pc.y.toFixed(2)})`);
-                }
-            }
+            oldColumns.forEach(column => {
+                if (!column?.id || regularIds.has(String(column.id))) return;
+                const isPersistentCustom = column.isPlanted === true ||
+                    column.isCustomPlaced === true || column.isRegularGrid === false ||
+                    column.columnSource === 'custom' || column.columnSource === 'planted';
+                if (!isPersistentCustom || !Number.isFinite(Number(column.x)) || !Number.isFinite(Number(column.y))) return;
+                reconciledColumns.push({
+                    ...cloneSerializable(column, {}),
+                    id: String(column.id),
+                    x: Number(column.x),
+                    y: Number(column.y),
+                    isRegularGrid: false,
+                    segmentIntentVersion: COLUMN_SEGMENT_INTENT_VERSION,
+                    segmentOverrides: cloneSerializable(column.segmentOverrides, {}),
+                    loadPerFloor: 0,
+                    totalLoad: 0,
+                    connectedBeams: []
+                });
+            });
+
+            state.columns = reconciledColumns;
+            state.columns.forEach(updateDerivedColumnCompatibility);
         }
 
         /**
@@ -9057,10 +9345,19 @@
             state.beams = [];
             const floor = targetFloor || state.floors[state.currentFloorIndex];
             const floorId = floor?.id;
-            const deletedColumnIds = new Set(floor?.deletedColumns || []);
-            const isBeamEndpointColumnActive = col => {
-                if (!col || deletedColumnIds.has(col.id)) return false;
-                return floorId ? isColumnActiveOnFloor(col, floorId) : col.active !== false;
+            const getEndpointSupportStatus = col => {
+                if (col && (!floorId || isColumnActiveOnFloor(col, floorId))) {
+                    return 'resolved_column_segment';
+                }
+                if (col && isLegacyOmittedColumnLine(col)) {
+                    return 'legacy_omitted_column_line';
+                }
+                return 'unsupported_column_segment';
+            };
+            const getBeamTopologyStatus = (startStatus, endStatus) => {
+                if ([startStatus, endStatus].includes('unsupported_column_segment')) return 'unresolved';
+                if ([startStatus, endStatus].includes('legacy_omitted_column_line')) return 'legacy_omission';
+                return 'resolved';
             };
 
             // X-direction beams (horizontal, span in X)
@@ -9075,15 +9372,13 @@
             // Create beam objects with slices array
             for (let yi = 0; yi < yCoords.length; yi++) {
                 for (let xi = 0; xi < state.xSpans.length; xi++) {
-                    // v2.7: Skip beams where either endpoint column is inactive
                     const leftCol = getColumnAt(xi, yi);
                     const rightCol = getColumnAt(xi + 1, yi);
-                    if (!isBeamEndpointColumnActive(leftCol) || !isBeamEndpointColumnActive(rightCol)) {
-                        continue;
-                    }
 
                     const beamSpan = state.xSpans[xi];
                     const beamId = `BX-${yi + 1}-${xi + 1}`;
+                    const startSupportStatus = getEndpointSupportStatus(leftCol);
+                    const endSupportStatus = getEndpointSupportStatus(rightCol);
 
                     state.beams.push({
                         id: beamId,
@@ -9098,6 +9393,9 @@
                         // Column connections for load distribution
                         startCol: `${letters[xi]}${yi + 1}`,
                         endCol: `${letters[xi + 1]}${yi + 1}`,
+                        startSupportStatus,
+                        endSupportStatus,
+                        topologyStatus: getBeamTopologyStatus(startSupportStatus, endSupportStatus),
                         tributaryWidth: 0,
                         tributaryArea: 0,
                         slices: [],  // v2.2: per-slab slices
@@ -9111,15 +9409,13 @@
             // Y-direction beams (along gridlines in X direction)
             for (let xi = 0; xi < xCoords.length; xi++) {
                 for (let yi = 0; yi < state.ySpans.length; yi++) {
-                    // v2.7: Skip beams where either endpoint column is inactive
                     const topCol = getColumnAt(xi, yi);
                     const bottomCol = getColumnAt(xi, yi + 1);
-                    if (!isBeamEndpointColumnActive(topCol) || !isBeamEndpointColumnActive(bottomCol)) {
-                        continue;
-                    }
 
                     const beamSpan = state.ySpans[yi];
                     const beamId = `BY-${xi + 1}-${yi + 1}`;
+                    const startSupportStatus = getEndpointSupportStatus(topCol);
+                    const endSupportStatus = getEndpointSupportStatus(bottomCol);
 
                     state.beams.push({
                         id: beamId,
@@ -9134,6 +9430,9 @@
                         // Column connections for load distribution
                         startCol: `${letters[xi]}${yi + 1}`,
                         endCol: `${letters[xi]}${yi + 2}`,
+                        startSupportStatus,
+                        endSupportStatus,
+                        topologyStatus: getBeamTopologyStatus(startSupportStatus, endSupportStatus),
                         tributaryWidth: 0,
                         tributaryArea: 0,
                         slices: [],  // v2.2: per-slab slices
@@ -9833,7 +10132,7 @@
             // v3.0: Check if clicked on column - show context menu instead of direct toggle
             const hitRadius = 15 / state.scale;
             for (const col of state.columns) {
-                if (!isColumnActiveOnFloor(col, currentFloorId) || currentFloor?.deletedColumns?.includes(col.id)) continue;
+                if (!isColumnActiveOnFloor(col, currentFloorId)) continue;
                 const dx = worldX - (col.gridX || col.x);
                 const dy = worldY - (col.gridY || col.y);
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -10541,7 +10840,6 @@
 
             const currentFloor = state.floors[state.currentFloorIndex];
             const deletedBeams = currentFloor?.deletedBeams || [];
-            const deletedColumns = currentFloor?.deletedColumns || [];
             const currentFloorId = currentFloor?.id;
 
             // Calculate grid coordinates
@@ -10839,8 +11137,7 @@
                 ctx.font = `${colLabelFontSize}px Arial`;
                 for (let col of state.columns) {
                     const isActive = isColumnActiveOnFloor(col, currentFloorId);
-                    const isDeleted = deletedColumns.includes(col.id);
-                    if (isDeleted || !isActive) continue;
+                    if (!isActive) continue;
                     const colSize = getColumnSizeMm(col);
                     const colWPx = (colSize.b / 1000) * state.scale;
                     const colHPx = (colSize.h / 1000) * state.scale;
@@ -11277,7 +11574,9 @@
                     planTextLayout.drawBeamCount += 1;
                     const isLocked = (currentFloor?.lockedBeams || []).includes(beam.id);
                     const isHiddenByCornerSlab = cornerHiddenBeamIds.has(beam.id);
-                    const beamStrokeColor = isLocked ? '#64748b' : COLOR_BEAM;
+                    const beamStrokeColor = beam.topologyStatus === 'unresolved'
+                        ? '#dc2626'
+                        : (isLocked ? '#64748b' : COLOR_BEAM);
                     ctx.strokeStyle = beamStrokeColor;
                     ctx.setLineDash([]);
                     const beamGeom = getBeamPlanDrawGeometry(beam, currentFloorId, { trimToJunction: true });
@@ -11511,8 +11810,7 @@
                     const x = colPos.x * state.scale + state.offsetX;
                     const y = colPos.y * state.scale + state.offsetY;
                     const isActive = isColumnActiveOnFloor(col, currentFloorId);
-                    const isDeleted = deletedColumns.includes(col.id);
-                    if (isDeleted || !isActive) continue;
+                    if (!isActive) continue;
                     const isPlanted = col.isPlanted || false;
                     const columnLineColor = isColumnPositionLocked() ? '#64748b' : COLOR_COL;
                     const columnTextColor = isColumnPositionLocked() ? '#64748b' : COLOR_TEXT;
@@ -11578,6 +11876,29 @@
                         ctx.restore();
                     }
 
+                    const governance = getColumnLineGovernance(col);
+                    const floorIndex = state.floors.findIndex(floor => floor.id === currentFloorId);
+                    const lowerFloor = floorIndex > 0 ? state.floors[floorIndex - 1] : null;
+                    const hasLowerSegment = !lowerFloor || isColumnActiveOnFloor(col, lowerFloor.id);
+                    const unresolvedSegment = (!hasLowerSegment && !(col.isPlanted && col.startFloor === currentFloorId)) ||
+                        (col.isPlanted && col.startFloor === currentFloorId && col.supportStatus !== 'resolved');
+                    if (governance.isTerminated && governance.endLevel === currentFloorId) {
+                        ctx.save();
+                        ctx.fillStyle = '#b45309';
+                        ctx.font = `bold ${Math.max(9, Math.round(9 * Math.max(state.scale / 50, 0.5)))}px Arial`;
+                        ctx.textAlign = 'left';
+                        ctx.fillText('T', left + colWPx + 3, top - 2);
+                        ctx.restore();
+                    }
+                    if (unresolvedSegment) {
+                        ctx.save();
+                        ctx.fillStyle = '#dc2626';
+                        ctx.font = `bold ${Math.max(10, Math.round(10 * Math.max(state.scale / 50, 0.5)))}px Arial`;
+                        ctx.textAlign = 'center';
+                        ctx.fillText('!', x, top - 4);
+                        ctx.restore();
+                    }
+
                     // Column ID label (only for active columns) - scale-relative
                     if (isActive) {
                         const baseScale = 50;
@@ -11609,7 +11930,6 @@
         function isFoundationColumnForPlan(col, currentFloorId = null) {
             if (!col) return false;
             const floor = currentFloorId ? state.floors.find(f => f.id === currentFloorId) : state.floors[state.currentFloorIndex];
-            if (floor?.deletedColumns?.includes(col.id)) return false;
             if (floor?.id && !isColumnActiveOnFloor(col, floor.id)) return false;
             if (col.startFloor && col.startFloor !== 'GND' && col.startFloor !== '1F') return false;
             return true;
@@ -11926,7 +12246,6 @@
             const currentFloor = state.floors[state.currentFloorIndex];
             const currentFloorId = currentFloor?.id;
             const deletedBeams = currentFloor?.deletedBeams || [];
-            const deletedColumns = currentFloor?.deletedColumns || [];
 
             // Calculate total dimensions
             const totalX = state.xSpans.reduce((a, b) => a + b, 0);
@@ -12657,7 +12976,6 @@
             const currentFloor = state.floors[state.currentFloorIndex];
             const currentFloorId = currentFloor?.id;
             const deletedBeams = currentFloor?.deletedBeams || [];
-            const deletedColumns = currentFloor?.deletedColumns || [];
             const xCoords = [0];
             (state.xSpans || []).forEach(span => xCoords.push(xCoords[xCoords.length - 1] + Number(span || 0)));
             const yCoords = [0];
@@ -12674,7 +12992,7 @@
             });
 
             (state.columns || []).forEach(col => {
-                if (!isColumnActiveOnFloor(col, currentFloorId) || deletedColumns.includes(col.id)) return;
+                if (!isColumnActiveOnFloor(col, currentFloorId)) return;
                 const pos = getColumnPlanPosition(col);
                 const size = getColumnSizeMm(col);
                 const halfB = (size.b / 1000) / 2;
@@ -13212,7 +13530,7 @@
 
                 // 1. Check columns first
                 for (let col of state.columns) {
-                    if (!isColumnActiveOnFloor(col, currentFloorId) || state.floors[state.currentFloorIndex]?.deletedColumns?.includes(col.id)) continue;
+                    if (!isColumnActiveOnFloor(col, currentFloorId)) continue;
                     const pos = getColumnPlanPosition(col);
                     const dx = Math.abs(worldX - pos.x);
                     const dy = Math.abs(worldY - pos.y);
@@ -13714,7 +14032,7 @@
             return ((direction === 'X') ? size.b : size.d) / 2;
         }
 
-        function getRenderedBeamSegment(beam, startCol, endCol) {
+        function getRenderedBeamSegment(beam, startCol, endCol, floorId = null) {
             const x1 = Number(beam.x1) || 0;
             const y1 = Number(beam.y1) || 0;
             const x2 = Number(beam.x2) || 0;
@@ -13728,8 +14046,12 @@
 
             const ux = (endPos.x - startPos.x) / rawLength;
             const uy = (endPos.y - startPos.y) / rawLength;
-            const startTrim = getColumnTrimAlongBeam(startCol, beam.direction);
-            const endTrim = getColumnTrimAlongBeam(endCol, beam.direction);
+            const startTrim = startCol && (!floorId || isColumnActiveOnFloor(startCol, floorId))
+                ? getColumnTrimAlongBeam(startCol, beam.direction)
+                : 0;
+            const endTrim = endCol && (!floorId || isColumnActiveOnFloor(endCol, floorId))
+                ? getColumnTrimAlongBeam(endCol, beam.direction)
+                : 0;
             const sx = startPos.x + ux * startTrim;
             const sy = startPos.y + uy * startTrim;
             const ex = endPos.x - ux * endTrim;
@@ -14044,6 +14366,15 @@
                 const beams = selectedItems.filter(i => i.type === 'beam');
                 const customBeams = selectedItems.filter(i => i.type === 'customBeam');
 
+                if (columns.length) {
+                    if (columns.length === 1) {
+                        showColumnDeleteDialog(columns[0].id, columns[0].floorId);
+                    } else {
+                        alert('Column deletion requires one dependency preview per column. No selected members were changed.');
+                    }
+                    return;
+                }
+
                 // Build confirmation message
                 let msg = `🗑️ Delete ${ selectedItems.length } item(s) ?\n\n`;
                 if (columns.length > 0) {
@@ -14058,16 +14389,6 @@
 
                 if (confirm(msg)) {
                     saveStateSnapshot();
-
-                    // Delete columns
-                    if (columns.length && columnLockBlocks('3D box-selection column delete')) {
-                        console.warn('FS safety: Column selection kept because columns are globally locked.');
-                    } else {
-                        for (const item of columns) {
-                            toggleColumn(item.id, item.floorId, { snapshot: false });
-                            console.log(`v3.0: Column ${ item.id } deleted via box selection`);
-                        }
-                    }
 
                     // Delete beams
                     for (const item of beams) {
@@ -14196,12 +14517,7 @@
                 // Confirm and delete
                 if (userData.type === 'column') {
                     if (columnLockBlocks(`3D column ${userData.id} delete`)) return;
-                    if (confirm(`🗑️ Delete column ${ userData.id }?`)) {
-                        toggleColumn(userData.id);
-                        calculate();
-                        render3DFrame();
-                        console.log(`v3.0: Column ${ userData.id } deleted`);
-                    }
+                    showColumnDeleteDialog(userData.id, userData.floorId);
                 } else if (userData.type === 'beam') {
                     if (confirm(`🗑️ Delete beam ${ userData.id }?`)) {
                         const floor = state.floors.find(f => f.id === userData.floorId);
@@ -14408,7 +14724,6 @@
             const currentViewDeletedBeams = currentViewFloor?.deletedBeams || [];
             const foundationFloor = state.floors[0];
             const foundationFloorId = foundationFloor?.id;
-            const foundationDeletedColumns = foundationFloor?.deletedColumns || [];
 
             // For each floor
             state.floors.forEach((floor, fi) => {
@@ -14419,9 +14734,6 @@
                 for (let col of state.columns) {
                     // v3.0: Skip columns inactive on THIS floor (not global col.active)
                     if (!isColumnActiveOnFloor(col, floor.id)) continue;
-
-                    // v3.9: Skip deleted columns on this floor
-                    if (floor.deletedColumns && floor.deletedColumns.includes(col.id)) continue;
 
                     // v3.0: Skip planted columns on floors BELOW their startFloor
                     if (col.startFloor && !isFloorAtOrAbove(floor.id, col.startFloor)) {
@@ -14465,7 +14777,8 @@
 
                 // Note: cumulativeY updated at end of forEach iteration
 
-                // BEAMS - at top of each floor (skip if connected to inactive columns OR deleted on this floor)
+                // BEAMS - retained even when a column endpoint is removed. The
+                // topology validator and warning color expose the unresolved end.
                 const floorDeletedBeams = floor.deletedBeams || [];  // v3.0: Per-floor deleted beams
 
                 for (let beam of floorGeometry.beams) {
@@ -14475,16 +14788,13 @@
                     // v3.0: Skip beams deleted on THIS floor
                     if (floorDeletedBeams.includes(beam.id)) continue;
 
-                    // v2.7: Skip beams connected to inactive columns
                     const startCol = state.columns.find(c => c.id === beam.startCol);
                     const endCol = state.columns.find(c => c.id === beam.endCol);
-                    if ((startCol && !isColumnActiveOnFloor(startCol, floor.id)) ||
-                        (endCol && !isColumnActiveOnFloor(endCol, floor.id))) {
-                        continue;
-                    }
+                    const unresolvedSupport = beam.topologyStatus === 'unresolved' ||
+                        (startCol && !isColumnActiveOnFloor(startCol, floor.id)) ||
+                        (endCol && !isColumnActiveOnFloor(endCol, floor.id));
 
-
-                    const renderedSegment = getRenderedBeamSegment(beam, startCol, endCol);
+                    const renderedSegment = getRenderedBeamSegment(beam, startCol, endCol, floor.id);
                     const length = renderedSegment.length;
 
                     // v3.9: Use actual beam sizes from state (mm to meters)
@@ -14501,6 +14811,7 @@
                     const beamCategory = (beam.isEdgeBeam || beam.isCantilever) ? 'cantilevers' : 'beams';
                     const beamColor = get3DDisplayColor(beamCategory);
                     const mat = new THREE.MeshStandardMaterial(get3DDisplayMaterialOptions(beamCategory, {
+                        color: unresolvedSupport ? 0xef4444 : beamColor,
                         roughness: 0.68,
                         metalness: 0.03
                     }));
@@ -14632,7 +14943,7 @@
 
                     const startCol = state.columns.find(c => c.id === beam.startCol);
                     const endCol = state.columns.find(c => c.id === beam.endCol);
-                    const renderedSegment = getRenderedBeamSegment(beam, startCol, endCol);
+                    const renderedSegment = getRenderedBeamSegment(beam, startCol, endCol, currentViewFloor?.id || null);
                     const length = renderedSegment.length;
 
                     const geo = beam.direction === 'X'
@@ -14663,7 +14974,6 @@
             if (foundationPlanEnabled) for (let col of state.columns) {
                 // v2.7: Skip footings for inactive columns
                 if (foundationFloorId && !isColumnActiveOnFloor(col, foundationFloorId)) continue;
-                if (foundationDeletedColumns.includes(col.id)) continue;
 
                 // v3.0 FIX: Skip footings for planted columns (they sit on beams, not ground)
                 if (col.startFloor || col.isPlanted) continue;
@@ -14737,7 +15047,7 @@
 
                 const startCol = state.columns.find(c => c.id === beam.startCol);
                 const endCol = state.columns.find(c => c.id === beam.endCol);
-                const renderedSegment = getRenderedBeamSegment(beam, startCol, endCol);
+                const renderedSegment = getRenderedBeamSegment(beam, startCol, endCol, currentViewFloor?.id || state.floors[0]?.id || null);
                 const length = renderedSegment.length;
 
                 const geo = beam.direction === 'X'
@@ -15199,6 +15509,14 @@
         let currentProjectFileName = '';
         let currentProjectId = '';
         let currentProjectRevisionId = '';
+        let currentProjectMigrationMeta = {
+            sourceSchemaVersion: FSTR_SCHEMA_VERSION,
+            sourceFileVersion: FSTR_CURRENT_FILE_VERSION,
+            migrationApplied: false,
+            migratedToSchemaVersion: FSTR_SCHEMA_VERSION,
+            minimumCompatibleAppVersion: FSTR_MIN_COMPATIBLE_APP_VERSION,
+            warning: FSTR_SCHEMA_COMPATIBILITY_WARNING
+        };
         let currentProjectBaselineData = null;
         let currentProjectBaselineSummary = null;
         let currentProjectBaselineFloorCount = null;
@@ -15258,10 +15576,9 @@
         function collectCurrentProjectSummary(projectData = null) {
             const floorGeometry = collect3DFloorGeometry();
             const perFloor = (state.floors || []).map(floor => {
-                const deletedColumns = new Set(floor.deletedColumns || []);
                 const geometry = floorGeometry.get(floor.id) || { beams: [], slabs: [] };
                 const activeColumns = (state.columns || []).filter(column =>
-                    isColumnActiveOnFloor(column, floor.id) && !deletedColumns.has(column.id)).length;
+                    isColumnActiveOnFloor(column, floor.id)).length;
                 const activeBeams = (geometry.beams || []).filter(beam =>
                     beam && !beam.deleted && beam.active !== false && !(floor.deletedBeams || []).includes(beam.id)).length;
                 const activeSlabs = (geometry.slabs || []).filter(slab =>
@@ -15274,7 +15591,10 @@
                     lockedBeams: countUniqueProjectItems(floor.lockedBeams),
                     lockedSlabs: countUniqueProjectItems(floor.lockedSlabs),
                     voids: countUniqueProjectItems(floor.voidSlabs),
-                    deletions: countUniqueProjectItems(floor.deletedBeams) + countUniqueProjectItems(floor.deletedColumns),
+                    deletions: countUniqueProjectItems(floor.deletedBeams) + (state.columns || []).filter(column =>
+                        resolveColumnSegmentState(column, floor.id).active === false &&
+                        resolveColumnSegmentState(column, floor.id).source === 'segmentOverrides'
+                    ).length,
                     cantilevers: recoveryCantileverCount(floor.cantilevers),
                     cornerSlabs: normalizeCornerSlabList(floor.cornerSlabs).length
                 };
@@ -15306,12 +15626,74 @@
             };
         }
 
+        function compareNumericVersions(left, right) {
+            const parse = value => {
+                const match = String(value || '').trim().match(/^(\d+)\.(\d+)\.(\d+)/);
+                return match ? match.slice(1).map(Number) : null;
+            };
+            const a = parse(left);
+            const b = parse(right);
+            if (!a || !b) return null;
+            for (let index = 0; index < 3; index += 1) {
+                if (a[index] !== b[index]) return a[index] > b[index] ? 1 : -1;
+            }
+            return 0;
+        }
+
+        function createProjectMigrationMetadata(projectData = null) {
+            const embedded = projectData?.migrationMeta || {};
+            const loadedSchemaVersion = String(projectData?.schemaVersion || 'legacy-unversioned');
+            const sourceSchemaVersion = String(
+                embedded.sourceSchemaVersion || loadedSchemaVersion
+            );
+            const sourceFileVersion = String(
+                embedded.sourceFileVersion || projectData?.version || 'legacy-unversioned'
+            );
+            return {
+                sourceSchemaVersion,
+                sourceFileVersion,
+                loadedSchemaVersion,
+                migrationApplied: embedded.migrationApplied === true ||
+                    loadedSchemaVersion !== FSTR_SCHEMA_VERSION,
+                migratedToSchemaVersion: FSTR_SCHEMA_VERSION,
+                minimumCompatibleAppVersion: FSTR_MIN_COMPATIBLE_APP_VERSION,
+                warning: FSTR_SCHEMA_COMPATIBILITY_WARNING
+            };
+        }
+
         function validateProjectData(projectData) {
             if (!projectData || typeof projectData !== 'object') {
                 throw new Error('Project file is empty or invalid.');
             }
             if (projectData.fileType && projectData.fileType !== FSTR_FILE_TYPE) {
                 throw new Error(`Unsupported FutolStructure file type: ${projectData.fileType}`);
+            }
+            const sourceSchemaVersion = String(projectData.schemaVersion || '').trim();
+            if (sourceSchemaVersion) {
+                const schemaComparison = compareNumericVersions(sourceSchemaVersion, FSTR_SCHEMA_VERSION);
+                if (schemaComparison === null) {
+                    throw new Error(`Unsupported FutolStructure schema version: ${sourceSchemaVersion}`);
+                }
+                if (schemaComparison > 0) {
+                    throw new Error(
+                        `Project schema ${sourceSchemaVersion} requires a newer FutolStructure build. ` +
+                        `This build supports schema ${FSTR_SCHEMA_VERSION} and will not downgrade the project.`
+                    );
+                }
+            }
+            const minimumAppVersion = String(
+                projectData.compatibility?.minimumAppVersion ||
+                projectData.migrationMeta?.minimumCompatibleAppVersion ||
+                ''
+            ).trim();
+            if (minimumAppVersion) {
+                const appComparison = compareNumericVersions(minimumAppVersion, FSTR_APP_VERSION);
+                if (appComparison === null || appComparison > 0) {
+                    throw new Error(
+                        `Project requires FutolStructure ${minimumAppVersion} or newer. ` +
+                        `Current build is ${FSTR_APP_VERSION}; the project was not opened or downgraded.`
+                    );
+                }
             }
             return projectData;
         }
@@ -15338,8 +15720,23 @@
                 fileType: FSTR_FILE_TYPE,
                 schemaVersion: FSTR_SCHEMA_VERSION,
                 format: 'FSTR_JSON',
-                version: '2.8',
+                version: FSTR_CURRENT_FILE_VERSION,
                 hiddenGeometryPolicy: FSTR_HIDDEN_GEOMETRY_POLICY,
+                compatibility: {
+                    schemaVersion: FSTR_SCHEMA_VERSION,
+                    minimumAppVersion: FSTR_MIN_COMPATIBLE_APP_VERSION,
+                    olderBuildCompatibilityGuaranteed: false,
+                    warning: FSTR_SCHEMA_COMPATIBILITY_WARNING
+                },
+                migrationMeta: cloneSerializable(currentProjectMigrationMeta, {
+                    sourceSchemaVersion: FSTR_SCHEMA_VERSION,
+                    sourceFileVersion: FSTR_CURRENT_FILE_VERSION,
+                    loadedSchemaVersion: FSTR_SCHEMA_VERSION,
+                    migrationApplied: false,
+                    migratedToSchemaVersion: FSTR_SCHEMA_VERSION,
+                    minimumCompatibleAppVersion: FSTR_MIN_COMPATIBLE_APP_VERSION,
+                    warning: FSTR_SCHEMA_COMPATIBILITY_WARNING
+                }),
                 projectId: ensureCurrentProjectId(),
                 releaseManifest,
                 revisionMeta: {
@@ -15373,16 +15770,33 @@
                     pointLoads: f.pointLoads || [],
                     planDimensions: normalizePlanDimensionList(f.planDimensions),
                     deletedBeams: f.deletedBeams || [],
-                    deletedColumns: f.deletedColumns || [],
                     lockedBeams: f.lockedBeams || [],
                     lockedSlabs: f.lockedSlabs || []
                 })),
                 currentFloorIndex: state.currentFloorIndex || 0,
                 columnOverrides: (state.columns || []).map(c => ({
                     id: c.id,
-                    active: c.active,
-                    activePerFloor: c.activePerFloor || {},
+                    x: Number(c.x),
+                    y: Number(c.y),
+                    xi: Number.isFinite(Number(c.xi)) ? Number(c.xi) : null,
+                    yi: Number.isFinite(Number(c.yi)) ? Number(c.yi) : null,
+                    isRegularGrid: c.isRegularGrid !== false,
+                    isPlanted: !!c.isPlanted,
+                    isCustomPlaced: !!c.isCustomPlaced,
+                    columnSource: c.columnSource || (c.isPlanted ? 'planted' : (c.isRegularGrid === false ? 'custom' : 'grid')),
                     startFloor: c.startFloor,
+                    terminationLevelId: getColumnTerminationLevelId(c),
+                    segmentIntentVersion: COLUMN_SEGMENT_INTENT_VERSION,
+                    segmentOverrides: cloneSerializable(c.segmentOverrides, {}),
+                    supportingBeamId: c.supportingBeamId || '',
+                    hostMemberId: c.hostMemberId || c.supportingBeamId || '',
+                    hostMemberType: c.hostMemberType || '',
+                    sourceFloorId: c.sourceFloorId || '',
+                    offsetOnBeam: Number.isFinite(Number(c.offsetOnBeam)) ? Number(c.offsetOnBeam) : null,
+                    supportType: c.supportType || (c.isPlanted ? 'unresolved_support' : 'continuous_column'),
+                    supportStatus: c.supportStatus || (c.isPlanted ? 'unresolved' : 'continuous'),
+                    orientationDeg: Number(c.orientationDeg) || 0,
+                    memberStatus: c.memberStatus || 'proposed_new',
                     overrideB: c.overrideB,
                     overrideH: c.overrideH,
                     webB: c.webB,
@@ -15671,13 +16085,9 @@
             }
             const issues = floors.flatMap(floor => {
                 const floorId = floor?.id;
-                const activeColumns = overrides.filter(column => {
-                    const perFloor = column?.activePerFloor;
-                    if (perFloor && Object.prototype.hasOwnProperty.call(perFloor, floorId)) {
-                        return perFloor[floorId] !== false;
-                    }
-                    return column?.active !== false;
-                }).length;
+                const activeColumns = overrides.filter(column =>
+                    EngineLoads.resolveColumnSegmentState(column, floorId, floors).active
+                ).length;
                 const regularVoidCount = (floor?.voidSlabs || [])
                     .filter(id => /^S\d+$/i.test(String(id))).length;
                 const activeRegularSlabs = Math.max(0, bayCount - regularVoidCount);
@@ -15822,10 +16232,46 @@
             return projectData?.hiddenGeometryPolicy !== FSTR_HIDDEN_GEOMETRY_POLICY;
         }
 
+        function hydrateLoadedColumnSeeds(projectData) {
+            const byId = new Map();
+            (projectData?.columnOverrides || []).forEach(raw => {
+                if (!raw?.id) return;
+                const seed = cloneSerializable(raw, {});
+                seed.id = String(raw.id);
+                seed.isRegularGrid = raw.isRegularGrid !== false && !raw.isCustomPlaced;
+                seed.isPlanted = raw.isPlanted === true || !!raw.startFloor;
+                seed.segmentOverrides = cloneSerializable(raw.segmentOverrides, {});
+                seed.segmentIntentVersion = Number(raw.segmentIntentVersion) || COLUMN_SEGMENT_INTENT_VERSION;
+                if (seed.isRegularGrid === false || seed.isPlanted) {
+                    seed.x = Number(raw.x);
+                    seed.y = Number(raw.y);
+                }
+                byId.set(seed.id, seed);
+            });
+
+            // Some legacy files recorded deletion only on the floor. Seed that
+            // column ID so the migration survives hidden-geometry quarantine.
+            (state.floors || []).forEach(floor => {
+                (floor.deletedColumns || []).forEach(id => {
+                    const normalizedId = String(id || '').trim();
+                    if (!normalizedId || byId.has(normalizedId)) return;
+                    byId.set(normalizedId, { id: normalizedId, isRegularGrid: true });
+                });
+            });
+
+            const seeds = [...byId.values()];
+            // Preserve the source containers until optional recovery quarantine
+            // captures them. generateGrid() clears compatibility fields after
+            // the canonical overrides have been reconciled.
+            migrateLegacyColumnSegmentIntent(seeds, state.floors, { clearCompatibility: false });
+            return seeds;
+        }
+
         function applyLoadedProject(projectData, sourceName = '', options = {}) {
             const wasSuppressed = autosaveSuppressed;
             try {
                 if (options.skipAutosave) autosaveSuppressed = true;
+                currentProjectMigrationMeta = createProjectMigrationMetadata(projectData);
                 currentProjectId = String(projectData?.projectId || createProjectIdentifier('project'));
                 currentProjectRevisionId = String(projectData?.revisionMeta?.revisionId || '');
                 state.xSpans = projectData.xSpans || state.xSpans;
@@ -15838,6 +16284,7 @@
                 if (projectData.floors) {
                     state.floors = hydrateFloors(projectData.floors, state.xSpans, state.ySpans, state.cantilevers);
                 }
+                state.columns = hydrateLoadedColumnSeeds(projectData);
                 state.stairs = normalizeStairList(projectData.stairs);
                 state.nextStairId = getNextStairSequence(state.stairs);
                 state.stairs.forEach(stair => syncStairOpening(stair));
@@ -15927,9 +16374,6 @@
                 for (let override of projectData.columnOverrides) {
                     const col = state.columns.find(c => c.id === override.id);
                     if (col) {
-                        col.active = override.active;
-                        col.activePerFloor = override.activePerFloor;
-                        col.startFloor = override.startFloor;
                         const colB = override.webB || override.overrideB;
                         const colH = override.webD || override.overrideH;
                         if (colB || colH) applyColumnSizeMm(col, colB || getColumnSizeMm(col).b, colH || getColumnSizeMm(col).h);
@@ -16069,6 +16513,10 @@
             currentProjectFileName = '';
             currentProjectId = createProjectIdentifier('project');
             currentProjectRevisionId = '';
+            currentProjectMigrationMeta = createProjectMigrationMetadata({
+                schemaVersion: FSTR_SCHEMA_VERSION,
+                version: FSTR_CURRENT_FILE_VERSION
+            });
             currentProjectBaselineData = null;
             currentProjectBaselineSummary = null;
             currentProjectBaselineFloorCount = null;
@@ -16327,7 +16775,10 @@
                     id: floor.id,
                     deletedBeams: recoveryUniqueArray(floor.deletedBeams),
                     voidSlabs: recoveryUniqueArray(floor.voidSlabs),
-                    deletedColumns: recoveryUniqueArray(floor.deletedColumns),
+                    deletedColumns: (state.columns || []).filter(column => {
+                        const segment = resolveColumnSegmentState(column, floor.id);
+                        return !segment.active && segment.source === 'segmentOverrides';
+                    }).map(column => getColumnSegmentId(column, floor.id)),
                     lockedBeams: recoveryUniqueArray(floor.lockedBeams),
                     lockedSlabs: recoveryUniqueArray(floor.lockedSlabs),
                     orphanedVoidSlabs: recoveryUniqueArray(floor.orphanedVoidSlabs),
@@ -16416,7 +16867,12 @@
             saveStateSnapshot();
             floor.deletedBeams = [];
             floor.voidSlabs = [];
-            floor.deletedColumns = [];
+            (state.columns || []).forEach(column => {
+                const segment = resolveColumnSegmentState(column, floor.id);
+                if (!segment.active && segment.source === 'segmentOverrides') {
+                    setColumnSegmentIntent(column, floor.id, true, 'recovery_restore');
+                }
+            });
             floor.lockedBeams = [];
             floor.lockedSlabs = [];
             calculate();
@@ -16429,7 +16885,12 @@
             (state.floors || []).forEach(floor => {
                 floor.deletedBeams = [];
                 floor.voidSlabs = [];
-                floor.deletedColumns = [];
+                (state.columns || []).forEach(column => {
+                    const segment = resolveColumnSegmentState(column, floor.id);
+                    if (!segment.active && segment.source === 'segmentOverrides') {
+                        setColumnSegmentIntent(column, floor.id, true, 'recovery_restore_all');
+                    }
+                });
                 floor.lockedBeams = [];
                 floor.lockedSlabs = [];
             });
@@ -16448,7 +16909,10 @@
             saveStateSnapshot();
             floor.deletedBeams = recoveryUniqueArray(payload.deletedBeams);
             floor.voidSlabs = recoveryUniqueArray(payload.voidSlabs);
-            floor.deletedColumns = recoveryUniqueArray(payload.deletedColumns);
+            recoveryUniqueArray(payload.deletedColumns).forEach(columnId => {
+                const column = state.columns.find(item => item.id === columnId);
+                if (column) setColumnSegmentIntent(column, floor.id, false, 'restored_quarantined_legacy_delete');
+            });
             floor.lockedBeams = recoveryUniqueArray(payload.lockedBeams);
             floor.lockedSlabs = recoveryUniqueArray(payload.lockedSlabs);
             floor.recoveryQuarantinedHiddenGeometry = null;
@@ -16667,6 +17131,10 @@ document.addEventListener('keydown', function(e) {
     if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'Z')) { e.preventDefault(); if (typeof redo === 'function') redo(); }
     if (e.ctrlKey && e.key === 's') { e.preventDefault(); if (typeof saveProject === 'function') saveProject(); }
     if (e.key === 'Escape') {
+        const columnDeleteModal = document.getElementById('columnDeleteModal');
+        if (columnDeleteModal?.style.display === 'flex' && typeof hideColumnDeleteDialog === 'function') {
+            hideColumnDeleteDialog();
+        }
         if (state.measureMode) {
             if (state.measureStart) {
                 state.measureStart = null;
@@ -17723,7 +18191,7 @@ function generatePDFReport() {
     report += '<title>Structural Computation Report - FutolStructure</title>';
     report += '<style>';
     report += '@page { size: ' + pageCss + '; margin: ' + pageMargin + 'mm; }';
-    report += 'body { font-family: "Courier New", monospace; font-size: 11px; margin: ' + pageMargin + 'mm; line-height: 1.4; }';
+    report += 'body { font-family: Arial, sans-serif; font-size: 11px; margin: ' + pageMargin + 'mm; line-height: 1.4; }';
     report += 'h1 { font-size: 16px; text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; }';
     report += 'h2 { font-size: 13px; margin-top: 20px; border-bottom: 1px solid #000; }';
     report += 'h3 { font-size: 11px; margin-top: 12px; }';
@@ -17740,6 +18208,11 @@ function generatePDFReport() {
     report += '<tr><td>Date:</td><td>' + new Date().toLocaleDateString() + '</td></tr>';
     report += '<tr><td>Software:</td><td>FutolStructure v' + escapeInfoText(releaseManifest.appVersion) + ' / ' + escapeInfoText(releaseManifest.buildId) + '</td></tr>';
     report += '<tr><td>FSTR schema:</td><td>' + escapeInfoText(provenance.fstrSchemaVersion) + '</td></tr>';
+    report += '<tr><td>Minimum compatible app:</td><td>FutolStructure v' + escapeInfoText(provenance.minimumCompatibleAppVersion) + '</td></tr>';
+    report += '<tr><td>Migration source:</td><td>Schema ' +
+        escapeInfoText(provenance.migrationSourceSchemaVersion) + ' / file ' +
+        escapeInfoText(provenance.migrationSourceFileVersion) +
+        (provenance.migrationApplied ? ' (migrated)' : ' (native)') + '</td></tr>';
     report += '<tr><td>Source revision:</td><td>' + escapeInfoText(provenance.sourceRevisionId || 'unsaved working state') + '</td></tr>';
     report += '<tr><td>Git commit:</td><td>' + escapeInfoText(releaseManifest.gitCommit || '-') + '</td></tr>';
     report += '<tr><td>Code:</td><td>NSCP 2015 / ACI 318-14</td></tr>';
@@ -17760,6 +18233,13 @@ function generatePDFReport() {
     const readinessWarnings = typeof collectModelReadinessWarnings === 'function'
         ? collectModelReadinessWarnings()
         : [];
+    const columnTopology = collectColumnTopologyValidation();
+    columnTopology.items.filter(item => item.status !== 'PASS').forEach(item => {
+        readinessWarnings.push({
+            area: 'Column topology',
+            message: `${item.status}: ${item.code}: ${item.floorId || '-'} ${item.columnId || item.hostMemberId || ''} - ${item.message}`
+        });
+    });
     report += '<h2>MODEL READINESS / EXPORT WARNINGS</h2><table>';
     report += '<tr><th>Area</th><th>Warning</th></tr>';
     if (readinessWarnings.length) {
@@ -17773,10 +18253,11 @@ function generatePDFReport() {
 
     // Column Schedule
     report += '<h2>2. COLUMN SCHEDULE</h2><table>';
-    report += '<tr><th>ID</th><th>Type</th><th>B (mm)</th><th>H (mm)</th><th>Pu (kN)</th></tr>';
+    report += '<tr><th>Column ID</th><th>Column Line ID</th><th>Start</th><th>End</th><th>Support</th><th>Host</th><th>B/X (mm)</th><th>H/Y (mm)</th><th>Orientation</th><th>Status</th><th>Export</th><th>Pu (kN)</th></tr>';
     state.columns.forEach(col => {
-        if (col.active === false) return;
-        report += '<tr><td>' + col.id + '</td><td>' + (col.type || '-') + '</td><td>' + (col.suggestedB || 250) + '</td><td>' + (col.suggestedH || 250) + '</td><td>' + (col.totalLoadWithDL || col.totalLoad || 0).toFixed(1) + '</td></tr>';
+        const size = getColumnSizeMm(col);
+        const governance = getColumnLineGovernance(col, columnTopology);
+        report += '<tr><td>' + escapeInfoText(`C-${col.id}`) + '</td><td>' + escapeInfoText(governance.columnLineId) + '</td><td>' + escapeInfoText(governance.startLevel) + '</td><td>' + escapeInfoText(governance.endLevel) + '</td><td>' + escapeInfoText(governance.supportType.replace(/_/g, ' ')) + '</td><td>' + escapeInfoText(governance.hostMemberId) + '</td><td>' + size.b + '</td><td>' + size.h + '</td><td>' + governance.orientationDeg + '&deg;</td><td>' + escapeInfoText(governance.status) + '</td><td>' + escapeInfoText(governance.exportReadiness) + '</td><td>' + (col.totalLoadWithDL || col.totalLoad || 0).toFixed(1) + '</td></tr>';
     });
     report += '</table>';
 
@@ -18056,7 +18537,7 @@ function buildTANReportHtml() {
     html += '<title>TAN - Technical Analysis Notebook</title>';
     html += '<style>';
     html += '@page { size: ' + pageCss + '; margin: ' + pageMargin + 'mm; }';
-    html += 'body { font-family: "Courier New", monospace; font-size: 10.5px; margin: ' + pageMargin + 'mm; line-height: 1.45; color:#111827; }';
+    html += 'body { font-family: Arial, sans-serif; font-size: 10.5px; margin: ' + pageMargin + 'mm; line-height: 1.45; color:#111827; }';
     html += 'h1 { font-size: 18px; text-align:center; margin:0 0 4px; letter-spacing:0; }';
     html += 'h2 { font-size: 13px; margin:18px 0 6px; border-bottom:1px solid #111827; padding-bottom:3px; }';
     html += 'h3 { font-size: 11px; margin:12px 0 4px; }';
@@ -18068,7 +18549,7 @@ function buildTANReportHtml() {
     html += '.calc-title { font-weight:bold; margin-bottom:4px; }';
     html += '.calc-label { display:inline-block; min-width:72px; font-weight:bold; }';
     html += '.calc-note { margin-top:4px; color:#4b5563; }';
-    html += '.eq { font-family:"Courier New", monospace; }';
+    html += '.eq { font-family:Arial, sans-serif; }';
     html += '.note { border-left:3px solid #64748b; padding:5px 8px; background:#f8fafc; margin:6px 0; }';
     html += '.warn { border-left:3px solid #b45309; padding:5px 8px; background:#fffbeb; margin:6px 0; }';
     html += '.sketch { border:1px solid #9ca3af; margin:8px 0; padding:6px; break-inside:avoid; }';
@@ -19025,7 +19506,7 @@ function populateLoadSummary() {
     const currentFloorId = state.floors[state.currentFloorIndex]?.id;
 
     state.columns.forEach(col => {
-        if (col.active === false) return;
+        if (!currentFloorId || !resolveColumnSegmentState(col, currentFloorId).active) return;
         const type = (typeof getColumnTypeForFloor === 'function') 
             ? getColumnTypeForFloor(col, currentFloorId) : (col.type || '-');
         const trib = col.tributaryArea || 0;
@@ -19242,6 +19723,161 @@ function populateBOM() {
         // Production-grade STAAD Pro / ETABS / IFC Exporters
         // Written for FutolStructure by Antigravity Engineering
 
+        function collectColumnTopologyValidation(options = {}) {
+            const floorGeometry = options.floorGeometry || collect3DFloorGeometry();
+            const items = [];
+            const severity = { PASS: 0, WARNING: 1, BLOCKED: 2 };
+            const addItem = item => items.push({
+                status: 'PASS',
+                code: 'continuous_column_segment',
+                message: '',
+                ...item
+            });
+            const pointToSegmentDistance = (point, beam) => {
+                const x1 = Number(beam?.x1) || 0;
+                const y1 = Number(beam?.y1) || 0;
+                const x2 = Number(beam?.x2) || 0;
+                const y2 = Number(beam?.y2) || 0;
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+                const lengthSquared = dx * dx + dy * dy;
+                if (lengthSquared <= 1e-9) return Math.hypot(point.x - x1, point.y - y1);
+                const t = Math.max(0, Math.min(1, ((point.x - x1) * dx + (point.y - y1) * dy) / lengthSquared));
+                return Math.hypot(point.x - (x1 + t * dx), point.y - (y1 + t * dy));
+            };
+
+            (state.columns || []).forEach(col => {
+                if (isLegacyOmittedColumnLine(col)) {
+                    addItem({
+                        columnId: col.id,
+                        floorId: '',
+                        segmentId: '',
+                        supportType: 'legacy_model_omission',
+                        hostMemberId: '',
+                        status: 'WARNING',
+                        code: 'legacy_omitted_column_line',
+                        message: `Column line ${col.id} was inactive on every floor in the legacy source and remains intentionally omitted. Retained framing geometry is preserved without inventing a new termination.`
+                    });
+                    return;
+                }
+                (state.floors || []).forEach((floor, floorIndex) => {
+                    const segment = resolveColumnSegmentState(col, floor.id);
+                    if (!segment.active) return;
+                    const lowerFloor = floorIndex > 0 ? state.floors[floorIndex - 1] : null;
+                    const lowerActive = lowerFloor ? resolveColumnSegmentState(col, lowerFloor.id).active : true;
+                    const isPlantedStart = !!col.isPlanted && floor.id === col.startFloor;
+                    const base = {
+                        columnId: col.id,
+                        floorId: floor.id,
+                        segmentId: segment.segmentId,
+                        supportType: col.supportType || (col.isPlanted ? 'unresolved_support' : 'continuous_column'),
+                        hostMemberId: col.hostMemberId || col.supportingBeamId || ''
+                    };
+
+                    if (floorIndex === 0 && !isPlantedStart) {
+                        addItem({ ...base, message: 'Column segment is supported at the model base.' });
+                        return;
+                    }
+                    if (lowerActive && !isPlantedStart) {
+                        addItem({ ...base, message: `Continuous from ${lowerFloor?.id || 'BASE'}.` });
+                        return;
+                    }
+                    if (!isPlantedStart) {
+                        addItem({
+                            ...base,
+                            status: 'BLOCKED',
+                            code: 'floating_column_segment',
+                            message: `Active ${floor.id} segment has no lower column segment or governed planted support.`
+                        });
+                        return;
+                    }
+
+                    const sourceFloorId = col.sourceFloorId || lowerFloor?.id || '';
+                    const hostMemberId = String(col.hostMemberId || col.supportingBeamId || '');
+                    const sourceGeometry = floorGeometry.get(sourceFloorId) || { beams: [] };
+                    const hostBeam = (sourceGeometry.beams || []).find(beam => String(beam.id) === hostMemberId);
+                    const point = getColumnPlanPosition(col);
+                    const hostMatchesPosition = hostBeam && pointToSegmentDistance(point, hostBeam) <= 0.075;
+                    if (!hostBeam || !hostMatchesPosition) {
+                        addItem({
+                            ...base,
+                            sourceFloorId,
+                            hostMemberId,
+                            status: 'BLOCKED',
+                            code: hostBeam ? 'ambiguous_planted_host_position' : 'missing_planted_host',
+                            message: hostBeam
+                                ? `Planted column does not align with host ${hostMemberId}.`
+                                : `Planted-column host ${hostMemberId || '(unassigned)'} is missing or inactive on ${sourceFloorId || 'the source floor'}.`
+                        });
+                        return;
+                    }
+
+                    addItem({
+                        ...base,
+                        sourceFloorId,
+                        hostMemberId,
+                        status: 'BLOCKED',
+                        code: 'planted_load_transfer_pending',
+                        message: `Host ${hostMemberId} is geometrically mapped, but concentrated-load transfer and analytical member splitting are deferred beyond P0-C1A.`
+                    });
+                });
+            });
+
+            (state.floors || []).forEach(floor => {
+                const geometry = floorGeometry.get(floor.id) || { beams: [] };
+                (geometry.beams || []).forEach(beam => {
+                    if (!beam || beam.deleted || beam.topologyStatus !== 'unresolved') return;
+                    const unsupported = [
+                        beam.startSupportStatus !== 'resolved_column_segment' ? beam.startCol : null,
+                        beam.endSupportStatus !== 'resolved_column_segment' ? beam.endCol : null
+                    ].filter(Boolean);
+                    addItem({
+                        status: 'BLOCKED',
+                        code: 'unsupported_beam_endpoint',
+                        columnId: unsupported.join(','),
+                        floorId: floor.id,
+                        segmentId: '',
+                        supportType: 'retained_dependency',
+                        hostMemberId: beam.id,
+                        message: `Beam ${beam.id} is retained with unsupported endpoint${unsupported.length === 1 ? '' : 's'} ${unsupported.join(', ')}.`
+                    });
+                });
+            });
+
+            const bySegmentId = {};
+            items.filter(item => item.segmentId).forEach(item => {
+                const previous = bySegmentId[item.segmentId];
+                if (!previous || severity[item.status] > severity[previous.status]) bySegmentId[item.segmentId] = item;
+            });
+            const byColumnId = {};
+            items.filter(item => item.columnId).forEach(item => {
+                String(item.columnId).split(',').filter(Boolean).forEach(columnId => {
+                    const previous = byColumnId[columnId];
+                    if (!previous || severity[item.status] > severity[previous.status]) byColumnId[columnId] = item;
+                });
+            });
+            const summary = {
+                pass: items.filter(item => item.status === 'PASS').length,
+                warning: items.filter(item => item.status === 'WARNING').length,
+                blocked: items.filter(item => item.status === 'BLOCKED').length,
+                solverReady: !items.some(item => item.status === 'BLOCKED')
+            };
+            const result = { schema: 'FutolStructure.ColumnTopologyValidation.v1', summary, items, bySegmentId, byColumnId };
+            window.lastColumnTopologyValidation = result;
+            return result;
+        }
+
+        function assertSolverColumnTopologyReady(target = 'Solver') {
+            const validation = collectColumnTopologyValidation();
+            if (validation.summary.solverReady) return validation;
+            const examples = validation.items
+                .filter(item => item.status === 'BLOCKED')
+                .slice(0, 4)
+                .map(item => `${item.code}: ${item.floorId || '-'} ${item.columnId || item.hostMemberId || ''}`)
+                .join('; ');
+            throw new Error(`${target} export blocked by ${validation.summary.blocked} unresolved column/topology issue(s). ${examples}`);
+        }
+
         /**
          * Helper: chunk an array into groups of `size` to respect STAAD 79-char line limit
          */
@@ -19348,6 +19984,7 @@ function populateBOM() {
         //  Compatible with STAAD.Pro 2024 (QA&R)
         // ================================================================
         function generateSTAADContent(modelData = collectCSIExportModelData()) {
+            assertSolverColumnTopologyReady('STAAD');
             const model = modelData;
             const nodes = [];
             const nodeByCoordinate = new Map();
@@ -20115,7 +20752,7 @@ function populateBOM() {
 
             // ----- COLUMNS -----
             state.columns.forEach(col => {
-                if (col.active === false) return;
+                if (!currentFloor || !resolveColumnSegmentState(col, currentFloor.id).active) return;
                 const b = (col.suggestedB || 300) / 1000 / 2;
                 const h = (col.suggestedH || 300) / 1000 / 2;
                 dxf += dxfRect(col.x - b, col.y - h, col.x + b, col.y + h, DXF_LAYER.COLUMN);
@@ -20241,6 +20878,7 @@ function populateBOM() {
         function collectCSIExportModelData() {
             const storyElevations = getExportStoryElevations(state.floors || []);
             const floorGeometry = collect3DFloorGeometry();
+            const topologyValidation = collectColumnTopologyValidation({ floorGeometry });
             const originalBeams = state.beams;
             const frameSectionMap = new Map();
             const slabSectionMap = new Map();
@@ -20281,6 +20919,11 @@ function populateBOM() {
 
                     (state.columns || []).forEach(col => {
                         if (!isColumnActiveForExport(col, floorId)) return;
+                        const segmentState = resolveColumnSegmentState(col, floorId);
+                        const segmentValidation = topologyValidation.bySegmentId[segmentState.segmentId] || {
+                            status: 'PASS',
+                            code: 'continuous_column_segment'
+                        };
                         const position = getColumnPlanPosition(col);
                         const solverPosition = toSolverPlanPoint(position.x, position.y);
                         const size = getColumnSizeMm(col);
@@ -20289,6 +20932,15 @@ function populateBOM() {
                             id: sanitizeCSIName(`${floorId}-${col.id}`, `C-${columns.length + 1}`),
                             sourceId: col.id,
                             floorId,
+                            segmentId: segmentState.segmentId,
+                            startLevel: floorIndex > 0 ? state.floors[floorIndex - 1].id : 'BASE/FOUNDATION',
+                            endLevel: floorId,
+                            supportType: col.supportType || (col.isPlanted ? 'unresolved_support' : 'continuous_column'),
+                            supportStatus: segmentValidation.code,
+                            hostMemberId: col.hostMemberId || col.supportingBeamId || '',
+                            isPlanted: !!col.isPlanted,
+                            isTerminated: !!col.terminationLevelId && col.terminationLevelId === floorId,
+                            exportStatus: segmentValidation.status,
                             x: solverPosition.x,
                             y: solverPosition.y,
                             z1: zBottom,
@@ -20338,6 +20990,9 @@ function populateBOM() {
                             sourceId: beam.id,
                             floorId,
                             type: governanceType,
+                            topologyStatus: beam.topologyStatus || 'resolved',
+                            startSupportStatus: beam.startSupportStatus || '',
+                            endSupportStatus: beam.endSupportStatus || '',
                             x1: solverStart.x,
                             y1: solverStart.y,
                             x2: solverEnd.x,
@@ -20408,6 +21063,10 @@ function populateBOM() {
                 })),
                 frameSections: [...frameSectionMap.values()],
                 slabSections: [...slabSectionMap.values()],
+                topologyValidation: {
+                    summary: topologyValidation.summary,
+                    items: topologyValidation.items.filter(item => item.status !== 'PASS')
+                },
                 columns,
                 beams,
                 slabs,
@@ -20426,6 +21085,7 @@ function populateBOM() {
         }
 
         function generateETABSOAPIScript(modelData = collectCSIExportModelData()) {
+            assertSolverColumnTopologyReady('ETABS');
             const encodedModel = encodeUtf8Base64(JSON.stringify(modelData));
             return String.raw`param(
     [string]$OutputDirectory = (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'FutolStructure ETABS Exports'),
@@ -20921,13 +21581,24 @@ try {
                 const representation = emit(`IFCSHAPEREPRESENTATION(${contextId},'Body','Brep',(${brep}))`);
                 return emit(`IFCPRODUCTDEFINITIONSHAPE($,$,(${representation}))`);
             };
-            const attachProperties = (productId, sourceId, floorId, memberType, sectionName) => {
+            const releaseManifest = getReleaseManifest();
+            const projectProvenance = getProjectProvenance();
+            const attachProperties = (productId, sourceId, floorId, memberType, sectionName, metadata = {}) => {
                 const properties = [
                     emit(`IFCPROPERTYSINGLEVALUE('FutolStructureId',$,IFCLABEL('${escapeIFCString(sourceId)}'),$)`),
                     emit(`IFCPROPERTYSINGLEVALUE('FloorId',$,IFCLABEL('${escapeIFCString(floorId)}'),$)`),
                     emit(`IFCPROPERTYSINGLEVALUE('MemberType',$,IFCLABEL('${escapeIFCString(memberType)}'),$)`),
-                    emit(`IFCPROPERTYSINGLEVALUE('Section',$,IFCLABEL('${escapeIFCString(sectionName)}'),$)`)
+                    emit(`IFCPROPERTYSINGLEVALUE('Section',$,IFCLABEL('${escapeIFCString(sectionName)}'),$)`),
+                    emit(`IFCPROPERTYSINGLEVALUE('FS_ProjectId',$,IFCLABEL('${escapeIFCString(currentProjectId || '')}'),$)`),
+                    emit(`IFCPROPERTYSINGLEVALUE('FS_RevisionId',$,IFCLABEL('${escapeIFCString(currentProjectRevisionId || 'unsaved working state')}'),$)`),
+                    emit(`IFCPROPERTYSINGLEVALUE('FS_BuildId',$,IFCLABEL('${escapeIFCString(releaseManifest.buildId || '')}'),$)`),
+                    emit(`IFCPROPERTYSINGLEVALUE('FS_SchemaVersion',$,IFCLABEL('${escapeIFCString(projectProvenance.fstrSchemaVersion || '')}'),$)`),
+                    emit(`IFCPROPERTYSINGLEVALUE('FS_MinimumAppVersion',$,IFCLABEL('${escapeIFCString(projectProvenance.minimumCompatibleAppVersion || '')}'),$)`),
+                    emit(`IFCPROPERTYSINGLEVALUE('FS_MigrationSourceSchema',$,IFCLABEL('${escapeIFCString(projectProvenance.migrationSourceSchemaVersion || '')}'),$)`)
                 ];
+                Object.entries(metadata).forEach(([name, value]) => {
+                    properties.push(emit(`IFCPROPERTYSINGLEVALUE('${escapeIFCString(name)}',$,IFCLABEL('${escapeIFCString(value)}'),$)`));
+                });
                 const propertySet = emit(`IFCPROPERTYSET('${generateIFCGUID()}',${ownerHistoryId},'Pset_FutolStructure',$,(${properties.join(',')}))`);
                 emit(`IFCRELDEFINESBYPROPERTIES('${generateIFCGUID()}',${ownerHistoryId},$,$,(${productId}),${propertySet})`);
             };
@@ -20950,7 +21621,17 @@ try {
                 const productId = emit(`IFCCOLUMN('${generateIFCGUID()}',${ownerHistoryId},'${escapeIFCString(column.sourceId)}','Column ${escapeIFCString(column.sourceId)}',$,${placement},${shape},'${escapeIFCString(column.id)}')`);
                 ref.products.push(productId);
                 allProducts.push(productId);
-                attachProperties(productId, column.sourceId, column.floorId, 'Column', column.section);
+                attachProperties(productId, column.sourceId, column.floorId, 'Column', column.section, {
+                    FS_ColumnSegmentId: column.segmentId,
+                    FS_ColumnSupportType: column.supportType,
+                    FS_StartLevel: column.startLevel,
+                    FS_EndLevel: column.endLevel,
+                    FS_HostMemberId: column.hostMemberId || '',
+                    FS_IsPlantedColumn: column.isPlanted ? 'TRUE' : 'FALSE',
+                    FS_IsTerminated: column.isTerminated ? 'TRUE' : 'FALSE',
+                    FS_ExportStatus: column.exportStatus,
+                    FS_SupportStatus: column.supportStatus
+                });
             });
 
             model.beams.forEach(beam => {
@@ -20976,7 +21657,11 @@ try {
                 const productId = emit(`IFCBEAM('${generateIFCGUID()}',${ownerHistoryId},'${escapeIFCString(beam.sourceId)}','Beam ${escapeIFCString(beam.sourceId)}',$,${placement},${shape},'${escapeIFCString(beam.id)}')`);
                 ref.products.push(productId);
                 allProducts.push(productId);
-                attachProperties(productId, beam.sourceId, beam.floorId, beam.type || 'Beam', beam.section);
+                attachProperties(productId, beam.sourceId, beam.floorId, beam.type || 'Beam', beam.section, {
+                    FS_ExportStatus: beam.topologyStatus === 'unresolved' ? 'BLOCKED' : 'PASS',
+                    FS_StartSupportStatus: beam.startSupportStatus || '',
+                    FS_EndSupportStatus: beam.endSupportStatus || ''
+                });
             });
 
             model.slabs.forEach(slab => {
@@ -21012,7 +21697,8 @@ try {
                     slabs: model.counts.slabs,
                     products: allProducts.length,
                     entities: entityId - 1
-                }
+                },
+                topologyValidation: model.topologyValidation || { summary: { pass: 0, warning: 0, blocked: 0, solverReady: true }, items: [] }
             };
             return lines.join('\n') + '\n';
         }
@@ -21022,7 +21708,11 @@ try {
                 const ifc = generateIFCContent();
                 downloadBlob(ifc, `FutolStructure_Model_${new Date().toISOString().split('T')[0]}.ifc`, 'application/x-step');
                 const audit = window.lastIFCExportAudit;
-                alert(`IFC2x3 BIM model exported.\n\nPayload:\n- ${audit.counts.stories} storeys\n- ${audit.counts.columns} columns\n- ${audit.counts.beams} beams\n- ${audit.counts.slabs} active slabs\n\nUse Revit -> Open -> IFC for a converted RVT, or Insert -> Link IFC for coordination.`);
+                const blocked = audit.topologyValidation?.summary?.blocked || 0;
+                const coordinationWarning = blocked
+                    ? `\n\nCoordination warning: ${blocked} unresolved topology issue(s) are included with FS_ExportStatus metadata. This IFC is not solver-ready.`
+                    : '';
+                alert(`IFC2x3 BIM model exported.\n\nPayload:\n- ${audit.counts.stories} storeys\n- ${audit.counts.columns} columns\n- ${audit.counts.beams} beams\n- ${audit.counts.slabs} active slabs${coordinationWarning}\n\nUse Revit -> Open -> IFC for a converted RVT, or Insert -> Link IFC for coordination.`);
             } catch (err) {
                 alert('Export failed: ' + err.message);
             }
@@ -21304,6 +21994,180 @@ try {
          */
         function hideColumnMenu() {
             document.getElementById('columnContextMenu').style.display = 'none';
+        }
+
+        let pendingColumnIntent = null;
+
+        function getColumnIntentAffectedFloors(action, floorId) {
+            const floorIndex = state.floors.findIndex(floor => floor.id === floorId);
+            if (floorIndex < 0) return [];
+            if (action === 'remove_line') return state.floors.map(floor => floor.id);
+            if (action === 'terminate_above') return state.floors.slice(floorIndex + 1).map(floor => floor.id);
+            return [floorId];
+        }
+
+        function collectColumnDependencyPreview(columnId, floorId, action = 'terminate_above') {
+            const col = state.columns.find(item => item.id === columnId);
+            const affectedFloorIds = getColumnIntentAffectedFloors(action, floorId);
+            const affectedSet = new Set(affectedFloorIds);
+            const floorGeometry = collect3DFloorGeometry();
+            const connectedBeams = [];
+            const adjacentSlabs = [];
+            const loadObjects = [];
+            const stairMembers = [];
+
+            affectedFloorIds.forEach(affectedFloorId => {
+                const floor = state.floors.find(item => item.id === affectedFloorId);
+                const geometry = floorGeometry.get(affectedFloorId) || { beams: [], slabs: [] };
+                (geometry.beams || []).forEach(beam => {
+                    const directConnection = beam.startCol === columnId || beam.endCol === columnId ||
+                        beam.nearestSupportColumnId === columnId;
+                    if (!directConnection) return;
+                    const reference = `${affectedFloorId}:${beam.id}`;
+                    connectedBeams.push(reference);
+                    if (beam.isCustom || beam.beamType === 'stair' || beam.isStair) stairMembers.push(reference);
+                });
+                if (col) {
+                    const pos = getColumnPlanPosition(col);
+                    (geometry.slabs || []).forEach(slab => {
+                        const tolerance = 0.01;
+                        const atCorner = (Math.abs(pos.x - slab.x1) <= tolerance || Math.abs(pos.x - slab.x2) <= tolerance) &&
+                            (Math.abs(pos.y - slab.y1) <= tolerance || Math.abs(pos.y - slab.y2) <= tolerance);
+                        if (atCorner) adjacentSlabs.push(`${affectedFloorId}:${slab.id}`);
+                    });
+                }
+                [...(floor?.pointLoads || []), ...(floor?.wallLoads || [])].forEach(load => {
+                    const references = [load.columnId, load.supportId, load.hostMemberId, load.memberId]
+                        .map(value => String(value || ''));
+                    if (references.includes(String(columnId))) loadObjects.push(`${affectedFloorId}:${load.id || load.type || 'LOAD'}`);
+                });
+            });
+
+            const connectedBeamIds = new Set(connectedBeams.map(item => item.split(':').slice(1).join(':')));
+            const supportedPlantedColumns = (state.columns || []).filter(item =>
+                item?.id !== columnId && item.isPlanted &&
+                connectedBeamIds.has(String(item.hostMemberId || item.supportingBeamId || '')) &&
+                getColumnActiveFloorIds(item).some(id => affectedSet.has(id))
+            ).map(item => item.id);
+            const foundationConnections = action === 'remove_line' || affectedSet.has(state.floors[0]?.id)
+                ? (isFoundationPlanEnabled() && !col?.isPlanted ? ['Generated footing/pedestal and connected tie beams'] : [])
+                : [];
+
+            const preview = {
+                columnId,
+                floorId,
+                action,
+                affectedSegments: affectedFloorIds.map(id => getColumnSegmentId(columnId, id)),
+                connectedBeams: [...new Set(connectedBeams)],
+                adjacentSlabs: [...new Set(adjacentSlabs)],
+                stairMembers: [...new Set(stairMembers)],
+                loadObjects: [...new Set(loadObjects)],
+                supportedPlantedColumns: [...new Set(supportedPlantedColumns)],
+                foundationConnections,
+                dependentGeometryPolicy: 'preserve-and-mark-unresolved',
+                solverExportImpact: 'STAAD and ETABS are blocked while retained dependencies are unresolved.'
+            };
+            window.lastColumnDependencyPreview = preview;
+            return preview;
+        }
+
+        function renderColumnDependencyPreview() {
+            if (!pendingColumnIntent) return;
+            const preview = collectColumnDependencyPreview(
+                pendingColumnIntent.columnId,
+                pendingColumnIntent.floorId,
+                pendingColumnIntent.action
+            );
+            const target = document.getElementById('columnDeletePreview');
+            const warning = document.getElementById('columnDeleteWarning');
+            const applyButton = document.getElementById('applyColumnIntentBtn');
+            const rows = [
+                ['Segments', preview.affectedSegments],
+                ['Connected beams', preview.connectedBeams],
+                ['Adjacent slabs', preview.adjacentSlabs],
+                ['Stair / landing beams', preview.stairMembers],
+                ['Load objects', preview.loadObjects],
+                ['Supported planted columns', preview.supportedPlantedColumns],
+                ['Foundation', preview.foundationConnections]
+            ];
+            if (target) {
+                target.innerHTML = rows.map(([label, values]) =>
+                    `<div><strong>${escapeInfoText(label)}:</strong> ${values.length ? escapeInfoText(values.join(', ')) : 'none'}</div>`
+                ).join('');
+            }
+            const noUpperSegments = pendingColumnIntent.action === 'terminate_above' && preview.affectedSegments.length === 0;
+            if (warning) {
+                warning.textContent = noUpperSegments
+                    ? 'This is already the highest level; there is no upper continuation to terminate.'
+                    : 'Dependent beams, slabs, loads, and foundations will not be deleted. Unresolved topology will be flagged for engineering review.';
+            }
+            if (applyButton) applyButton.disabled = noUpperSegments;
+            if (applyButton) applyButton.style.opacity = noUpperSegments ? '0.45' : '1';
+        }
+
+        function selectColumnIntentAction(action) {
+            if (!pendingColumnIntent) return;
+            pendingColumnIntent.action = action;
+            renderColumnDependencyPreview();
+        }
+
+        function showColumnDeleteDialog(columnId = selectedColumnId, floorId = state.floors[state.currentFloorIndex]?.id) {
+            if (!columnId || !floorId) return;
+            if (columnLockBlocks(`Column ${columnId} delete/terminate`)) {
+                hideColumnMenu();
+                return;
+            }
+            hideColumnMenu();
+            const col = state.columns.find(item => item.id === columnId);
+            if (!col) return;
+            pendingColumnIntent = { columnId, floorId, action: 'terminate_above' };
+            const title = document.getElementById('columnDeleteTitle');
+            const subtitle = document.getElementById('columnDeleteSubtitle');
+            if (title) title.textContent = `Column ${columnId}`;
+            if (subtitle) subtitle.textContent = `Selected segment: ${getColumnSegmentId(columnId, floorId)}`;
+            const defaultChoice = document.querySelector('input[name="columnIntentAction"][value="terminate_above"]');
+            if (defaultChoice) defaultChoice.checked = true;
+            const modal = document.getElementById('columnDeleteModal');
+            if (modal) modal.style.display = 'flex';
+            renderColumnDependencyPreview();
+        }
+
+        function hideColumnDeleteDialog() {
+            const modal = document.getElementById('columnDeleteModal');
+            if (modal) modal.style.display = 'none';
+            pendingColumnIntent = null;
+        }
+
+        function applySelectedColumnIntent() {
+            if (!pendingColumnIntent) return false;
+            const { columnId, floorId, action } = pendingColumnIntent;
+            const col = state.columns.find(item => item.id === columnId);
+            if (!col) return false;
+            if (action === 'remove_line' && !confirm(`Remove every storey segment of column ${columnId}? Connected members will be retained and marked unresolved.`)) {
+                return false;
+            }
+            const affectedFloorIds = getColumnIntentAffectedFloors(action, floorId);
+            if (action === 'terminate_above' && !affectedFloorIds.length) return false;
+
+            saveStateSnapshot();
+            if (action === 'terminate_above') {
+                setColumnSegmentIntent(col, floorId, true, 'termination_level', { terminationLevelId: floorId });
+                affectedFloorIds.forEach(id => setColumnSegmentIntent(col, id, false, 'terminated_above', { terminationLevelId: floorId }));
+                col.terminationLevelId = floorId;
+            } else if (action === 'remove_line') {
+                affectedFloorIds.forEach(id => setColumnSegmentIntent(col, id, false, 'remove_entire_line'));
+                col.terminationLevelId = '';
+            } else {
+                setColumnSegmentIntent(col, floorId, false, 'remove_storey_segment');
+            }
+
+            hideColumnDeleteDialog();
+            calculate();
+            draw();
+            if (typeof render3DFrame === 'function') render3DFrame();
+            if (typeof populateColumnSchedule === 'function') populateColumnSchedule();
+            writeProjectAutosave(`column-${action}`);
+            return true;
         }
 
         // ========================================
@@ -21786,13 +22650,7 @@ try {
             const col = state.columns.find(c => c.id === selectedColumnId);
             if (col) {
                 const floorId = state.floors[state.currentFloorIndex]?.id;
-                if (!col.floorActive) col.floorActive = {};
-
-                const wasActive = col.floorActive[floorId] !== false;
-                col.floorActive[floorId] = !wasActive;
-
-                console.log(`v3.0: Column ${ col.id } ${ !wasActive ? 'activated' : 'deactivated' } on floor ${ floorId } `);
-                calculate();
+                toggleColumn(col.id, floorId);
             }
         }
 
@@ -22092,17 +22950,16 @@ try {
                 by: depthH,
                 totalLoad: 0,
                 startFloor: startFloor, // This makes it a planted column
-                floorActive: {},  // Will be set active from startFloor upward
                 isPlanted: true, // v3.0 FIX: Required for persistence after calculate()
-                isCustomPlaced: pcPlacementMode === 'custom' // Track if manually placed
+                isCustomPlaced: pcPlacementMode === 'custom', // Track if manually placed
+                isRegularGrid: false,
+                columnSource: 'planted',
+                supportType: 'unresolved_support',
+                supportStatus: 'unresolved',
+                memberStatus: 'proposed_new',
+                segmentIntentVersion: COLUMN_SEGMENT_INTENT_VERSION,
+                segmentOverrides: {}
             };
-
-            // Set active only on floors from startFloor upward
-            let foundStartFloor = false;
-            state.floors.forEach(floor => {
-                if (floor.id === startFloor) foundStartFloor = true;
-                newCol.floorActive[floor.id] = foundStartFloor;
-            });
 
             saveStateSnapshot();
 
@@ -22289,18 +23146,20 @@ try {
                 suggestedH: depthH,
                 totalLoad: 0,
                 startFloor: startFloor,
-                floorActive: {},
                 isPlanted: true,
+                isRegularGrid: false,
+                columnSource: 'planted',
                 supportingBeamId: beam.id, // Track which beam supports this column
-                offsetOnBeam: offset       // Track offset along beam
+                hostMemberId: beam.id,
+                hostMemberType: beam.isCantilever ? 'cantilever_beam' : (beam.isCustom ? 'custom_beam' : 'beam'),
+                sourceFloorId: state.floors[state.currentFloorIndex]?.id || '',
+                offsetOnBeam: offset,       // Track offset along beam
+                supportType: beam.isCantilever ? 'planted_on_cantilever_beam' : 'planted_on_beam',
+                supportStatus: 'load_transfer_pending',
+                memberStatus: 'proposed_new',
+                segmentIntentVersion: COLUMN_SEGMENT_INTENT_VERSION,
+                segmentOverrides: {}
             };
-
-            // Set active only on floors from startFloor upward
-            let foundStartFloor = false;
-            state.floors.forEach(floor => {
-                if (floor.id === startFloor) foundStartFloor = true;
-                newCol.floorActive[floor.id] = foundStartFloor;
-            });
 
             saveStateSnapshot();
 
@@ -22428,9 +23287,9 @@ try {
             state.columns.forEach(col => {
                 // Determine floors where column is active
                 const activeFloors = state.floors
-                    .filter(f => col.floorActive?.[f.id] !== false)
+                    .filter(f => resolveColumnSegmentState(col, f.id).active)
                     .map(f => f.id)
-                    .join(', ') || 'All';
+                    .join(', ') || 'None';
 
                 const planted = col.startFloor ? `Yes @${ col.startFloor } ` : 'No';
                 const size = col.size ? `${ col.size }×${ col.size } ` : '-';
@@ -22439,7 +23298,7 @@ try {
                 const row = document.createElement('tr');
                 if (col.startFloor) row.style.background = 'rgba(245, 158, 11, 0.1)';
                 row.innerHTML = `
-            < td > ${ col.id }</td >
+                    <td>${escapeInfoText(col.id)}</td>
                     <td>${col.type || '-'}</td>
                     <td>${size}</td>
                     <td>${col.totalLoad?.toFixed(1) || '-'}</td>
@@ -23136,31 +23995,36 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                 tbody.innerHTML = '';
 
                 let rowNum = 0;
-                // Use global state.columns (filter for active columns only)
-                const columns = (state.columns || []).filter(c => c.active !== false);
+                const topologyValidation = collectColumnTopologyValidation();
+                const columns = state.columns || [];
 
                 columns.forEach(col => {
                     rowNum++;
                     const { b: colW, h: colD } = getColumnSizeMm(col);
-                    const mark = getColumnMark(colW, colD);
                     const colID = `C-${col.id}`;
                     const load = col.totalLoad ? col.totalLoad.toFixed(1) : '0';
-                    const footingID = col.isPlanted ? 'planted' : `F-${col.id}`;
+                    const governance = getColumnLineGovernance(col, topologyValidation);
 
                     tbody.innerHTML += `
                         <tr>
                             <td class="row-num">${rowNum}</td>
-                            <td>${colID}</td>
-                            <td><strong>${mark}</strong></td>
+                            <td>${escapeInfoText(colID)}</td>
+                            <td>${escapeInfoText(governance.columnLineId)}</td>
+                            <td>${escapeInfoText(governance.startLevel)}</td>
+                            <td>${escapeInfoText(governance.endLevel)}</td>
+                            <td>${escapeInfoText(governance.supportType.replace(/_/g, ' '))}</td>
+                            <td>${escapeInfoText(governance.hostMemberId)}</td>
                             <td><input type="number" value="${colW}" onchange="updateColumnParam('${col.id}', 'webB', this.value)" style="width:45px;"></td>
                             <td><input type="number" value="${colD}" onchange="updateColumnParam('${col.id}', 'webD', this.value)" style="width:45px;"></td>
+                            <td>${governance.orientationDeg}&deg;</td>
+                            <td>${escapeInfoText(governance.status)}</td>
+                            <td>${escapeInfoText(governance.exportReadiness)}</td>
                             <td>${load}</td>
-                            <td>${footingID}</td>
                         </tr>
                     `;
                 });
 
-                if (summary) summary.textContent = `Total: ${rowNum} columns`;
+                if (summary) summary.textContent = `Total: ${rowNum} column lines / ${topologyValidation.summary.blocked} blocked`;
             };
 
             // v3.8: Populate Beams Schedule
@@ -23586,18 +24450,11 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                     alert('Please select columns to delete');
                     return;
                 }
-                if (!confirm(`Delete ${checkboxes.length} column(s)? This will remove them from drawings.`)) return;
-
-                checkboxes.forEach(cb => {
-                    const colId = cb.dataset.id;
-                    const col = state.columns.find(c => c.id === colId || c.id === parseInt(colId));
-                    if (col) col.active = false;
-                });
-
-                populateColumnSchedule();
-                draw();
-                render3DFrame();
-                console.log(`Deleted ${checkboxes.length} columns`);
+                if (checkboxes.length > 1) {
+                    alert('Column deletion requires one dependency preview per column. No columns were changed.');
+                    return;
+                }
+                showColumnDeleteDialog(checkboxes[0].dataset.id, state.floors[state.currentFloorIndex]?.id);
             };
 
             // Delete Selected Beams - marks as deleted and refreshes drawings
