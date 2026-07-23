@@ -3,8 +3,8 @@
   "buildId": "FS-119",
   "releaseName": "Canonical Column Segment Truth",
   "fstrSchemaVersion": "0.2.0",
-  "releaseChannel": "release-candidate",
-  "gitCommit": "",
+  "releaseChannel": "release",
+  "gitCommit": "9f062f44013872a2e4799af0771c2b850a2a47cb",
   "buildDate": "2026-07-23",
   "validatedFixtures": [
     "legacy-v2.8-2floor",
