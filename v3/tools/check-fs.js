@@ -1168,20 +1168,484 @@ async function runBrowserSmoke(historicalFixture) {
             state.measureOrtho = false;
             state.measureStart = null;
             const snappedMeasurePoint = resolveMeasurePoint({ x: 0.04, y: 0.03 });
+            const snappedMeasureKind = state.measureSnapPoint?.kind || '';
             state.measureSnapEnabled = false;
             state.measureStart = { x: 0, y: 0 };
             state.measureOrtho = true;
             const orthoMeasurePoint = resolveMeasurePoint({ x: 3, y: 4 });
+
+            const measureStateSnapshot = createStateSnapshot();
+            const measureViewState = {
+                scale: state.scale,
+                offsetX: state.offsetX,
+                offsetY: state.offsetY,
+                tab: currentPlanTab
+            };
+            const measureColumn = state.columns.find(column =>
+                isColumnActiveOnFloor(column, state.floors[state.currentFloorIndex]?.id)
+            );
+            const measureBeam = state.beams.find(beam =>
+                !beam.isCantilever && !beam.isEdgeBeam && beam.startCol && beam.endCol
+            );
+            const existingColumnOffset = cloneSerializable(
+                state.columnPositionOverrides?.[measureColumn?.id],
+                { dx: 0, dy: 0 }
+            );
+            const expectedColumnOffset = {
+                dx: Number(existingColumnOffset.dx || 0) + 0.18,
+                dy: Number(existingColumnOffset.dy || 0) + 0.12
+            };
+            if (measureColumn) {
+                state.columnPositionOverrides[measureColumn.id] = expectedColumnOffset;
+            }
+            const activeMeasureFloorId = state.floors[state.currentFloorIndex]?.id;
+            if (measureBeam) {
+                state.beamAlignmentOverrides[getBeamAlignmentKey(measureBeam.id, activeMeasureFloorId)] = 0.17;
+            }
+            state.scale = 82;
+            state.offsetX = 117;
+            state.offsetY = 83;
+            state.measureSnapEnabled = true;
+            state.measureOrtho = false;
+            state.measureStart = null;
+
+            setPlanTab('structural');
+            const movedColumnPosition = measureColumn ? getColumnPlanPosition(measureColumn) : { x: 0, y: 0 };
+            const layoutMovedColumnSnap = resolveMeasurePoint({
+                x: movedColumnPosition.x + 0.025,
+                y: movedColumnPosition.y + 0.02
+            });
+            const layoutMovedColumnSnapKind = state.measureSnapPoint?.kind || '';
+            const measureColumnSize = measureColumn ? getColumnSizeMm(measureColumn) : { b: 300, h: 300 };
+            const expectedColumnFaceX = movedColumnPosition.x + measureColumnSize.b / 2000;
+            const layoutColumnFaceSnap = resolveMeasurePoint({
+                x: expectedColumnFaceX + 0.015,
+                y: movedColumnPosition.y + 0.07
+            });
+            const layoutColumnFaceSnapKind = state.measureSnapPoint?.kind || '';
+
+            setPlanTab('analysis');
+            const movedBeamGeometry = measureBeam
+                ? getBeamPlanDrawGeometry(measureBeam, activeMeasureFloorId, { trimToColumnFaces: true })
+                : null;
+            const tributaryBeamRawPoint = movedBeamGeometry
+                ? {
+                    x: (movedBeamGeometry.x1 + movedBeamGeometry.x2) / 2 + (measureBeam.direction === 'Y' ? 0.02 : 0),
+                    y: (movedBeamGeometry.y1 + movedBeamGeometry.y2) / 2 + (measureBeam.direction === 'X' ? 0.02 : 0)
+                }
+                : { x: 1, y: 1 };
+            const tributaryMovedBeamSnap = resolveMeasurePoint(tributaryBeamRawPoint);
+            const tributaryMovedBeamSnapKind = state.measureSnapPoint?.kind || '';
+            const expectedBeamAxis = (() => {
+                if (!movedBeamGeometry) return { x: 1, y: 1 };
+                const dx = movedBeamGeometry.x2 - movedBeamGeometry.x1;
+                const dy = movedBeamGeometry.y2 - movedBeamGeometry.y1;
+                const len2 = dx * dx + dy * dy;
+                const t = len2 > 0
+                    ? Math.max(0, Math.min(1, (
+                        (tributaryBeamRawPoint.x - movedBeamGeometry.x1) * dx +
+                        (tributaryBeamRawPoint.y - movedBeamGeometry.y1) * dy
+                    ) / len2))
+                    : 0;
+                return {
+                    x: movedBeamGeometry.x1 + dx * t,
+                    y: movedBeamGeometry.y1 + dy * t
+                };
+            })();
+
+            const columnPositionBeforeMeasureClicks = measureColumn
+                ? getColumnPlanPosition(measureColumn)
+                : null;
+            state.floors[state.currentFloorIndex].planDimensions = [];
+            toggleMeasureMode(true);
+            handleMeasureClick(dimensionEvent(movedColumnPosition.x + 0.02, movedColumnPosition.y + 0.02));
+            handleMeasureClick(dimensionEvent(expectedBeamAxis.x, expectedBeamAxis.y));
+            const columnPositionAfterMeasureClicks = measureColumn
+                ? getColumnPlanPosition(measureColumn)
+                : null;
+            const measuredAfterZoomPan = getCurrentFloorPlanDimensions().length;
+            toggleMeasureMode(false);
+
+            const measureReloadProject = buildProjectData();
+            applyLoadedProject(measureReloadProject, 'qa-measure-roundtrip.fstr', {
+                silent: true,
+                skipAutosave: true,
+                quarantineHiddenGeometry: true
+            });
+            setPlanTab('structural');
+            state.measureSnapEnabled = true;
+            state.measureOrtho = false;
+            state.measureStart = null;
+            const reloadedMeasureColumn = state.columns.find(column => column.id === measureColumn?.id);
+            const reloadedColumnPosition = reloadedMeasureColumn
+                ? getColumnPlanPosition(reloadedMeasureColumn)
+                : { x: 0, y: 0 };
+            const reloadColumnSnap = resolveMeasurePoint({
+                x: reloadedColumnPosition.x + 0.02,
+                y: reloadedColumnPosition.y + 0.02
+            });
+            const reloadColumnSnapKind = state.measureSnapPoint?.kind || '';
+
             const afterMeasureSnapOrtho = {
                 snappedMeasurePoint,
+                snappedMeasureKind,
                 orthoMeasurePoint,
-                orthoLengthM: Math.hypot(orthoMeasurePoint.x, orthoMeasurePoint.y)
+                orthoLengthM: Math.hypot(orthoMeasurePoint.x, orthoMeasurePoint.y),
+                layoutMovedColumnSnap,
+                layoutMovedColumnSnapKind,
+                movedColumnPosition,
+                layoutColumnFaceSnap,
+                layoutColumnFaceSnapKind,
+                expectedColumnFaceX,
+                tributaryMovedBeamSnap,
+                tributaryMovedBeamSnapKind,
+                expectedBeamAxis,
+                columnPositionBeforeMeasureClicks,
+                columnPositionAfterMeasureClicks,
+                measuredAfterZoomPan,
+                reloadColumnSnap,
+                reloadColumnSnapKind,
+                reloadedColumnPosition,
+                persistedDimensionCount: measureReloadProject.floors[state.currentFloorIndex]?.planDimensions?.length || 0,
+                expectedColumnOffset,
+                persistedColumnOffset: measureReloadProject.columnPositionOverrides?.[measureColumn?.id] || null,
+                persistedBeamOffset: measureReloadProject.beamAlignmentOverrides?.[
+                    getBeamAlignmentKey(measureBeam?.id, activeMeasureFloorId)
+                ]
             };
+
+            restoreStateSnapshot(measureStateSnapshot);
+            state.scale = measureViewState.scale;
+            state.offsetX = measureViewState.offsetX;
+            state.offsetY = measureViewState.offsetY;
+            state.measureOrtho = false;
+            state.measureSnapEnabled = true;
+            state.measureStart = null;
+            state.measureSnapPoint = null;
+            setPlanTab(measureViewState.tab);
+            calculate();
             state.measureOrtho = false;
             state.measureSnapEnabled = true;
             state.measureStart = null;
             state.measureSnapPoint = null;
             toggleMeasureMode(false);
+
+            const memberSizeStateSnapshot = createStateSnapshot();
+            const memberSizeAudit = (() => {
+                const floorId = state.floors[0]?.id || '';
+                state.currentFloorIndex = 0;
+                state.memberSizePolicy = normalizeMemberSizePolicy({
+                    action: 'warn',
+                    columnMinB: 200,
+                    columnMinH: 200,
+                    beamMinB: 200,
+                    beamMinH: 300,
+                    cantileverEdgeMinB: 150
+                });
+
+                const activeColumns = (state.columns || []).filter(column => isColumnActiveOnFloor(column, floorId));
+                const rectangularColumnId = activeColumns[0]?.id || '';
+                const squareColumnId = activeColumns[1]?.id || '';
+                const rectangularColumn = state.columns.find(column => column.id === rectangularColumnId);
+                const squareColumn = state.columns.find(column => column.id === squareColumnId);
+                if (!rectangularColumn || !squareColumn) {
+                    return { setupError: 'Member-size fixture requires two active columns.' };
+                }
+
+                rectangularColumn.memberStatus = 'existing_for_assessment';
+                rectangularColumn.orientationDeg = 90;
+                applyColumnSizeMm(rectangularColumn, 150, 400);
+                squareColumn.memberStatus = 'existing';
+                squareColumn.orientationDeg = 0;
+                applyColumnSizeMm(squareColumn, 150, 150);
+
+                const initialGeometry = collect3DFloorGeometry().get(floorId) || { beams: [] };
+                const targetBeam = (initialGeometry.beams || []).find(beam =>
+                    beam && !beam.deleted && !beam.isCustom &&
+                    getBeamGovernanceType(beam) === 'regular'
+                );
+                const beamId = targetBeam?.id || '';
+                if (!beamId) return { setupError: 'Member-size fixture requires one regular beam.' };
+                const beamKey = getBeamSizeKey(beamId, floorId);
+                state.beamSizeOverrides[beamKey] = {
+                    ...(state.beamSizeOverrides[beamKey] || {}),
+                    webW: 150,
+                    webD: 175,
+                    memberStatus: 'proposed_new'
+                };
+                calculate();
+                setPlanTab('structural');
+                draw();
+
+                const currentRectangularColumn = state.columns.find(column => column.id === rectangularColumnId);
+                const currentSquareColumn = state.columns.find(column => column.id === squareColumnId);
+                const currentBeam = (collect3DFloorGeometry().get(floorId)?.beams || [])
+                    .find(beam => beam.id === beamId);
+                const rectangularFootprint = getColumnPlanFootprint(currentRectangularColumn);
+                const footprintEdgeLengths = rectangularFootprint.corners.map((point, index) => {
+                    const next = rectangularFootprint.corners[(index + 1) % rectangularFootprint.corners.length];
+                    return Number(Math.hypot(next.x - point.x, next.y - point.y).toFixed(6));
+                });
+                state.measureSnapEnabled = true;
+                state.measureOrtho = false;
+                state.measureStart = null;
+                const rotatedFaceSnap = resolveMeasurePoint({
+                    x: rectangularFootprint.right + 0.015,
+                    y: rectangularFootprint.center.y
+                });
+                const rotatedFaceSnapKind = state.measureSnapPoint?.kind || '';
+
+                populateColumnSchedule();
+                populateBeamSchedule();
+                const columnScheduleRow = Array.from(document.querySelectorAll('#colScheduleBody tr'))
+                    .find(row => row.children[1]?.textContent.trim() === 'C-' + rectangularColumnId);
+                const columnScheduleInputs = Array.from(columnScheduleRow?.querySelectorAll('input') || [])
+                    .map(input => Number(input.value));
+                const columnScheduleStatus = columnScheduleRow?.querySelector('select')?.value || '';
+                const beamScheduleRow = Array.from(document.querySelectorAll('#beamScheduleBody tr'))
+                    .find(row => row.innerHTML.includes("updateBeamParam('" + beamId + "'"));
+                const beamScheduleInputs = Array.from(beamScheduleRow?.querySelectorAll('input') || [])
+                    .map(input => Number(input.value));
+                const beamScheduleStatus = beamScheduleRow?.querySelector('select')?.value || '';
+
+                if (!view3DInitialized && typeof init3D === 'function') init3D();
+                render3DFrame();
+                const rectangularColumnMesh = meshes3D.find(mesh =>
+                    mesh?.userData?.type === 'column' &&
+                    mesh.userData.id === rectangularColumnId &&
+                    mesh.userData.floorId === floorId
+                );
+                const squareColumnMesh = meshes3D.find(mesh =>
+                    mesh?.userData?.type === 'column' &&
+                    mesh.userData.id === squareColumnId &&
+                    mesh.userData.floorId === floorId
+                );
+                const beamMesh = meshes3D.find(mesh =>
+                    mesh?.userData?.type === 'beam' &&
+                    mesh.userData.id === beamId &&
+                    mesh.userData.floorId === floorId
+                );
+                const getMeshSection = (mesh, direction = '') => {
+                    const parameters = mesh?.geometry?.parameters || {};
+                    return {
+                        b: direction === 'Y'
+                            ? Number(parameters.width || 0)
+                            : Number(parameters.depth || 0),
+                        h: Number(parameters.height || 0),
+                        rotationY: Number(mesh?.rotation?.y || 0)
+                    };
+                };
+                const threeD = {
+                    rectangularColumn: {
+                        b: Number(rectangularColumnMesh?.geometry?.parameters?.width || 0),
+                        h: Number(rectangularColumnMesh?.geometry?.parameters?.depth || 0),
+                        rotationY: Number(rectangularColumnMesh?.rotation?.y || 0)
+                    },
+                    squareColumn: {
+                        b: Number(squareColumnMesh?.geometry?.parameters?.width || 0),
+                        h: Number(squareColumnMesh?.geometry?.parameters?.depth || 0)
+                    },
+                    beam: getMeshSection(beamMesh, currentBeam?.direction)
+                };
+
+                const project = buildProjectData({ revisionId: 'fs121-member-size-roundtrip' });
+                const savedRectangularColumn = project.columnOverrides
+                    .find(column => column.id === rectangularColumnId);
+                const savedSquareColumn = project.columnOverrides
+                    .find(column => column.id === squareColumnId);
+                const savedBeamOverride = project.beamSizeOverrides?.[beamKey] || null;
+                applyLoadedProject(project, 'qa-fs121-member-sizes.fstr', {
+                    silent: true,
+                    skipAutosave: true,
+                    quarantineHiddenGeometry: true
+                });
+                state.currentFloorIndex = Math.max(0, state.floors.findIndex(floor => floor.id === floorId));
+                calculate();
+
+                const loadedRectangularColumn = state.columns.find(column => column.id === rectangularColumnId);
+                const loadedSquareColumn = state.columns.find(column => column.id === squareColumnId);
+                const loadedBeam = (collect3DFloorGeometry().get(floorId)?.beams || [])
+                    .find(beam => beam.id === beamId);
+                const loadedSizes = {
+                    rectangularColumn: {
+                        ...getColumnSizeMm(loadedRectangularColumn),
+                        memberStatus: loadedRectangularColumn?.memberStatus,
+                        orientationDeg: getColumnOrientationDeg(loadedRectangularColumn)
+                    },
+                    squareColumn: {
+                        ...getColumnSizeMm(loadedSquareColumn),
+                        memberStatus: loadedSquareColumn?.memberStatus
+                    },
+                    beam: {
+                        ...getBeamSizeMm(loadedBeam, floorId),
+                        memberStatus: getBeamMemberStatus(loadedBeam, floorId)
+                    }
+                };
+
+                const warningGovernance = collectMemberSizeGovernance();
+                const model = collectCSIExportModelData();
+                const modelRectangularColumn = model.columns.find(column =>
+                    column.sourceId === rectangularColumnId && column.floorId === floorId
+                );
+                const modelSquareColumn = model.columns.find(column =>
+                    column.sourceId === squareColumnId && column.floorId === floorId
+                );
+                const modelBeam = model.beams.find(beam =>
+                    beam.sourceId === beamId && beam.floorId === floorId
+                );
+                const modelSections = Object.fromEntries(model.frameSections.map(section => [
+                    section.name,
+                    { type: section.type, b: section.bMm, h: section.hMm }
+                ]));
+
+                const staadContent = generateSTAADContent(model);
+                const etabsContent = generateETABSOAPIScript(model);
+                const encodedModelMarker = "FromBase64String('";
+                const encodedModelStart = etabsContent.indexOf(encodedModelMarker);
+                const encodedModelEnd = encodedModelStart >= 0
+                    ? etabsContent.indexOf("')", encodedModelStart + encodedModelMarker.length)
+                    : -1;
+                const encodedModel = encodedModelStart >= 0 && encodedModelEnd > encodedModelStart
+                    ? etabsContent.slice(encodedModelStart + encodedModelMarker.length, encodedModelEnd)
+                    : '';
+                const etabsModel = encodedModel
+                    ? JSON.parse(new TextDecoder().decode(Uint8Array.from(
+                        atob(encodedModel),
+                        character => character.charCodeAt(0)
+                    )))
+                    : null;
+                const ifcContent = generateIFCContent(model);
+                const ifcWarningAudit = JSON.parse(JSON.stringify(window.lastIFCExportAudit || {}));
+                const dxfContent = generateDXFContent();
+                loadedRectangularColumn.totalLoadWithDL = Math.max(
+                    1000000,
+                    ...state.columns.map(column => Number(column.totalLoadWithDL || column.totalLoad || 0) + 1)
+                );
+                const tanReportHtml = buildTANReportHtml();
+
+                let reportHtml = '';
+                const originalOpen = window.open;
+                window.open = () => ({
+                    document: {
+                        write: html => { reportHtml += String(html); },
+                        close: () => {}
+                    },
+                    print: () => {}
+                });
+                try {
+                    generatePDFReport();
+                } finally {
+                    window.open = originalOpen;
+                }
+
+                state.memberSizePolicy = normalizeMemberSizePolicy({
+                    ...state.memberSizePolicy,
+                    action: 'block'
+                });
+                const blockedGovernance = collectMemberSizeGovernance();
+                const captureBlock = generator => {
+                    try {
+                        generator();
+                        return { blocked: false, message: '' };
+                    } catch (error) {
+                        return { blocked: true, message: String(error?.message || error) };
+                    }
+                };
+                const staadBlock = captureBlock(() => generateSTAADContent());
+                const etabsBlock = captureBlock(() => generateETABSOAPIScript());
+                const blockedIFCContent = generateIFCContent(collectCSIExportModelData());
+                const ifcBlockedAudit = JSON.parse(JSON.stringify(window.lastIFCExportAudit || {}));
+
+                return {
+                    ids: { floorId, rectangularColumnId, squareColumnId, beamId, beamKey },
+                    geometry: {
+                        footprintWidth: Number((rectangularFootprint.right - rectangularFootprint.left).toFixed(6)),
+                        footprintHeight: Number((rectangularFootprint.bottom - rectangularFootprint.top).toFixed(6)),
+                        footprintEdgeLengths,
+                        expectedFace: {
+                            x: rectangularFootprint.right,
+                            y: rectangularFootprint.center.y
+                        },
+                        rotatedFaceSnap,
+                        rotatedFaceSnapKind
+                    },
+                    schedules: {
+                        columnInputs: columnScheduleInputs,
+                        columnStatus: columnScheduleStatus,
+                        beamInputs: beamScheduleInputs,
+                        beamStatus: beamScheduleStatus
+                    },
+                    threeD,
+                    save: {
+                        rectangularColumn: savedRectangularColumn,
+                        squareColumn: savedSquareColumn,
+                        beamOverride: savedBeamOverride,
+                        policy: project.memberSizePolicy
+                    },
+                    loadedSizes,
+                    governance: {
+                        warning: warningGovernance,
+                        blocked: blockedGovernance
+                    },
+                    sharedModel: {
+                        rectangularColumn: modelRectangularColumn,
+                        squareColumn: modelSquareColumn,
+                        beam: modelBeam,
+                        sections: modelSections
+                    },
+                    exports: {
+                        staadHasExactSections:
+                            staadContent.includes('PRIS YD 0.400 ZD 0.150') &&
+                            staadContent.includes('PRIS YD 0.150 ZD 0.150') &&
+                            staadContent.includes('PRIS YD 0.175 ZD 0.150'),
+                        staadHasOrientation: staadContent.includes('BETA 90.000 MEMB'),
+                        etabsDecoded: !!etabsModel,
+                        etabsRectangularColumn: etabsModel?.columns?.find(column =>
+                            column.sourceId === rectangularColumnId && column.floorId === floorId
+                        ) || null,
+                        etabsBeam: etabsModel?.beams?.find(beam =>
+                            beam.sourceId === beamId && beam.floorId === floorId
+                        ) || null,
+                        etabsHasLocalAxesCommand: etabsContent.includes('FrameObj.SetLocalAxes'),
+                        ifcHasExactSections:
+                            ifcContent.includes('C150x400') &&
+                            ifcContent.includes('C150x150') &&
+                            ifcContent.includes('B150x175'),
+                        ifcHasOrientation:
+                            ifcContent.includes("'FS_OrientationDeg'") &&
+                            ifcContent.includes("IFCLABEL('90')"),
+                        ifcHasMemberStatus:
+                            ifcContent.includes("'FS_MemberStatus'") &&
+                            ifcContent.includes("IFCLABEL('existing_for_assessment')"),
+                        ifcWarningAudit,
+                        dxfHasExactSections:
+                            dxfContent.includes('150x400') &&
+                            dxfContent.includes('150x150') &&
+                            dxfContent.includes('150x175'),
+                        reportUsesArial: reportHtml.includes('font-family: Arial, sans-serif'),
+                        reportHasExactSections:
+                            reportHtml.includes('<td>150</td><td>400</td>') &&
+                            reportHtml.includes('<td>150</td><td>150</td>') &&
+                            reportHtml.includes('<td>150x175</td>'),
+                        reportHasOrientation: reportHtml.includes('<td>90&deg;</td>'),
+                        reportHasMemberClass:
+                            reportHtml.includes('Existing For Assessment') &&
+                            reportHtml.includes('Proposed New'),
+                        tanReportUsesArial: tanReportHtml.includes('font-family: Arial, sans-serif'),
+                        tanReportHasExactColumn: tanReportHtml.includes('150 x 400 mm')
+                    },
+                    blockPolicy: {
+                        staad: staadBlock,
+                        etabs: etabsBlock,
+                        ifcHasBlockedDisclosure:
+                            blockedIFCContent.includes("'FS_SizeGovernanceStatus'") &&
+                            blockedIFCContent.includes("IFCLABEL('BLOCKED')"),
+                        ifcAudit: ifcBlockedAudit
+                    }
+                };
+            })();
+            restoreStateSnapshot(memberSizeStateSnapshot);
+            calculate();
 
             state.stairs = [];
             state.nextStairId = 1;
@@ -1820,6 +2284,7 @@ async function runBrowserSmoke(historicalFixture) {
                 afterMeasureClear,
                 afterMeasureClearUndo,
                 afterMeasureSnapOrtho,
+                memberSizeAudit,
                 afterStairCreate,
                 afterStairReload,
                 afterStairRemove,
@@ -2018,7 +2483,8 @@ async function runBrowserSmoke(historicalFixture) {
         );
         assert(
             Math.abs(result.afterMeasureSnapOrtho.snappedMeasurePoint.x) < 0.001 &&
-            Math.abs(result.afterMeasureSnapOrtho.snappedMeasurePoint.y) < 0.001,
+            Math.abs(result.afterMeasureSnapOrtho.snappedMeasurePoint.y) < 0.001 &&
+            ['column-center', 'grid-intersection'].includes(result.afterMeasureSnapOrtho.snappedMeasureKind),
             'Measure entity snap did not acquire the nearby column/grid intersection',
             result.afterMeasureSnapOrtho
         );
@@ -2028,6 +2494,229 @@ async function runBrowserSmoke(historicalFixture) {
             Math.abs(result.afterMeasureSnapOrtho.orthoLengthM - 4) < 0.001,
             'Measure Ortho did not constrain the endpoint to the dominant axis',
             result.afterMeasureSnapOrtho
+        );
+        assert(
+            Math.abs(
+                result.afterMeasureSnapOrtho.layoutMovedColumnSnap.x -
+                result.afterMeasureSnapOrtho.movedColumnPosition.x
+            ) < 0.001 &&
+            Math.abs(
+                result.afterMeasureSnapOrtho.layoutMovedColumnSnap.y -
+                result.afterMeasureSnapOrtho.movedColumnPosition.y
+            ) < 0.001 &&
+            result.afterMeasureSnapOrtho.layoutMovedColumnSnapKind === 'column-center',
+            'Measure did not snap to the rendered, offset column center in Layout after zoom/pan',
+            result.afterMeasureSnapOrtho
+        );
+        assert(
+            Math.abs(
+                result.afterMeasureSnapOrtho.layoutColumnFaceSnap.x -
+                result.afterMeasureSnapOrtho.expectedColumnFaceX
+            ) < 0.001 &&
+            result.afterMeasureSnapOrtho.layoutColumnFaceSnapKind.startsWith('column-face'),
+            'Measure did not snap to the actual column face',
+            result.afterMeasureSnapOrtho
+        );
+        assert(
+            Math.abs(
+                result.afterMeasureSnapOrtho.tributaryMovedBeamSnap.x -
+                result.afterMeasureSnapOrtho.expectedBeamAxis.x
+            ) < 0.001 &&
+            Math.abs(
+                result.afterMeasureSnapOrtho.tributaryMovedBeamSnap.y -
+                result.afterMeasureSnapOrtho.expectedBeamAxis.y
+            ) < 0.001 &&
+            result.afterMeasureSnapOrtho.tributaryMovedBeamSnapKind === 'beam-axis',
+            'Measure did not snap to the rendered, aligned beam axis in Tributary',
+            result.afterMeasureSnapOrtho
+        );
+        assert(
+            result.afterMeasureSnapOrtho.measuredAfterZoomPan === 1 &&
+            result.afterMeasureSnapOrtho.persistedDimensionCount === 1,
+            'Measure did not create and persist one dimension after zoom/pan',
+            result.afterMeasureSnapOrtho
+        );
+        assert(
+            Math.abs(
+                result.afterMeasureSnapOrtho.columnPositionAfterMeasureClicks.x -
+                result.afterMeasureSnapOrtho.columnPositionBeforeMeasureClicks.x
+            ) < 0.000001 &&
+            Math.abs(
+                result.afterMeasureSnapOrtho.columnPositionAfterMeasureClicks.y -
+                result.afterMeasureSnapOrtho.columnPositionBeforeMeasureClicks.y
+            ) < 0.000001,
+            'Measure clicks moved a structural column',
+            result.afterMeasureSnapOrtho
+        );
+        assert(
+            Math.abs(
+                result.afterMeasureSnapOrtho.reloadColumnSnap.x -
+                result.afterMeasureSnapOrtho.reloadedColumnPosition.x
+            ) < 0.001 &&
+            Math.abs(
+                result.afterMeasureSnapOrtho.reloadColumnSnap.y -
+                result.afterMeasureSnapOrtho.reloadedColumnPosition.y
+            ) < 0.001 &&
+            result.afterMeasureSnapOrtho.reloadColumnSnapKind === 'column-center' &&
+            Math.abs(
+                result.afterMeasureSnapOrtho.persistedColumnOffset.dx -
+                result.afterMeasureSnapOrtho.expectedColumnOffset.dx
+            ) < 0.001 &&
+            Math.abs(
+                result.afterMeasureSnapOrtho.persistedColumnOffset.dy -
+                result.afterMeasureSnapOrtho.expectedColumnOffset.dy
+            ) < 0.001 &&
+            Math.abs(result.afterMeasureSnapOrtho.persistedBeamOffset - 0.17) < 0.001,
+            'Measure snapping did not survive project reload with rendered member offsets',
+            result.afterMeasureSnapOrtho
+        );
+        const memberAuditResult = result.memberSizeAudit || {};
+        assert(
+            !memberAuditResult.setupError,
+            'Member-size regression fixture could not be created',
+            memberAuditResult
+        );
+        assert(
+            Math.abs(memberAuditResult.geometry.footprintWidth - 0.4) < 0.000001 &&
+            Math.abs(memberAuditResult.geometry.footprintHeight - 0.15) < 0.000001 &&
+            memberAuditResult.geometry.footprintEdgeLengths.filter(length => Math.abs(length - 0.15) < 0.000001).length === 2 &&
+            memberAuditResult.geometry.footprintEdgeLengths.filter(length => Math.abs(length - 0.4) < 0.000001).length === 2 &&
+            Math.abs(memberAuditResult.geometry.rotatedFaceSnap.x - memberAuditResult.geometry.expectedFace.x) < 0.001 &&
+            Math.abs(memberAuditResult.geometry.rotatedFaceSnap.y - memberAuditResult.geometry.expectedFace.y) < 0.001 &&
+            memberAuditResult.geometry.rotatedFaceSnapKind === 'column-face',
+            'Rotated 150x400 column plan footprint or Measure face snap was not exact',
+            memberAuditResult.geometry
+        );
+        assert(
+            JSON.stringify(memberAuditResult.schedules.columnInputs) === JSON.stringify([150, 400, 90]) &&
+            memberAuditResult.schedules.columnStatus === 'existing_for_assessment' &&
+            JSON.stringify(memberAuditResult.schedules.beamInputs) === JSON.stringify([150, 175]) &&
+            memberAuditResult.schedules.beamStatus === 'proposed_new',
+            'Trusted schedules did not preserve exact member sizes, orientation, and class',
+            memberAuditResult.schedules
+        );
+        assert(
+            Math.abs(memberAuditResult.threeD.rectangularColumn.b - 0.15) < 0.000001 &&
+            Math.abs(memberAuditResult.threeD.rectangularColumn.h - 0.4) < 0.000001 &&
+            Math.abs(memberAuditResult.threeD.rectangularColumn.rotationY + Math.PI / 2) < 0.000001 &&
+            Math.abs(memberAuditResult.threeD.squareColumn.b - 0.15) < 0.000001 &&
+            Math.abs(memberAuditResult.threeD.squareColumn.h - 0.15) < 0.000001 &&
+            Math.abs(memberAuditResult.threeD.beam.b - 0.15) < 0.000001 &&
+            Math.abs(memberAuditResult.threeD.beam.h - 0.175) < 0.000001,
+            '3D member geometry silently enlarged or ignored column orientation',
+            memberAuditResult.threeD
+        );
+        assert(
+            memberAuditResult.save.rectangularColumn.webB === 150 &&
+            memberAuditResult.save.rectangularColumn.webD === 400 &&
+            memberAuditResult.save.rectangularColumn.orientationDeg === 90 &&
+            memberAuditResult.save.rectangularColumn.memberStatus === 'existing_for_assessment' &&
+            memberAuditResult.save.squareColumn.webB === 150 &&
+            memberAuditResult.save.squareColumn.webD === 150 &&
+            memberAuditResult.save.beamOverride.webW === 150 &&
+            memberAuditResult.save.beamOverride.webD === 175 &&
+            memberAuditResult.save.beamOverride.memberStatus === 'proposed_new' &&
+            memberAuditResult.save.policy.action === 'warn' &&
+            memberAuditResult.loadedSizes.rectangularColumn.b === 150 &&
+            memberAuditResult.loadedSizes.rectangularColumn.h === 400 &&
+            memberAuditResult.loadedSizes.rectangularColumn.orientationDeg === 90 &&
+            memberAuditResult.loadedSizes.squareColumn.b === 150 &&
+            memberAuditResult.loadedSizes.squareColumn.h === 150 &&
+            memberAuditResult.loadedSizes.beam.b === 150 &&
+            memberAuditResult.loadedSizes.beam.h === 175,
+            'Exact member dimensions, class, orientation, or policy did not survive FSTR save/reopen',
+            { save: memberAuditResult.save, loaded: memberAuditResult.loadedSizes }
+        );
+        const warningItems = memberAuditResult.governance.warning.items || [];
+        const blockedItems = memberAuditResult.governance.blocked.items || [];
+        assert(
+            memberAuditResult.governance.warning.summary.blocked === 0 &&
+            warningItems.some(item =>
+                item.type === 'Column' &&
+                item.id === memberAuditResult.ids.rectangularColumnId &&
+                item.actualB === 150 &&
+                item.actualH === 400 &&
+                item.status === 'WARNING'
+            ) &&
+            warningItems.some(item =>
+                item.type === 'Column' &&
+                item.id === memberAuditResult.ids.squareColumnId &&
+                item.actualB === 150 &&
+                item.actualH === 150 &&
+                item.status === 'WARNING'
+            ) &&
+            warningItems.some(item =>
+                item.type === 'Beam' &&
+                item.id === memberAuditResult.ids.beamId &&
+                item.actualB === 150 &&
+                item.actualH === 175 &&
+                item.status === 'WARNING'
+            ) &&
+            blockedItems.some(item =>
+                item.type === 'Beam' &&
+                item.id === memberAuditResult.ids.beamId &&
+                item.status === 'BLOCKED'
+            ) &&
+            [memberAuditResult.ids.rectangularColumnId, memberAuditResult.ids.squareColumnId].every(columnId =>
+                blockedItems.some(item =>
+                    item.type === 'Column' &&
+                    item.id === columnId &&
+                    item.status === 'WARNING'
+                )
+            ) &&
+            blockedItems.filter(item =>
+                item.type === 'Column' &&
+                [memberAuditResult.ids.rectangularColumnId, memberAuditResult.ids.squareColumnId].includes(item.id)
+            ).every(item => item.status === 'WARNING'),
+            'Member-size warning/block governance did not respect proposed versus existing assessment status',
+            memberAuditResult.governance
+        );
+        assert(
+            memberAuditResult.sharedModel.rectangularColumn.section === 'C150x400' &&
+            memberAuditResult.sharedModel.rectangularColumn.orientationDeg === 90 &&
+            memberAuditResult.sharedModel.rectangularColumn.memberStatus === 'existing_for_assessment' &&
+            memberAuditResult.sharedModel.squareColumn.section === 'C150x150' &&
+            memberAuditResult.sharedModel.beam.section === 'B150x175' &&
+            memberAuditResult.sharedModel.beam.memberStatus === 'proposed_new' &&
+            memberAuditResult.sharedModel.sections.C150x400?.b === 150 &&
+            memberAuditResult.sharedModel.sections.C150x400?.h === 400 &&
+            memberAuditResult.sharedModel.sections.C150x150?.b === 150 &&
+            memberAuditResult.sharedModel.sections.C150x150?.h === 150 &&
+            memberAuditResult.sharedModel.sections.B150x175?.b === 150 &&
+            memberAuditResult.sharedModel.sections.B150x175?.h === 175,
+            'Shared solver model did not preserve exact section truth',
+            memberAuditResult.sharedModel
+        );
+        assert(
+            memberAuditResult.exports.staadHasExactSections &&
+            memberAuditResult.exports.staadHasOrientation &&
+            memberAuditResult.exports.etabsDecoded &&
+            memberAuditResult.exports.etabsRectangularColumn?.section === 'C150x400' &&
+            memberAuditResult.exports.etabsRectangularColumn?.orientationDeg === 90 &&
+            memberAuditResult.exports.etabsBeam?.section === 'B150x175' &&
+            memberAuditResult.exports.etabsHasLocalAxesCommand &&
+            memberAuditResult.exports.ifcHasExactSections &&
+            memberAuditResult.exports.ifcHasOrientation &&
+            memberAuditResult.exports.ifcHasMemberStatus &&
+            memberAuditResult.exports.dxfHasExactSections &&
+            memberAuditResult.exports.reportUsesArial &&
+            memberAuditResult.exports.reportHasExactSections &&
+            memberAuditResult.exports.reportHasOrientation &&
+            memberAuditResult.exports.reportHasMemberClass &&
+            memberAuditResult.exports.tanReportUsesArial &&
+            memberAuditResult.exports.tanReportHasExactColumn,
+            'Report/DXF/IFC/STAAD/ETABS parity failed for sub-200 or rotated members',
+            memberAuditResult.exports
+        );
+        assert(
+            memberAuditResult.blockPolicy.staad.blocked &&
+            /member size policy/i.test(memberAuditResult.blockPolicy.staad.message) &&
+            memberAuditResult.blockPolicy.etabs.blocked &&
+            /member size policy/i.test(memberAuditResult.blockPolicy.etabs.message) &&
+            memberAuditResult.blockPolicy.ifcHasBlockedDisclosure &&
+            memberAuditResult.blockPolicy.ifcAudit.memberSizeGovernance?.summary?.blocked > 0,
+            'Block policy did not stop analytical export while retaining IFC coordination disclosure',
+            memberAuditResult.blockPolicy
         );
         assert(
             result.afterStairCreate.previewReady &&

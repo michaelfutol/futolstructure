@@ -1980,31 +1980,58 @@
                 <div class="param-grid" style="margin-top: 8px;">
                     <div class="param-item">
                         <label>Column B / X (mm)</label>
-                        <input type="number" id="columnWidthInput" value="0" min="0" max="600" step="50"
-                            onchange="state.defaultColumnB = safeInt(this.value, 300); calculate();"
+                        <input type="number" id="columnWidthInput" value="0" min="0" max="1200" step="25"
+                            onchange="state.defaultColumnB = normalizeDefaultMemberSizeMm(this.value, 0, 1200); calculate();"
                             title="0 = Auto (NSCP Pu sizing)">
                     </div>
                     <div class="param-item">
                         <label>Column H / Y (mm)</label>
-                        <input type="number" id="columnDepthInput" value="0" min="0" max="800" step="50"
-                            onchange="state.defaultColumnH = safeInt(this.value, 300); calculate();"
+                        <input type="number" id="columnDepthInput" value="0" min="0" max="1200" step="25"
+                            onchange="state.defaultColumnH = normalizeDefaultMemberSizeMm(this.value, 0, 1200); calculate();"
                             title="0 = Auto (same as b)">
                     </div>
                     <div class="param-item">
                         <label>Beam B / X (mm)</label>
-                        <input type="number" id="beamWidthInput" value="250" min="200" max="500" step="25"
-                            onchange="state.defaultBeamB = safeInt(this.value, 250); calculate();">
+                        <input type="number" id="beamWidthInput" value="250" min="0" max="1500" step="25"
+                            onchange="state.defaultBeamB = normalizeDefaultMemberSizeMm(this.value, 250, 1500); calculate();">
                     </div>
                     <div class="param-item">
                         <label>Beam H / Y (mm)</label>
-                        <input type="number" id="beamDepthInput" value="0" min="0" max="800" step="50"
-                            onchange="state.defaultBeamH = safeInt(this.value, 400); calculate();"
+                        <input type="number" id="beamDepthInput" value="0" min="0" max="2000" step="25"
+                            onchange="state.defaultBeamH = normalizeDefaultMemberSizeMm(this.value, 0, 2000); calculate();"
                             title="0 = Auto (use L/16 rule)">
                     </div>
                 </div>
                 <div style="font-size: 0.62rem; color: var(--text-muted); margin-top: 4px; font-style: italic;">
                     B is plan X/width. H/D is plan Y/depth. Set to 0 for auto-sizing per NSCP rules.
                 </div>
+                <details style="margin-top:8px;">
+                    <summary style="cursor:pointer; color:var(--text-secondary); font-size:0.68rem;">Member Size Governance</summary>
+                    <div class="param-grid" style="margin-top:8px;">
+                        <div class="param-item">
+                            <label>Undersize Action</label>
+                            <select id="memberSizePolicyAction" onchange="updateMemberSizePolicyFromInputs()">
+                                <option value="warn" selected>Warn</option>
+                                <option value="block">Block Solvers</option>
+                            </select>
+                        </div>
+                        <div class="param-item">
+                            <label>Column Min B/H (mm)</label>
+                            <input type="number" id="memberSizeColumnMin" value="200" min="25" max="1200" step="25"
+                                onchange="updateMemberSizePolicyFromInputs()">
+                        </div>
+                        <div class="param-item">
+                            <label>Beam Min B (mm)</label>
+                            <input type="number" id="memberSizeBeamWidthMin" value="200" min="25" max="1500" step="25"
+                                onchange="updateMemberSizePolicyFromInputs()">
+                        </div>
+                        <div class="param-item">
+                            <label>Beam Min H (mm)</label>
+                            <input type="number" id="memberSizeBeamDepthMin" value="300" min="25" max="2000" step="25"
+                                onchange="updateMemberSizePolicyFromInputs()">
+                        </div>
+                    </div>
+                </details>
             </div>
 
             <!-- v2.5: Footing Parameters -->
@@ -2022,12 +2049,12 @@
                     <!-- v3.2: Relocated Tie Beam Size -->
                     <div class="param-item">
                         <label>Tie Beam B / X (mm)</label>
-                        <input type="number" id="tieBeamWidth" value="200" step="25" min="150"
+                        <input type="number" id="tieBeamWidth" value="200" step="25" min="25"
                             onchange="updateTieBeamSize()">
                     </div>
                     <div class="param-item">
                         <label>Tie Beam H / Y (mm)</label>
-                        <input type="number" id="tieBeamDepth" value="350" step="50" min="250"
+                        <input type="number" id="tieBeamDepth" value="350" step="25" min="25"
                             onchange="updateTieBeamSize()">
                     </div>
                     <div class="param-item" style="grid-column: 1 / -1;">
@@ -2241,6 +2268,7 @@
                                     <th style="width:55px;">B/X (mm)</th>
                                     <th style="width:55px;">H/Y (mm)</th>
                                     <th style="width:55px;">Orientation</th>
+                                    <th style="width:125px;">Member Class</th>
                                     <th style="width:120px;">Status</th>
                                     <th style="width:75px;">Export</th>
                                     <th style="width:70px;">Pu (kN)</th>
@@ -2272,6 +2300,7 @@
                                     <th style="width:55px;">Span (m)</th>
                                     <th style="width:55px;">B/X (mm)</th>
                                     <th style="width:55px;">H/Y (mm)</th>
+                                    <th style="width:125px;">Member Class</th>
                                     <th style="width:60px;">w (kN/m)</th>
                                     <th style="width:70px;">R (kN)</th>
                                     <th style="width:75px;">Action</th>
@@ -3627,10 +3656,10 @@
                 <label style="display:block; font-size:0.75rem; color:#8b949e; margin-bottom:4px;">Column Size
                     (mm)</label>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                    <input type="number" id="pcWidthB" value="300" min="200" max="1000" step="50"
+                    <input type="number" id="pcWidthB" value="300" min="25" max="1200" step="25"
                         style="padding:8px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2); border-radius:6px; color:white;"
                         placeholder="Width (b)">
-                    <input type="number" id="pcDepthH" value="300" min="200" max="1000" step="50"
+                    <input type="number" id="pcDepthH" value="300" min="25" max="1200" step="25"
                         style="padding:8px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2); border-radius:6px; color:white;"
                         placeholder="Depth (h)">
                 </div>
@@ -3691,13 +3720,13 @@
                 <div>
                     <label style="display:block; font-size:0.75rem; color:#8b949e; margin-bottom:4px;">Width b
                         (mm)</label>
-                    <input type="number" id="pcBeamColB" value="250" step="50" min="150" max="600"
+                    <input type="number" id="pcBeamColB" value="250" step="25" min="25" max="1200"
                         style="width:100%; padding:8px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2); border-radius:6px; color:white;">
                 </div>
                 <div>
                     <label style="display:block; font-size:0.75rem; color:#8b949e; margin-bottom:4px;">Depth h
                         (mm)</label>
-                    <input type="number" id="pcBeamColH" value="250" step="50" min="150" max="600"
+                    <input type="number" id="pcBeamColH" value="250" step="25" min="25" max="1200"
                         style="width:100%; padding:8px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2); border-radius:6px; color:white;">
                 </div>
             </div>
@@ -4094,6 +4123,7 @@
                 defaultColumnH: state.defaultColumnH,
                 defaultBeamB: state.defaultBeamB,
                 defaultBeamH: state.defaultBeamH,
+                geometryMinimumMm: MEMBER_GEOMETRY_MIN_MM,
                 minColumnSideMm: COLUMN_CODE_MIN_MM,
                 practicalColumnSideMm: COLUMN_PRACTICAL_MIN_MM,
                 concreteDensity: state.concreteDensity,
@@ -4429,6 +4459,28 @@
             );
         }
 
+        const MEMBER_GEOMETRY_MIN_MM = 25;
+        const COLUMN_CODE_MIN_MM = 200;
+        const COLUMN_PRACTICAL_MIN_MM = 300;
+        const BEAM_CODE_MIN_WIDTH_MM = 200;
+        const BEAM_PRACTICAL_MIN_DEPTH_MM = 300;
+        const RESIDENTIAL_FOOTING_THICKNESS_MM = 300;
+        const MEMBER_STATUS_OPTIONS = Object.freeze([
+            'proposed_new',
+            'existing',
+            'existing_for_assessment',
+            'existing_for_retrofit',
+            'engineer_override'
+        ]);
+        const DEFAULT_MEMBER_SIZE_POLICY = Object.freeze({
+            action: 'warn',
+            columnMinB: COLUMN_CODE_MIN_MM,
+            columnMinH: COLUMN_CODE_MIN_MM,
+            beamMinB: BEAM_CODE_MIN_WIDTH_MM,
+            beamMinH: BEAM_PRACTICAL_MIN_DEPTH_MM,
+            cantileverEdgeMinB: 150
+        });
+
         // ========== STATE ==========
         const state = {
             xSpans: [4.0, 4.0],      // X-direction bay sizes (m)
@@ -4498,7 +4550,8 @@
             defaultColumnH: 0,    // Default column depth (mm), 0 = same as b (square)
             defaultBeamB: 250,    // Default beam width (mm), 0 = auto
             defaultBeamH: 0,      // Default beam depth (mm), 0 = auto (L/16 rule)
-            beamSizeOverrides: {}, // floorId::beamId -> { webW, webD }
+            memberSizePolicy: { ...DEFAULT_MEMBER_SIZE_POLICY },
+            beamSizeOverrides: {}, // floorId::beamId -> { webW, webD, memberStatus }
             columnPositionOverrides: {}, // columnId -> { dx, dy } from grid, meters
             columnPositionLocked: false,
             beamAlignmentOverrides: {},  // floorId::beamId -> transverse offset, meters
@@ -4543,6 +4596,30 @@
             return Math.max(min, Math.min(max, Math.round(stepped)));
         }
 
+        function normalizeDefaultMemberSizeMm(value, fallback, max) {
+            const parsed = Number(value);
+            if (parsed === 0) return 0;
+            return normalizeMemberSizeMm(parsed, fallback, MEMBER_GEOMETRY_MIN_MM, max);
+        }
+
+        function normalizeMemberStatus(value, fallback = 'proposed_new') {
+            const status = String(value || fallback).trim().toLowerCase();
+            return MEMBER_STATUS_OPTIONS.includes(status) ? status : fallback;
+        }
+
+        function formatMemberStatusLabel(value) {
+            return normalizeMemberStatus(value)
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, char => char.toUpperCase());
+        }
+
+        function getMemberStatusOptionsHtml(selectedValue) {
+            const selected = normalizeMemberStatus(selectedValue);
+            return MEMBER_STATUS_OPTIONS.map(value =>
+                `<option value="${value}"${value === selected ? ' selected' : ''}>${formatMemberStatusLabel(value)}</option>`
+            ).join('');
+        }
+
         function firstPositive(...values) {
             for (const value of values) {
                 const n = Number(value);
@@ -4551,21 +4628,63 @@
             return null;
         }
 
-        const COLUMN_CODE_MIN_MM = 200;
-        const COLUMN_PRACTICAL_MIN_MM = 300;
-        const RESIDENTIAL_FOOTING_THICKNESS_MM = 300;
+        function normalizeMemberSizePolicy(policy = {}) {
+            const normalizeMinimum = (value, fallback, maximum) =>
+                normalizeMemberSizeMm(value, fallback, MEMBER_GEOMETRY_MIN_MM, maximum);
+            return {
+                action: policy.action === 'block' ? 'block' : 'warn',
+                columnMinB: normalizeMinimum(policy.columnMinB, DEFAULT_MEMBER_SIZE_POLICY.columnMinB, 1200),
+                columnMinH: normalizeMinimum(policy.columnMinH, DEFAULT_MEMBER_SIZE_POLICY.columnMinH, 1200),
+                beamMinB: normalizeMinimum(policy.beamMinB, DEFAULT_MEMBER_SIZE_POLICY.beamMinB, 1500),
+                beamMinH: normalizeMinimum(policy.beamMinH, DEFAULT_MEMBER_SIZE_POLICY.beamMinH, 2000),
+                cantileverEdgeMinB: normalizeMinimum(
+                    policy.cantileverEdgeMinB,
+                    DEFAULT_MEMBER_SIZE_POLICY.cantileverEdgeMinB,
+                    1500
+                )
+            };
+        }
+
+        function syncMemberSizePolicyInputs() {
+            state.memberSizePolicy = normalizeMemberSizePolicy(state.memberSizePolicy);
+            const bindings = {
+                memberSizePolicyAction: state.memberSizePolicy.action,
+                memberSizeColumnMin: state.memberSizePolicy.columnMinB,
+                memberSizeBeamWidthMin: state.memberSizePolicy.beamMinB,
+                memberSizeBeamDepthMin: state.memberSizePolicy.beamMinH
+            };
+            Object.entries(bindings).forEach(([id, value]) => {
+                const input = document.getElementById(id);
+                if (input) input.value = String(value);
+            });
+        }
+
+        function updateMemberSizePolicyFromInputs() {
+            saveStateSnapshot();
+            const columnMinimum = document.getElementById('memberSizeColumnMin')?.value;
+            state.memberSizePolicy = normalizeMemberSizePolicy({
+                action: document.getElementById('memberSizePolicyAction')?.value,
+                columnMinB: columnMinimum,
+                columnMinH: columnMinimum,
+                beamMinB: document.getElementById('memberSizeBeamWidthMin')?.value,
+                beamMinH: document.getElementById('memberSizeBeamDepthMin')?.value
+            });
+            syncMemberSizePolicyInputs();
+            updateModelReadinessPanel();
+            scheduleProjectAutosave('member-size-policy');
+        }
 
         function getColumnSizeMm(col) {
             const b = normalizeMemberSizeMm(
                 firstPositive(col?.webB, col?.overrideB, col?.b, col?.suggestedB, state.defaultColumnB),
                 COLUMN_PRACTICAL_MIN_MM,
-                COLUMN_CODE_MIN_MM,
+                MEMBER_GEOMETRY_MIN_MM,
                 1200
             );
             const h = normalizeMemberSizeMm(
                 firstPositive(col?.webD, col?.overrideH, col?.h, col?.suggestedH, state.defaultColumnH, b),
                 b,
-                COLUMN_CODE_MIN_MM,
+                MEMBER_GEOMETRY_MIN_MM,
                 1200
             );
             return { b, h };
@@ -4573,8 +4692,8 @@
 
         function applyColumnSizeMm(col, b, h) {
             if (!col) return;
-            const nextB = normalizeMemberSizeMm(b, getColumnSizeMm(col).b, COLUMN_CODE_MIN_MM, 1200);
-            const nextH = normalizeMemberSizeMm(h, getColumnSizeMm(col).h, COLUMN_CODE_MIN_MM, 1200);
+            const nextB = normalizeMemberSizeMm(b, getColumnSizeMm(col).b, MEMBER_GEOMETRY_MIN_MM, 1200);
+            const nextH = normalizeMemberSizeMm(h, getColumnSizeMm(col).h, MEMBER_GEOMETRY_MIN_MM, 1200);
             col.webB = nextB;
             col.webD = nextH;
             col.overrideB = nextB;
@@ -4583,6 +4702,55 @@
             col.suggestedH = nextH;
             col.b = nextB;
             col.h = nextH;
+        }
+
+        function getColumnOrientationDeg(col) {
+            const orientation = Number(col?.orientationDeg);
+            return Number.isFinite(orientation) ? orientation : 0;
+        }
+
+        function getColumnPlanHalfExtentsM(col) {
+            const size = getColumnSizeMm(col);
+            const halfB = size.b / 2000;
+            const halfH = size.h / 2000;
+            const angle = getColumnOrientationDeg(col) * Math.PI / 180;
+            const cosAngle = Math.abs(Math.cos(angle));
+            const sinAngle = Math.abs(Math.sin(angle));
+            return {
+                x: cosAngle * halfB + sinAngle * halfH,
+                y: sinAngle * halfB + cosAngle * halfH
+            };
+        }
+
+        function getColumnPlanFootprint(col, position = null) {
+            const center = position || getColumnPlanPosition(col);
+            const size = getColumnSizeMm(col);
+            const halfB = size.b / 2000;
+            const halfH = size.h / 2000;
+            const angle = getColumnOrientationDeg(col) * Math.PI / 180;
+            const cosAngle = Math.cos(angle);
+            const sinAngle = Math.sin(angle);
+            const corners = [
+                { x: -halfB, y: -halfH },
+                { x: halfB, y: -halfH },
+                { x: halfB, y: halfH },
+                { x: -halfB, y: halfH }
+            ].map(point => ({
+                x: center.x + point.x * cosAngle - point.y * sinAngle,
+                y: center.y + point.x * sinAngle + point.y * cosAngle
+            }));
+            const xs = corners.map(point => point.x);
+            const ys = corners.map(point => point.y);
+            return {
+                center,
+                size,
+                orientationDeg: getColumnOrientationDeg(col),
+                corners,
+                left: Math.min(...xs),
+                right: Math.max(...xs),
+                top: Math.min(...ys),
+                bottom: Math.max(...ys)
+            };
         }
 
         const WALL_FACE_WEIGHTS_KPA = { 100: 1.77, 150: 2.33, 200: 3.39 };
@@ -4864,6 +5032,24 @@
                 );
             }
 
+            const memberSizeGovernance = collectMemberSizeGovernance();
+            if (memberSizeGovernance.items.length > 0) {
+                const examples = memberSizeGovernance.items
+                    .slice(0, 3)
+                    .map(item => `${item.id}${item.floorId ? `/${item.floorId}` : ''} ${item.actualB}x${item.actualH} mm`)
+                    .join(', ');
+                const level = memberSizeGovernance.summary.blocked > 0 ? 'blocked' : 'warning';
+                const action = memberSizeGovernance.summary.blocked > 0
+                    ? `${memberSizeGovernance.summary.blocked} proposed member(s) block STAAD and ETABS export under the current project policy`
+                    : `${memberSizeGovernance.items.length} member(s) are below the configured project/code minimum and remain available for assessment`;
+                addModelReadinessWarning(
+                    warnings,
+                    'Member Sizes',
+                    `${action}. Actual geometry is preserved in views, files, schedules, reports, and coordination exports${examples ? `: ${examples}.` : '.'}`,
+                    level
+                );
+            }
+
             if (typeof collectColumnTopologyValidation === 'function') {
                 const topology = collectColumnTopologyValidation({ floorGeometry: floorGeometryById || undefined });
                 if (!topology.summary.solverReady) {
@@ -4922,20 +5108,18 @@
         function getColumnPlanOffset(col) {
             if (!col) return { dx: 0, dy: 0 };
             const { totalX, totalY } = getPlanBounds();
-            const size = getColumnSizeMm(col);
-            const bM = size.b / 1000;
-            const hM = size.h / 1000;
+            const halfExtents = getColumnPlanHalfExtentsM(col);
             const tol = 0.01;
             let dx = 0;
             let dy = 0;
 
             const usesGeneratedGridAlignment = col.isRegularGrid !== false && !col.isCustomPlaced && !col.isPlanted;
             if (state.columnAlignment === 'outer' && usesGeneratedGridAlignment) {
-                if (Math.abs((Number(col.x) || 0)) < tol) dx = bM / 2;
-                else if (Math.abs((Number(col.x) || 0) - totalX) < tol) dx = -bM / 2;
+                if (Math.abs((Number(col.x) || 0)) < tol) dx = halfExtents.x;
+                else if (Math.abs((Number(col.x) || 0) - totalX) < tol) dx = -halfExtents.x;
 
-                if (Math.abs((Number(col.y) || 0)) < tol) dy = hM / 2;
-                else if (Math.abs((Number(col.y) || 0) - totalY) < tol) dy = -hM / 2;
+                if (Math.abs((Number(col.y) || 0)) < tol) dy = halfExtents.y;
+                else if (Math.abs((Number(col.y) || 0) - totalY) < tol) dy = -halfExtents.y;
             }
 
             const manual = getColumnManualPlanOffset(col);
@@ -4963,8 +5147,8 @@
 
         function getColumnHalfAlongBeam(col, direction) {
             if (!col) return 0;
-            const size = getColumnSizeMm(col);
-            return ((direction === 'X' ? size.b : size.h) / 1000) / 2;
+            const halfExtents = getColumnPlanHalfExtentsM(col);
+            return direction === 'X' ? halfExtents.x : halfExtents.y;
         }
 
         function getBeamAlignmentKey(beamId, floorId) {
@@ -5170,6 +5354,11 @@
             return overrides[getBeamSizeKey(beamId, floorId)] || overrides[beamId] || null;
         }
 
+        function getBeamMemberStatus(beam, floorId) {
+            const override = getBeamSizeOverride(beam?.id, floorId);
+            return normalizeMemberStatus(override?.memberStatus || beam?.memberStatus);
+        }
+
         function getBeamSizeMm(beam, floorId) {
             const type = typeof getBeamGovernanceType === 'function' ? getBeamGovernanceType(beam) : 'regular';
             const isCantileverSideBeam = (type === 'cantilever' || beam?.isCantilever) && type !== 'cantilever_edge' && !beam?.isEdgeBeam;
@@ -5204,7 +5393,7 @@
             const b = normalizeMemberSizeMm(
                 firstPositive(override?.webW, override?.overrideB, beam?.webW, beam?.overrideB, beam?.b, beam?.suggestedB, defaultB),
                 defaultB || 250,
-                150,
+                MEMBER_GEOMETRY_MIN_MM,
                 1500
             );
             const depthSource = isCantileverEdgeBeam && inheritedEdgeDepth
@@ -5213,7 +5402,7 @@
             const h = normalizeMemberSizeMm(
                 depthSource,
                 defaultH || autoDepth,
-                200,
+                MEMBER_GEOMETRY_MIN_MM,
                 2000
             );
             return { b, h };
@@ -5222,8 +5411,8 @@
         function applyBeamSizeMm(beam, floorId, b, h) {
             if (!beam) return;
             const current = getBeamSizeMm(beam, floorId);
-            const nextB = normalizeMemberSizeMm(b, current.b, 150, 1500);
-            const nextH = normalizeMemberSizeMm(h, current.h, 200, 2000);
+            const nextB = normalizeMemberSizeMm(b, current.b, MEMBER_GEOMETRY_MIN_MM, 1500);
+            const nextH = normalizeMemberSizeMm(h, current.h, MEMBER_GEOMETRY_MIN_MM, 2000);
             beam.webW = nextB;
             beam.webD = nextH;
             beam.overrideB = nextB;
@@ -5270,6 +5459,116 @@
                 beam.selfWeight = (state.concreteDensity || 24) * bM * hM * (beam.span || 0);
                 beam.selfWeightPerM = (state.concreteDensity || 24) * bM * hM;
             });
+        }
+
+        function isExistingAssessmentMember(member) {
+            const status = normalizeMemberStatus(member?.memberStatus);
+            return status.startsWith('existing') || status === 'engineer_override';
+        }
+
+        function collectMemberSizeGovernance() {
+            const policy = normalizeMemberSizePolicy(state.memberSizePolicy);
+            const items = [];
+            const addIssue = ({ type, id, floorId = '', size, minimum, member }) => {
+                if (size.b >= minimum.b && size.h >= minimum.h) return;
+                const existing = isExistingAssessmentMember(member);
+                const status = !existing && policy.action === 'block' ? 'BLOCKED' : 'WARNING';
+                const context = existing
+                    ? 'existing assessment geometry retained'
+                    : (status === 'BLOCKED' ? 'solver export blocked by project policy' : 'engineer review required');
+                items.push({
+                    status,
+                    code: 'member_below_project_minimum',
+                    type,
+                    id,
+                    floorId,
+                    actualB: size.b,
+                    actualH: size.h,
+                    minimumB: minimum.b,
+                    minimumH: minimum.h,
+                    memberStatus: member?.memberStatus || 'proposed_new',
+                    message: `${type} ${id}${floorId ? ` on ${floorId}` : ''} is ${size.b}x${size.h} mm; configured minimum is ${minimum.b}x${minimum.h} mm (${context}).`
+                });
+            };
+
+            (state.columns || []).forEach(column => {
+                if (!(state.floors || []).some(floor => isColumnActiveOnFloor(column, floor.id))) return;
+                addIssue({
+                    type: 'Column',
+                    id: column.id,
+                    size: getColumnSizeMm(column),
+                    minimum: { b: policy.columnMinB, h: policy.columnMinH },
+                    member: column
+                });
+            });
+
+            const floorGeometry = typeof collect3DFloorGeometry === 'function'
+                ? collect3DFloorGeometry()
+                : new Map();
+            (state.floors || []).forEach(floor => {
+                const beams = floorGeometry.get(floor.id)?.beams || state.beams || [];
+                beams.forEach(beam => {
+                    if (!beam || beam.deleted) return;
+                    const governanceType = typeof getBeamGovernanceType === 'function'
+                        ? getBeamGovernanceType(beam)
+                        : 'regular';
+                    addIssue({
+                        type: 'Beam',
+                        id: beam.id,
+                        floorId: floor.id,
+                        size: getBeamSizeMm(beam, floor.id),
+                        minimum: {
+                            b: governanceType === 'cantilever_edge'
+                                ? policy.cantileverEdgeMinB
+                                : policy.beamMinB,
+                            h: policy.beamMinH
+                        },
+                        member: {
+                            ...beam,
+                            memberStatus: getBeamMemberStatus(beam, floor.id)
+                        }
+                    });
+                });
+            });
+
+            if (isFoundationPlanEnabled()) {
+                addIssue({
+                    type: 'Foundation tie beam',
+                    id: 'FTB',
+                    size: {
+                        b: normalizeMemberSizeMm(state.tieBeamWidth, 200, MEMBER_GEOMETRY_MIN_MM, 1500),
+                        h: normalizeMemberSizeMm(state.tieBeamDepth, 350, MEMBER_GEOMETRY_MIN_MM, 2000)
+                    },
+                    minimum: { b: policy.beamMinB, h: policy.beamMinH },
+                    member: { memberStatus: 'proposed_new' }
+                });
+            }
+
+            const summary = {
+                warning: items.filter(item => item.status === 'WARNING').length,
+                blocked: items.filter(item => item.status === 'BLOCKED').length,
+                solverReady: !items.some(item => item.status === 'BLOCKED')
+            };
+            return {
+                schema: 'FutolStructure.MemberSizeGovernance.v1',
+                softwareGeometryMinimumMm: MEMBER_GEOMETRY_MIN_MM,
+                policy,
+                summary,
+                items
+            };
+        }
+
+        function assertSolverMemberSizeReady(target = 'Solver') {
+            const governance = collectMemberSizeGovernance();
+            if (governance.summary.solverReady) return governance;
+            const examples = governance.items
+                .filter(item => item.status === 'BLOCKED')
+                .slice(0, 4)
+                .map(item => `${item.id}${item.floorId ? `/${item.floorId}` : ''} ${item.actualB}x${item.actualH} mm`)
+                .join('; ');
+            throw new Error(
+                `${target} export blocked by ${governance.summary.blocked} member size policy issue(s). ${examples}`
+            );
         }
 
         function getGridCoordinatesForLabels() {
@@ -5707,6 +6006,7 @@
                 gfSuspended: state.gfSuspended,
                 currentFloorIndex: state.currentFloorIndex,
                 columns: JSON.parse(JSON.stringify(state.columns || [])),
+                memberSizePolicy: cloneSerializable(state.memberSizePolicy, DEFAULT_MEMBER_SIZE_POLICY),
                 beamSizeOverrides: JSON.parse(JSON.stringify(state.beamSizeOverrides || {})),
                 columnPositionOverrides: JSON.parse(JSON.stringify(state.columnPositionOverrides || {})),
                 beamAlignmentOverrides: JSON.parse(JSON.stringify(state.beamAlignmentOverrides || {})),
@@ -5733,6 +6033,7 @@
                 : 0;
 
             state.columns = cloneSerializable(snapshot.columns, []);
+            state.memberSizePolicy = normalizeMemberSizePolicy(snapshot.memberSizePolicy);
             state.beamSizeOverrides = cloneSerializable(snapshot.beamSizeOverrides, {});
             state.columnPositionOverrides = cloneSerializable(snapshot.columnPositionOverrides, {});
             state.beamAlignmentOverrides = cloneSerializable(snapshot.beamAlignmentOverrides, {});
@@ -5828,6 +6129,7 @@
             if (typeof syncBeamLockAllButton === 'function') syncBeamLockAllButton();
             if (typeof syncGridBubbleOffsetButton === 'function') syncGridBubbleOffsetButton();
             if (typeof syncFoundationModeUI === 'function') syncFoundationModeUI();
+            if (typeof syncMemberSizePolicyInputs === 'function') syncMemberSizePolicyInputs();
             if (currentPlanTab === 'recovery' && typeof populateRecoveryPanel === 'function') populateRecoveryPanel();
         }
 
@@ -6702,10 +7004,10 @@
         // Update member dimensions from the table and sync with left panel
         function updateMemberDimensions() {
             // Read values from dimension table
-            const colB = parseInt(document.getElementById('dimColB')?.value) || 250;
-            const colD = parseInt(document.getElementById('dimColD')?.value) || 250;
-            const beamB = parseInt(document.getElementById('dimBeamB')?.value) || 250;
-            const beamD = parseInt(document.getElementById('dimBeamD')?.value) || 400;
+            const colB = normalizeDefaultMemberSizeMm(document.getElementById('dimColB')?.value, 250, 1200);
+            const colD = normalizeDefaultMemberSizeMm(document.getElementById('dimColD')?.value, 250, 1200);
+            const beamB = normalizeDefaultMemberSizeMm(document.getElementById('dimBeamB')?.value, 250, 1500);
+            const beamD = normalizeDefaultMemberSizeMm(document.getElementById('dimBeamD')?.value, 400, 2000);
 
             // Update state
             state.defaultColumnB = colB;
@@ -7301,18 +7603,18 @@
             const widthInput = document.getElementById('tieBeamWidth');
             const depthInput = document.getElementById('tieBeamDepth');
 
-            state.tieBeamWidth = normalizeMemberSizeMm(widthInput.value, 200, 150, 1500, 25);
-            state.tieBeamDepth = normalizeMemberSizeMm(depthInput.value, 350, 200, 2000, 25);
-
-            // Enforce minimums (NBC code)
-            if (state.tieBeamWidth < 200) {
-                state.tieBeamWidth = 200;
-                widthInput.value = 200;
-            }
-            if (state.tieBeamDepth < 350) {
-                state.tieBeamDepth = 350;
-                depthInput.value = 350;
-            }
+            state.tieBeamWidth = normalizeMemberSizeMm(
+                widthInput.value,
+                200,
+                MEMBER_GEOMETRY_MIN_MM,
+                1500
+            );
+            state.tieBeamDepth = normalizeMemberSizeMm(
+                depthInput.value,
+                350,
+                MEMBER_GEOMETRY_MIN_MM,
+                2000
+            );
             state.tieBeamW = state.tieBeamWidth / 1000;
             state.tieBeamH = state.tieBeamDepth / 1000;
             if (widthInput) widthInput.value = state.tieBeamWidth;
@@ -10784,13 +11086,17 @@
                 else if (colType === 'edge') color = '#1f2937';
                 if (isColumnPositionLocked()) color = '#64748b';
 
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(getColumnOrientationDeg(col) * Math.PI / 180);
                 ctx.fillStyle = color;
-                ctx.fillRect(x - colBpx / 2, y - colHpx / 2, colBpx, colHpx);
+                ctx.fillRect(-colBpx / 2, -colHpx / 2, colBpx, colHpx);
                 if (isColumnPositionLocked()) {
                     ctx.strokeStyle = '#94a3b8';
                     ctx.lineWidth = Math.max(1, 1.1 * textScaleFactor);
-                    ctx.strokeRect(x - colBpx / 2, y - colHpx / 2, colBpx, colHpx);
+                    ctx.strokeRect(-colBpx / 2, -colHpx / 2, colBpx, colHpx);
                 }
+                ctx.restore();
 
                 // Label
                 if (state.showLabels) {
@@ -11138,18 +11444,15 @@
                 for (let col of state.columns) {
                     const isActive = isColumnActiveOnFloor(col, currentFloorId);
                     if (!isActive) continue;
-                    const colSize = getColumnSizeMm(col);
-                    const colWPx = (colSize.b / 1000) * state.scale;
-                    const colHPx = (colSize.h / 1000) * state.scale;
                     const colPos = getColumnPlanPosition(col);
+                    const footprint = getColumnPlanFootprint(col, colPos);
                     const x = colPos.x * state.scale + state.offsetX;
-                    const y = colPos.y * state.scale + state.offsetY;
                     const columnPad = Math.max(2, 2 * colScaleFactor);
                     registerPlanTextBox(inflatePlanRect({
-                        left: x - colWPx / 2,
-                        top: y - colHPx / 2,
-                        right: x + colWPx / 2,
-                        bottom: y + colHPx / 2
+                        left: footprint.left * state.scale + state.offsetX,
+                        top: footprint.top * state.scale + state.offsetY,
+                        right: footprint.right * state.scale + state.offsetX,
+                        bottom: footprint.bottom * state.scale + state.offsetY
                     }, columnPad), {
                         id: col.id,
                         type: 'column-footprint'
@@ -11157,7 +11460,7 @@
                     const textW = ctx.measureText(col.id).width;
                     registerPlanTextBox(createPlanTextRect(
                         x,
-                        y + colHPx / 2 + colLabelOffset,
+                        footprint.bottom * state.scale + state.offsetY + colLabelOffset,
                         textW,
                         colLabelFontSize,
                         false
@@ -11815,9 +12118,16 @@
                     const columnLineColor = isColumnPositionLocked() ? '#64748b' : COLOR_COL;
                     const columnTextColor = isColumnPositionLocked() ? '#64748b' : COLOR_TEXT;
 
-                    const left = x - colWPx / 2;
-                    const top = y - colHPx / 2;
+                    const left = -colWPx / 2;
+                    const top = -colHPx / 2;
+                    const footprint = getColumnPlanFootprint(col, colPos);
+                    const footprintRightPx = footprint.right * state.scale + state.offsetX;
+                    const footprintTopPx = footprint.top * state.scale + state.offsetY;
+                    const footprintBottomPx = footprint.bottom * state.scale + state.offsetY;
 
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.rotate(getColumnOrientationDeg(col) * Math.PI / 180);
                     ctx.fillStyle = '#ffffff';
                     ctx.fillRect(left, top, colWPx, colHPx);
 
@@ -11875,6 +12185,7 @@
                         ctx.stroke();
                         ctx.restore();
                     }
+                    ctx.restore();
 
                     const governance = getColumnLineGovernance(col);
                     const floorIndex = state.floors.findIndex(floor => floor.id === currentFloorId);
@@ -11887,7 +12198,7 @@
                         ctx.fillStyle = '#b45309';
                         ctx.font = `bold ${Math.max(9, Math.round(9 * Math.max(state.scale / 50, 0.5)))}px Arial`;
                         ctx.textAlign = 'left';
-                        ctx.fillText('T', left + colWPx + 3, top - 2);
+                        ctx.fillText('T', footprintRightPx + 3, footprintTopPx - 2);
                         ctx.restore();
                     }
                     if (unresolvedSegment) {
@@ -11895,7 +12206,7 @@
                         ctx.fillStyle = '#dc2626';
                         ctx.font = `bold ${Math.max(10, Math.round(10 * Math.max(state.scale / 50, 0.5)))}px Arial`;
                         ctx.textAlign = 'center';
-                        ctx.fillText('!', x, top - 4);
+                        ctx.fillText('!', x, footprintTopPx - 4);
                         ctx.restore();
                     }
 
@@ -11909,7 +12220,7 @@
                         ctx.fillStyle = columnTextColor;
                         ctx.font = `${ colLabelFontSize }px Arial`;
                         ctx.textAlign = 'center';
-                        ctx.fillText(col.id, x, y + colHPx / 2 + colLabelOffset);
+                        ctx.fillText(col.id, x, footprintBottomPx + colLabelOffset);
                     }
                 }
             }
@@ -11936,19 +12247,20 @@
         }
 
         function getFoundationColumnRectForPlan(col) {
-            const size = getColumnSizeMm(col);
             const offset = getFoundationColumnAlignmentOffset(col);
-            const x = (Number(col?.x) || 0) + offset.dx;
-            const y = (Number(col?.y) || 0) + offset.dy;
-            const halfB = (size.b / 1000) / 2;
-            const halfH = (size.h / 1000) / 2;
+            const footprint = getColumnPlanFootprint(col, {
+                x: (Number(col?.x) || 0) + offset.dx,
+                y: (Number(col?.y) || 0) + offset.dy
+            });
             return {
-                left: x - halfB,
-                right: x + halfB,
-                top: y - halfH,
-                bottom: y + halfH,
-                cx: x,
-                cy: y
+                left: footprint.left,
+                right: footprint.right,
+                top: footprint.top,
+                bottom: footprint.bottom,
+                cx: footprint.center.x,
+                cy: footprint.center.y,
+                corners: footprint.corners,
+                orientationDeg: footprint.orientationDeg
             };
         }
 
@@ -12124,18 +12436,25 @@
                 const y = (Number(col.y || 0) + offset.dy) * state.scale + state.offsetY;
                 const colWPx = (colSize.b / 1000) * state.scale;
                 const colHPx = (colSize.h / 1000) * state.scale;
-                const left = x - colWPx / 2;
-                const top = y - colHPx / 2;
+                const footprint = getColumnPlanFootprint(col, {
+                    x: Number(col.x || 0) + offset.dx,
+                    y: Number(col.y || 0) + offset.dy
+                });
+                const footprintTopPx = footprint.top * state.scale + state.offsetY;
 
-                ctx.strokeRect(left, top, colWPx, colHPx);
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(getColumnOrientationDeg(col) * Math.PI / 180);
+                ctx.strokeRect(-colWPx / 2, -colHPx / 2, colWPx, colHPx);
+                ctx.restore();
                 ctx.strokeStyle = COLOR_REACTION;
                 ctx.lineWidth = 1.1 * scaleFactor;
                 ctx.beginPath();
                 ctx.moveTo(x, y - 18 * scaleFactor);
-                ctx.lineTo(x, y - colHPx / 2 - 2 * scaleFactor);
-                ctx.moveTo(x - 4 * scaleFactor, y - colHPx / 2 - 8 * scaleFactor);
-                ctx.lineTo(x, y - colHPx / 2 - 2 * scaleFactor);
-                ctx.lineTo(x + 4 * scaleFactor, y - colHPx / 2 - 8 * scaleFactor);
+                ctx.lineTo(x, footprintTopPx - 2 * scaleFactor);
+                ctx.moveTo(x - 4 * scaleFactor, footprintTopPx - 8 * scaleFactor);
+                ctx.lineTo(x, footprintTopPx - 2 * scaleFactor);
+                ctx.lineTo(x + 4 * scaleFactor, footprintTopPx - 8 * scaleFactor);
                 ctx.stroke();
                 ctx.strokeStyle = COLOR_OUTLINE;
                 ctx.lineWidth = 1.45 * scaleFactor;
@@ -12147,10 +12466,9 @@
             rows.forEach(row => {
                 const col = activeColumns.find(c => c.id === row.columnId);
                 if (!col) return;
-                const offset = getFoundationColumnAlignmentOffset(col);
-                const colSize = getColumnSizeMm(col);
-                const x = (Number(col.x || 0) + offset.dx) * state.scale + state.offsetX + (colSize.b / 1000) * state.scale / 2 + 5 * scaleFactor;
-                const y = (Number(col.y || 0) + offset.dy) * state.scale + state.offsetY - 2 * scaleFactor;
+                const footprint = getColumnPlanFootprint(col);
+                const x = footprint.right * state.scale + state.offsetX + 5 * scaleFactor;
+                const y = footprint.center.y * state.scale + state.offsetY - 2 * scaleFactor;
                 ctx.fillText(`${row.grid} Pu=${row.factoredReactionKn.toFixed(0)} kN`, x, y);
             });
 
@@ -12414,12 +12732,10 @@
                     tieY += getFoundationTieBeamAlignmentOffset(tieBeamKey);
 
                     // X positions: from column edge to column edge (avoid overlapping column stubs)
-                    const offset1 = getColumnAlignmentOffset(col1);
-                    const offset2 = getColumnAlignmentOffset(col2);
-                    const col1Size = getColumnSizeMm(col1);
-                    const col2Size = getColumnSizeMm(col2);
-                    const x1 = (col1.x + offset1.dx + (col1Size.b / 1000) / 2) * state.scale + state.offsetX;  // Right edge of col1
-                    const x2 = (col2.x + offset2.dx - (col2Size.b / 1000) / 2) * state.scale + state.offsetX;  // Left edge of col2
+                    const col1Rect = getFoundationColumnRectForPlan(col1);
+                    const col2Rect = getFoundationColumnRectForPlan(col2);
+                    const x1 = col1Rect.right * state.scale + state.offsetX;
+                    const x2 = col2Rect.left * state.scale + state.offsetX;
                     const yPx = tieY * state.scale + state.offsetY;
 
                     ctx.strokeRect(x1, yPx - tieBeamWidthPx / 2, x2 - x1, tieBeamWidthPx);
@@ -12455,12 +12771,10 @@
                     tieX += getFoundationTieBeamAlignmentOffset(tieBeamKey);
 
                     // Y positions: from column edge to column edge (avoid overlapping column stubs)
-                    const offset1 = getColumnAlignmentOffset(col1);
-                    const offset2 = getColumnAlignmentOffset(col2);
-                    const col1Size = getColumnSizeMm(col1);
-                    const col2Size = getColumnSizeMm(col2);
-                    const y1 = (col1.y + offset1.dy + (col1Size.h / 1000) / 2) * state.scale + state.offsetY;  // Bottom edge of col1
-                    const y2 = (col2.y + offset2.dy - (col2Size.h / 1000) / 2) * state.scale + state.offsetY;  // Top edge of col2
+                    const col1Rect = getFoundationColumnRectForPlan(col1);
+                    const col2Rect = getFoundationColumnRectForPlan(col2);
+                    const y1 = col1Rect.bottom * state.scale + state.offsetY;
+                    const y2 = col2Rect.top * state.scale + state.offsetY;
                     const xPx = tieX * state.scale + state.offsetX;
 
                     ctx.strokeRect(xPx - tieBeamWidthPx / 2, y1, tieBeamWidthPx, y2 - y1);
@@ -12481,10 +12795,13 @@
                 const x = (col.x + offset.dx) * state.scale + state.offsetX;
                 const y = (col.y + offset.dy) * state.scale + state.offsetY;
 
-                const left = x - colWPx / 2;
-                const top = y - colHPx / 2;
+                const left = -colWPx / 2;
+                const top = -colHPx / 2;
 
                 // Draw column stub outline
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(getColumnOrientationDeg(col) * Math.PI / 180);
                 ctx.strokeRect(left, top, colWPx, colHPx);
 
                 // Add ANSI31 hatch
@@ -12502,6 +12819,7 @@
                     ctx.lineTo(left + d + colHPx, top + colHPx);
                 }
                 ctx.stroke();
+                ctx.restore();
                 ctx.restore();
             });
 
@@ -12924,6 +13242,7 @@
         function initTheme() {
             const savedTheme = localStorage.getItem('tributaryTheme') || 'dark'; // Default to Midnight
             setTheme(savedTheme);
+            syncMemberSizePolicyInputs();
         }
 
         // Toggle Settings Panel visibility
@@ -12985,7 +13304,7 @@
 
             xCoords.forEach(x => {
                 addMeasureSegmentSnapCandidates(candidates, rawPoint, x, 0, x, totalY, 'grid-line', 14);
-                yCoords.forEach(y => addMeasureSnapCandidate(candidates, x, y, 'grid-intersection', 4));
+                yCoords.forEach(y => addMeasureSnapCandidate(candidates, x, y, 'grid-intersection', 1));
             });
             yCoords.forEach(y => {
                 addMeasureSegmentSnapCandidates(candidates, rawPoint, 0, y, totalX, y, 'grid-line', 14);
@@ -12993,19 +13312,21 @@
 
             (state.columns || []).forEach(col => {
                 if (!isColumnActiveOnFloor(col, currentFloorId)) return;
-                const pos = getColumnPlanPosition(col);
-                const size = getColumnSizeMm(col);
-                const halfB = (size.b / 1000) / 2;
-                const halfH = (size.h / 1000) / 2;
-                addMeasureSnapCandidate(candidates, pos.x, pos.y, 'column-center', 1);
-                const left = pos.x - halfB;
-                const right = pos.x + halfB;
-                const top = pos.y - halfH;
-                const bottom = pos.y + halfH;
-                addMeasureSegmentSnapCandidates(candidates, rawPoint, left, top, right, top, 'column-face', 2);
-                addMeasureSegmentSnapCandidates(candidates, rawPoint, right, top, right, bottom, 'column-face', 2);
-                addMeasureSegmentSnapCandidates(candidates, rawPoint, right, bottom, left, bottom, 'column-face', 2);
-                addMeasureSegmentSnapCandidates(candidates, rawPoint, left, bottom, left, top, 'column-face', 2);
+                const footprint = getColumnPlanFootprint(col);
+                addMeasureSnapCandidate(candidates, footprint.center.x, footprint.center.y, 'column-center', 0);
+                footprint.corners.forEach((start, index) => {
+                    const end = footprint.corners[(index + 1) % footprint.corners.length];
+                    addMeasureSegmentSnapCandidates(
+                        candidates,
+                        rawPoint,
+                        start.x,
+                        start.y,
+                        end.x,
+                        end.y,
+                        'column-face',
+                        2
+                    );
+                });
             });
 
             (state.beams || []).forEach(beam => {
@@ -13014,11 +13335,11 @@
                 const { x1, y1, x2, y2, beamWidthM } = beamGeom;
                 addMeasureSegmentSnapCandidates(candidates, rawPoint, x1, y1, x2, y2, 'beam-axis', 3);
                 if (beam.direction === 'X') {
-                    addMeasureSegmentSnapCandidates(candidates, rawPoint, x1, y1 - beamWidthM / 2, x2, y2 - beamWidthM / 2, 'beam-face', 2);
-                    addMeasureSegmentSnapCandidates(candidates, rawPoint, x1, y1 + beamWidthM / 2, x2, y2 + beamWidthM / 2, 'beam-face', 2);
+                    addMeasureSegmentSnapCandidates(candidates, rawPoint, x1, y1 - beamWidthM / 2, x2, y2 - beamWidthM / 2, 'beam-face', 5);
+                    addMeasureSegmentSnapCandidates(candidates, rawPoint, x1, y1 + beamWidthM / 2, x2, y2 + beamWidthM / 2, 'beam-face', 5);
                 } else {
-                    addMeasureSegmentSnapCandidates(candidates, rawPoint, x1 - beamWidthM / 2, y1, x2 - beamWidthM / 2, y2, 'beam-face', 2);
-                    addMeasureSegmentSnapCandidates(candidates, rawPoint, x1 + beamWidthM / 2, y1, x2 + beamWidthM / 2, y2, 'beam-face', 2);
+                    addMeasureSegmentSnapCandidates(candidates, rawPoint, x1 - beamWidthM / 2, y1, x2 - beamWidthM / 2, y2, 'beam-face', 5);
+                    addMeasureSegmentSnapCandidates(candidates, rawPoint, x1 + beamWidthM / 2, y1, x2 + beamWidthM / 2, y2, 'beam-face', 5);
                 }
             });
 
@@ -13047,12 +13368,19 @@
 
         function findNearestMeasureSnapPoint(rawPoint) {
             const tolerancePx = Math.max(8, Math.min(18, state.scale * 0.22));
+            const priorityWeightPx = 0.75;
             let best = null;
             collectMeasureSnapCandidates(rawPoint).forEach(candidate => {
                 const pxDistance = Math.hypot((candidate.x - rawPoint.x) * state.scale, (candidate.y - rawPoint.y) * state.scale);
                 if (pxDistance > tolerancePx) return;
-                const rank = pxDistance + candidate.priority * 0.25;
-                if (!best || rank < best.rank) best = { ...candidate, pxDistance, rank };
+                const rank = pxDistance + candidate.priority * priorityWeightPx;
+                if (
+                    !best ||
+                    rank < best.rank - 0.0001 ||
+                    (Math.abs(rank - best.rank) <= 0.0001 && candidate.priority < best.priority)
+                ) {
+                    best = { ...candidate, pxDistance, rank };
+                }
             });
             return best;
         }
@@ -14027,9 +14355,7 @@
         }
 
         function getColumnTrimAlongBeam(col, direction) {
-            if (!col) return 0;
-            const size = get3DColumnSize(col);
-            return ((direction === 'X') ? size.b : size.d) / 2;
+            return getColumnHalfAlongBeam(col, direction);
         }
 
         function getRenderedBeamSegment(beam, startCol, endCol, floorId = null) {
@@ -14759,6 +15085,7 @@
                     const mesh = new THREE.Mesh(geo, mat);
                     const colPos = getColumnPlanPosition(col);
                     mesh.position.set(colPos.x + offsetX, baseY + floor.height / 2, colPos.y + offsetZ);
+                    mesh.rotation.y = -getColumnOrientationDeg(col) * Math.PI / 180;
 
                     // v3.0: Store data for click detection
                     mesh.userData = { type: 'column', id: col.id, floorId: floor.id, isPlanted: col.isPlanted, member: { ...col } };
@@ -15022,6 +15349,7 @@
                     -(footingDepth - adjustedThick) / 2,
                     colPos.y + offsetZ
                 );
+                pedestal.rotation.y = -getColumnOrientationDeg(col) * Math.PI / 180;
                 pedestal.userData = {
                     type: 'pedestal',
                     id: `P-${col.id}`,
@@ -15828,6 +16156,7 @@
                 defaultColumnH: state.defaultColumnH,
                 defaultBeamB: state.defaultBeamB,
                 defaultBeamH: state.defaultBeamH,
+                memberSizePolicy: normalizeMemberSizePolicy(state.memberSizePolicy),
                 tieBeamWidth: state.tieBeamWidth,
                 tieBeamDepth: state.tieBeamDepth,
                 plotSettings: normalizePlotSettings(state.plotSettings)
@@ -16240,6 +16569,8 @@
                 seed.id = String(raw.id);
                 seed.isRegularGrid = raw.isRegularGrid !== false && !raw.isCustomPlaced;
                 seed.isPlanted = raw.isPlanted === true || !!raw.startFloor;
+                seed.memberStatus = normalizeMemberStatus(raw.memberStatus);
+                seed.orientationDeg = Number.isFinite(Number(raw.orientationDeg)) ? Number(raw.orientationDeg) : 0;
                 seed.segmentOverrides = cloneSerializable(raw.segmentOverrides, {});
                 seed.segmentIntentVersion = Number(raw.segmentIntentVersion) || COLUMN_SEGMENT_INTENT_VERSION;
                 if (seed.isRegularGrid === false || seed.isPlanted) {
@@ -16306,10 +16637,11 @@
             if (projectData.fy != null) state.fy = projectData.fy;
             if (projectData.soilBearing != null) state.soilBearing = projectData.soilBearing;
             if (projectData.concreteDensity != null) state.concreteDensity = projectData.concreteDensity;
-            if (projectData.defaultColumnB != null) state.defaultColumnB = projectData.defaultColumnB;
-            if (projectData.defaultColumnH != null) state.defaultColumnH = projectData.defaultColumnH;
-            if (projectData.defaultBeamB != null) state.defaultBeamB = projectData.defaultBeamB;
-            if (projectData.defaultBeamH != null) state.defaultBeamH = projectData.defaultBeamH;
+            if (projectData.defaultColumnB != null) state.defaultColumnB = normalizeDefaultMemberSizeMm(projectData.defaultColumnB, 0, 1200);
+            if (projectData.defaultColumnH != null) state.defaultColumnH = normalizeDefaultMemberSizeMm(projectData.defaultColumnH, 0, 1200);
+            if (projectData.defaultBeamB != null) state.defaultBeamB = normalizeDefaultMemberSizeMm(projectData.defaultBeamB, 250, 1500);
+            if (projectData.defaultBeamH != null) state.defaultBeamH = normalizeDefaultMemberSizeMm(projectData.defaultBeamH, 0, 2000);
+            state.memberSizePolicy = normalizeMemberSizePolicy(projectData.memberSizePolicy);
             state.beamSizeOverrides = projectData.beamSizeOverrides || {};
             state.columnPositionOverrides = projectData.columnPositionOverrides || {};
             state.columnPositionLocked = !!projectData.columnPositionLocked;
@@ -16317,8 +16649,22 @@
             state.foundationTieBeamAlignmentOverrides = projectData.foundationTieBeamAlignmentOverrides || {};
             state.foundationMode = normalizeFoundationMode(projectData.foundationMode);
             if (projectData.columnAlignment) state.columnAlignment = projectData.columnAlignment;
-            if (projectData.tieBeamWidth != null) state.tieBeamWidth = projectData.tieBeamWidth;
-            if (projectData.tieBeamDepth != null) state.tieBeamDepth = projectData.tieBeamDepth;
+            if (projectData.tieBeamWidth != null) {
+                state.tieBeamWidth = normalizeMemberSizeMm(
+                    projectData.tieBeamWidth,
+                    200,
+                    MEMBER_GEOMETRY_MIN_MM,
+                    1500
+                );
+            }
+            if (projectData.tieBeamDepth != null) {
+                state.tieBeamDepth = normalizeMemberSizeMm(
+                    projectData.tieBeamDepth,
+                    350,
+                    MEMBER_GEOMETRY_MIN_MM,
+                    2000
+                );
+            }
             state.tieBeamW = (state.tieBeamWidth || Math.round((state.tieBeamW || 0.25) * 1000)) / 1000;
             state.tieBeamH = (state.tieBeamDepth || Math.round((state.tieBeamH || 0.35) * 1000)) / 1000;
             state.plotSettings = normalizePlotSettings(projectData.plotSettings || state.plotSettings);
@@ -16355,6 +16701,7 @@
             if (tieBeamWidthInput) tieBeamWidthInput.value = String(state.tieBeamWidth);
             const tieBeamDepthInput = document.getElementById('tieBeamDepth');
             if (tieBeamDepthInput) tieBeamDepthInput.value = String(state.tieBeamDepth);
+            syncMemberSizePolicyInputs();
             loadSettings();
             syncDimensionTable();
 
@@ -16374,6 +16721,10 @@
                 for (let override of projectData.columnOverrides) {
                     const col = state.columns.find(c => c.id === override.id);
                     if (col) {
+                        col.memberStatus = normalizeMemberStatus(override.memberStatus || col.memberStatus);
+                        col.orientationDeg = Number.isFinite(Number(override.orientationDeg))
+                            ? Number(override.orientationDeg)
+                            : (Number(col.orientationDeg) || 0);
                         const colB = override.webB || override.overrideB;
                         const colH = override.webD || override.overrideH;
                         if (colB || colH) applyColumnSizeMm(col, colB || getColumnSizeMm(col).b, colH || getColumnSizeMm(col).h);
@@ -16524,6 +16875,11 @@
             state.beams = [];
             state.slabs = [];
             state.nextCustomBeamId = 1;
+            state.defaultColumnB = 0;
+            state.defaultColumnH = 0;
+            state.defaultBeamB = 250;
+            state.defaultBeamH = 0;
+            state.memberSizePolicy = { ...DEFAULT_MEMBER_SIZE_POLICY };
             state.beamSizeOverrides = {};
             state.columnPositionOverrides = {};
             state.beamAlignmentOverrides = {};
@@ -16550,6 +16906,7 @@
             const tieBeamDepthInput = document.getElementById('tieBeamDepth');
             if (tieBeamWidthInput) tieBeamWidthInput.value = '200';
             if (tieBeamDepthInput) tieBeamDepthInput.value = '350';
+            syncMemberSizePolicyInputs();
             syncFoundationModeUI();
 
             // Re-render UI
@@ -18253,11 +18610,11 @@ function generatePDFReport() {
 
     // Column Schedule
     report += '<h2>2. COLUMN SCHEDULE</h2><table>';
-    report += '<tr><th>Column ID</th><th>Column Line ID</th><th>Start</th><th>End</th><th>Support</th><th>Host</th><th>B/X (mm)</th><th>H/Y (mm)</th><th>Orientation</th><th>Status</th><th>Export</th><th>Pu (kN)</th></tr>';
+    report += '<tr><th>Column ID</th><th>Column Line ID</th><th>Start</th><th>End</th><th>Support</th><th>Host</th><th>B/X (mm)</th><th>H/Y (mm)</th><th>Orientation</th><th>Member Class</th><th>Status</th><th>Export</th><th>Pu (kN)</th></tr>';
     state.columns.forEach(col => {
         const size = getColumnSizeMm(col);
         const governance = getColumnLineGovernance(col, columnTopology);
-        report += '<tr><td>' + escapeInfoText(`C-${col.id}`) + '</td><td>' + escapeInfoText(governance.columnLineId) + '</td><td>' + escapeInfoText(governance.startLevel) + '</td><td>' + escapeInfoText(governance.endLevel) + '</td><td>' + escapeInfoText(governance.supportType.replace(/_/g, ' ')) + '</td><td>' + escapeInfoText(governance.hostMemberId) + '</td><td>' + size.b + '</td><td>' + size.h + '</td><td>' + governance.orientationDeg + '&deg;</td><td>' + escapeInfoText(governance.status) + '</td><td>' + escapeInfoText(governance.exportReadiness) + '</td><td>' + (col.totalLoadWithDL || col.totalLoad || 0).toFixed(1) + '</td></tr>';
+        report += '<tr><td>' + escapeInfoText(`C-${col.id}`) + '</td><td>' + escapeInfoText(governance.columnLineId) + '</td><td>' + escapeInfoText(governance.startLevel) + '</td><td>' + escapeInfoText(governance.endLevel) + '</td><td>' + escapeInfoText(governance.supportType.replace(/_/g, ' ')) + '</td><td>' + escapeInfoText(governance.hostMemberId) + '</td><td>' + size.b + '</td><td>' + size.h + '</td><td>' + governance.orientationDeg + '&deg;</td><td>' + escapeInfoText(formatMemberStatusLabel(col.memberStatus)) + '</td><td>' + escapeInfoText(governance.status) + '</td><td>' + escapeInfoText(governance.exportReadiness) + '</td><td>' + (col.totalLoadWithDL || col.totalLoad || 0).toFixed(1) + '</td></tr>';
     });
     report += '</table>';
 
@@ -18273,7 +18630,7 @@ function generatePDFReport() {
 
     // Beam Schedule
     report += '<h2>4. BEAM SCHEDULE</h2><table>';
-    report += '<tr><th>Beam</th><th>Floor</th><th>Type</th><th>Dir</th><th>b x h (mm)</th><th>Span (m)</th><th>w (kN/m)</th><th>R (kN)</th></tr>';
+    report += '<tr><th>Beam</th><th>Floor</th><th>Type</th><th>Dir</th><th>b x h (mm)</th><th>Member Class</th><th>Span (m)</th><th>w (kN/m)</th><th>R (kN)</th></tr>';
     const floorGeometryById = typeof collect3DFloorGeometry === 'function'
         ? collect3DFloorGeometry()
         : new Map();
@@ -18301,11 +18658,11 @@ function generatePDFReport() {
             const reaction = beam.isCantilever
                 ? w * span
                 : (Number(beam.Rleft || 0) || Number(beam.Rright || 0) || (w * span / 2));
-            report += '<tr><td>' + escapeInfoText(beamId) + '</td><td>' + escapeInfoText(floor.id) + '</td><td>' + escapeInfoText(typeLabel) + '</td><td>' + escapeInfoText(dirLabel) + '</td><td>' + size.b + 'x' + size.h + '</td><td>' + span.toFixed(2) + '</td><td>' + w.toFixed(2) + '</td><td>' + reaction.toFixed(1) + '</td></tr>';
+            report += '<tr><td>' + escapeInfoText(beamId) + '</td><td>' + escapeInfoText(floor.id) + '</td><td>' + escapeInfoText(typeLabel) + '</td><td>' + escapeInfoText(dirLabel) + '</td><td>' + size.b + 'x' + size.h + '</td><td>' + escapeInfoText(formatMemberStatusLabel(getBeamMemberStatus(beam, floor.id))) + '</td><td>' + span.toFixed(2) + '</td><td>' + w.toFixed(2) + '</td><td>' + reaction.toFixed(1) + '</td></tr>';
         });
     });
     if (beamReportRow === 0) {
-        report += '<tr><td colspan="8">No beams found for the active floor setup.</td></tr>';
+        report += '<tr><td colspan="9">No beams found for the active floor setup.</td></tr>';
     }
     report += '</table>';
 
@@ -18647,10 +19004,11 @@ function buildTANReportHtml() {
     html += '<h2>5. Representative Column Load Takedown</h2>';
     if (maxColumn) {
         const totalLoad = Number(maxColumn.totalLoadWithDL || maxColumn.totalLoad || maxColumn.P_total || 0);
+        const maxColumnSize = getColumnSizeMm(maxColumn);
         html += tanTable(['Field', 'Value'], [
             ['Column ID', maxColumn.id],
             ['Type', maxColumn.type || '-'],
-            ['B x H', (maxColumn.suggestedB || maxColumn.overrideB || state.defaultColumnB || 300) + ' x ' + (maxColumn.suggestedH || maxColumn.overrideH || state.defaultColumnH || 300) + ' mm'],
+            ['B x H', maxColumnSize.b + ' x ' + maxColumnSize.h + ' mm'],
             ['Total load', tanNumber(totalLoad, 1) + ' kN']
         ]);
         html += tanTable(['Floor', 'Load', 'Slab reaction', 'Beam DL'], (maxColumn.floorLoads || []).map(load => [
@@ -19985,6 +20343,7 @@ function populateBOM() {
         // ================================================================
         function generateSTAADContent(modelData = collectCSIExportModelData()) {
             assertSolverColumnTopologyReady('STAAD');
+            assertSolverMemberSizeReady('STAAD');
             const model = modelData;
             const nodes = [];
             const nodeByCoordinate = new Map();
@@ -20051,7 +20410,15 @@ function populateBOM() {
                 frameNodeIds.add(startNode);
                 frameNodeIds.add(endNode);
                 const id = members.length + 1;
-                members.push({ id, startNode, endNode, section: column.section, type: 'column', sourceId: column.id });
+                members.push({
+                    id,
+                    startNode,
+                    endNode,
+                    section: column.section,
+                    type: 'column',
+                    sourceId: column.id,
+                    orientationDeg: Number(column.orientationDeg) || 0
+                });
                 columnMembers.push(id);
                 addSectionMember(column.section, id);
                 if (Math.abs(Number(column.z1) || 0) < 1e-6) supportNodes.add(startNode);
@@ -20180,6 +20547,22 @@ function populateBOM() {
                     std += `${chunk.join(' ')} PRIS YD ${(section.hMm / 1000).toFixed(3)} ZD ${(section.bMm / 1000).toFixed(3)}\n`;
                 });
             });
+            const orientedColumnGroups = new Map();
+            members.filter(member =>
+                member.type === 'column' && Math.abs(Number(member.orientationDeg) || 0) > 1e-9
+            ).forEach(member => {
+                const angle = Number(member.orientationDeg).toFixed(3);
+                if (!orientedColumnGroups.has(angle)) orientedColumnGroups.set(angle, []);
+                orientedColumnGroups.get(angle).push(member.id);
+            });
+            if (orientedColumnGroups.size) {
+                std += '\n* Column section orientation from FutolStructure plan geometry\n';
+                orientedColumnGroups.forEach((ids, angle) => {
+                    chunkArray(ids, 10).forEach(chunk => {
+                        std += `BETA ${angle} MEMB ${chunk.join(' ')}\n`;
+                    });
+                });
+            }
             if (plates.length) {
                 std += '\nELEMENT PROPERTY\n';
                 slabSectionPlates.forEach((ids, sectionName) => {
@@ -20879,6 +21262,7 @@ function populateBOM() {
             const storyElevations = getExportStoryElevations(state.floors || []);
             const floorGeometry = collect3DFloorGeometry();
             const topologyValidation = collectColumnTopologyValidation({ floorGeometry });
+            const memberSizeGovernance = collectMemberSizeGovernance();
             const originalBeams = state.beams;
             const frameSectionMap = new Map();
             const slabSectionMap = new Map();
@@ -20887,8 +21271,8 @@ function populateBOM() {
             const slabs = [];
 
             const registerFrameSection = (prefix, type, bMm, hMm) => {
-                const b = Math.max(100, Math.round(Number(bMm) || 0));
-                const h = Math.max(100, Math.round(Number(hMm) || 0));
+                const b = normalizeMemberSizeMm(bMm, MEMBER_GEOMETRY_MIN_MM, MEMBER_GEOMETRY_MIN_MM, 1500);
+                const h = normalizeMemberSizeMm(hMm, MEMBER_GEOMETRY_MIN_MM, MEMBER_GEOMETRY_MIN_MM, 2000);
                 const key = `${type}:${b}x${h}`;
                 if (!frameSectionMap.has(key)) {
                     frameSectionMap.set(key, {
@@ -20940,6 +21324,8 @@ function populateBOM() {
                             hostMemberId: col.hostMemberId || col.supportingBeamId || '',
                             isPlanted: !!col.isPlanted,
                             isTerminated: !!col.terminationLevelId && col.terminationLevelId === floorId,
+                            memberStatus: normalizeMemberStatus(col.memberStatus),
+                            orientationDeg: Number(col.orientationDeg) || 0,
                             exportStatus: segmentValidation.status,
                             x: solverPosition.x,
                             y: solverPosition.y,
@@ -20991,6 +21377,7 @@ function populateBOM() {
                             floorId,
                             type: governanceType,
                             topologyStatus: beam.topologyStatus || 'resolved',
+                            memberStatus: getBeamMemberStatus(beam, floorId),
                             startSupportStatus: beam.startSupportStatus || '',
                             endSupportStatus: beam.endSupportStatus || '',
                             x1: solverStart.x,
@@ -21067,6 +21454,7 @@ function populateBOM() {
                     summary: topologyValidation.summary,
                     items: topologyValidation.items.filter(item => item.status !== 'PASS')
                 },
+                memberSizeGovernance,
                 columns,
                 beams,
                 slabs,
@@ -21086,6 +21474,7 @@ function populateBOM() {
 
         function generateETABSOAPIScript(modelData = collectCSIExportModelData()) {
             assertSolverColumnTopologyReady('ETABS');
+            assertSolverMemberSizeReady('ETABS');
             const encodedModel = encodeUtf8Base64(JSON.stringify(modelData));
             return String.raw`param(
     [string]$OutputDirectory = (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'FutolStructure ETABS Exports'),
@@ -21247,6 +21636,9 @@ try {
         $name = ''
         Assert-CSI ($sap.FrameObj.AddByCoord([double]$column.x, [double]$column.y, [double]$column.z1, [double]$column.x, [double]$column.y, [double]$column.z2, [ref]$name, [string]$column.section, [string]$column.id, 'Global')) ('Column ' + $column.id)
         $createdColumns += $name
+        if ([Math]::Abs([double]$column.orientationDeg) -gt 0.0001) {
+            Assert-CSI ($sap.FrameObj.SetLocalAxes($name, [double]$column.orientationDeg, [ETABSv1.eItemType]::Objects)) ('Column local axes ' + $column.id)
+        }
         if ([Math]::Abs([double]$column.z1) -lt 0.0001) {
             $pointName = ''
             Assert-CSI ($sap.PointObj.AddCartesian([double]$column.x, [double]$column.y, 0.0, [ref]$pointName, '', 'Global', $false, 0)) ('Base point ' + $column.id)
@@ -21543,6 +21935,23 @@ try {
 
             const frameSections = new Map(model.frameSections.map(section => [section.name, section]));
             const slabSections = new Map(model.slabSections.map(section => [section.name, section]));
+            const memberSizeIssueByKey = new Map(
+                (model.memberSizeGovernance?.items || []).map(item => [
+                    `${item.type}:${item.floorId || ''}:${item.id}`,
+                    item
+                ])
+            );
+            const getMemberSizeMetadata = (type, id, floorId = '') => {
+                const issue = memberSizeIssueByKey.get(`${type}:${floorId}:${id}`)
+                    || memberSizeIssueByKey.get(`${type}::${id}`);
+                if (!issue) return { FS_SizeGovernanceStatus: 'PASS' };
+                return {
+                    FS_SizeGovernanceStatus: issue.status,
+                    FS_ActualSectionMm: `${issue.actualB}x${issue.actualH}`,
+                    FS_ConfiguredMinimumMm: `${issue.minimumB}x${issue.minimumH}`,
+                    FS_MemberStatus: issue.memberStatus
+                };
+            };
             const storeyRefs = new Map();
             model.stories.forEach(story => {
                 const storeyAxis = makeAxis3(0, 0, story.elevation, directionZ, directionX);
@@ -21610,12 +22019,18 @@ try {
                 if (!ref || !section) return;
                 const halfX = section.bMm / 2000;
                 const halfY = section.hMm / 2000;
+                const orientationRad = -(Number(column.orientationDeg) || 0) * Math.PI / 180;
+                const cosOrientation = Math.cos(orientationRad);
+                const sinOrientation = Math.sin(orientationRad);
                 const footprint = [
-                    { x: column.x - halfX, y: column.y - halfY },
-                    { x: column.x + halfX, y: column.y - halfY },
-                    { x: column.x + halfX, y: column.y + halfY },
-                    { x: column.x - halfX, y: column.y + halfY }
-                ];
+                    { x: -halfX, y: -halfY },
+                    { x: halfX, y: -halfY },
+                    { x: halfX, y: halfY },
+                    { x: -halfX, y: halfY }
+                ].map(point => ({
+                    x: column.x + point.x * cosOrientation - point.y * sinOrientation,
+                    y: column.y + point.x * sinOrientation + point.y * cosOrientation
+                }));
                 const placement = makeIdentityPlacement(ref.placementId);
                 const shape = makeBRepShape(footprint, -ref.story.height, 0);
                 const productId = emit(`IFCCOLUMN('${generateIFCGUID()}',${ownerHistoryId},'${escapeIFCString(column.sourceId)}','Column ${escapeIFCString(column.sourceId)}',$,${placement},${shape},'${escapeIFCString(column.id)}')`);
@@ -21630,7 +22045,10 @@ try {
                     FS_IsPlantedColumn: column.isPlanted ? 'TRUE' : 'FALSE',
                     FS_IsTerminated: column.isTerminated ? 'TRUE' : 'FALSE',
                     FS_ExportStatus: column.exportStatus,
-                    FS_SupportStatus: column.supportStatus
+                    FS_SupportStatus: column.supportStatus,
+                    FS_MemberStatus: column.memberStatus,
+                    FS_OrientationDeg: Number(column.orientationDeg) || 0,
+                    ...getMemberSizeMetadata('Column', column.sourceId)
                 });
             });
 
@@ -21660,7 +22078,9 @@ try {
                 attachProperties(productId, beam.sourceId, beam.floorId, beam.type || 'Beam', beam.section, {
                     FS_ExportStatus: beam.topologyStatus === 'unresolved' ? 'BLOCKED' : 'PASS',
                     FS_StartSupportStatus: beam.startSupportStatus || '',
-                    FS_EndSupportStatus: beam.endSupportStatus || ''
+                    FS_EndSupportStatus: beam.endSupportStatus || '',
+                    FS_MemberStatus: beam.memberStatus,
+                    ...getMemberSizeMetadata('Beam', beam.sourceId, beam.floorId)
                 });
             });
 
@@ -21698,7 +22118,13 @@ try {
                     products: allProducts.length,
                     entities: entityId - 1
                 },
-                topologyValidation: model.topologyValidation || { summary: { pass: 0, warning: 0, blocked: 0, solverReady: true }, items: [] }
+                topologyValidation: model.topologyValidation || { summary: { pass: 0, warning: 0, blocked: 0, solverReady: true }, items: [] },
+                memberSizeGovernance: model.memberSizeGovernance || {
+                    softwareGeometryMinimumMm: MEMBER_GEOMETRY_MIN_MM,
+                    policy: normalizeMemberSizePolicy(),
+                    summary: { warning: 0, blocked: 0, solverReady: true },
+                    items: []
+                }
             };
             return lines.join('\n') + '\n';
         }
@@ -21709,8 +22135,12 @@ try {
                 downloadBlob(ifc, `FutolStructure_Model_${new Date().toISOString().split('T')[0]}.ifc`, 'application/x-step');
                 const audit = window.lastIFCExportAudit;
                 const blocked = audit.topologyValidation?.summary?.blocked || 0;
-                const coordinationWarning = blocked
-                    ? `\n\nCoordination warning: ${blocked} unresolved topology issue(s) are included with FS_ExportStatus metadata. This IFC is not solver-ready.`
+                const sizeBlocked = audit.memberSizeGovernance?.summary?.blocked || 0;
+                const coordinationNotes = [];
+                if (blocked) coordinationNotes.push(`${blocked} unresolved topology issue(s)`);
+                if (sizeBlocked) coordinationNotes.push(`${sizeBlocked} project-policy member size issue(s)`);
+                const coordinationWarning = coordinationNotes.length
+                    ? `\n\nCoordination warning: ${coordinationNotes.join(' and ')} are included with FutolStructure metadata. This IFC is not solver-ready.`
                     : '';
                 alert(`IFC2x3 BIM model exported.\n\nPayload:\n- ${audit.counts.stories} storeys\n- ${audit.counts.columns} columns\n- ${audit.counts.beams} beams\n- ${audit.counts.slabs} active slabs${coordinationWarning}\n\nUse Revit -> Open -> IFC for a converted RVT, or Insert -> Link IFC for coordination.`);
             } catch (err) {
@@ -22813,8 +23243,18 @@ try {
         function addPlantedColumn() {
             if (columnLockBlocks('Add planted column')) return;
             const startFloor = document.getElementById('pcStartFloor').value;
-            const widthB = parseInt(document.getElementById('pcWidthB').value) || 300;
-            const depthH = parseInt(document.getElementById('pcDepthH').value) || 300;
+            const widthB = normalizeMemberSizeMm(
+                document.getElementById('pcWidthB').value,
+                300,
+                MEMBER_GEOMETRY_MIN_MM,
+                1200
+            );
+            const depthH = normalizeMemberSizeMm(
+                document.getElementById('pcDepthH').value,
+                300,
+                MEMBER_GEOMETRY_MIN_MM,
+                1200
+            );
 
             if (!startFloor) {
                 alert('Please select a starting floor.');
@@ -22946,8 +23386,14 @@ try {
                 id: colId,
                 x: x,
                 y: y,
-                bx: widthB,
-                by: depthH,
+                webB: widthB,
+                webD: depthH,
+                overrideB: widthB,
+                overrideH: depthH,
+                suggestedB: widthB,
+                suggestedH: depthH,
+                b: widthB,
+                h: depthH,
                 totalLoad: 0,
                 startFloor: startFloor, // This makes it a planted column
                 isPlanted: true, // v3.0 FIX: Required for persistence after calculate()
@@ -23096,8 +23542,18 @@ try {
             const beam = selectedBeamForPC;
             const offset = parseFloat(document.getElementById('pcBeamOffset').value) || 1.0;
             const startFloor = document.getElementById('pcBeamStartFloor').value;
-            const widthB = parseInt(document.getElementById('pcBeamColB').value) || 250;
-            const depthH = parseInt(document.getElementById('pcBeamColH').value) || 250;
+            const widthB = normalizeMemberSizeMm(
+                document.getElementById('pcBeamColB').value,
+                250,
+                MEMBER_GEOMETRY_MIN_MM,
+                1200
+            );
+            const depthH = normalizeMemberSizeMm(
+                document.getElementById('pcBeamColH').value,
+                250,
+                MEMBER_GEOMETRY_MIN_MM,
+                1200
+            );
 
             // Validate offset
             if (offset <= 0 || offset >= beam.span) {
@@ -23140,10 +23596,14 @@ try {
                 id: colId,
                 x: x,
                 y: y,
-                bx: widthB,
-                by: depthH,
+                webB: widthB,
+                webD: depthH,
+                overrideB: widthB,
+                overrideH: depthH,
                 suggestedB: widthB,
                 suggestedH: depthH,
+                b: widthB,
+                h: depthH,
                 totalLoad: 0,
                 startFloor: startFloor,
                 isPlanted: true,
@@ -23292,7 +23752,8 @@ try {
                     .join(', ') || 'None';
 
                 const planted = col.startFloor ? `Yes @${ col.startFloor } ` : 'No';
-                const size = col.size ? `${ col.size }×${ col.size } ` : '-';
+                const columnSize = getColumnSizeMm(col);
+                const size = `${columnSize.b}×${columnSize.h}`;
                 const footing = col.footingSize ? col.footingSize.toFixed(2) : '-';
 
                 const row = document.createElement('tr');
@@ -24016,7 +24477,10 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                             <td>${escapeInfoText(governance.hostMemberId)}</td>
                             <td><input type="number" value="${colW}" onchange="updateColumnParam('${col.id}', 'webB', this.value)" style="width:45px;"></td>
                             <td><input type="number" value="${colD}" onchange="updateColumnParam('${col.id}', 'webD', this.value)" style="width:45px;"></td>
-                            <td>${governance.orientationDeg}&deg;</td>
+                            <td><input type="number" value="${governance.orientationDeg}" min="-360" max="360" step="90"
+                                onchange="updateColumnParam('${col.id}', 'orientationDeg', this.value)" style="width:48px;"></td>
+                            <td><select onchange="updateColumnParam('${col.id}', 'memberStatus', this.value)"
+                                style="width:118px;">${getMemberStatusOptionsHtml(col.memberStatus)}</select></td>
                             <td>${escapeInfoText(governance.status)}</td>
                             <td>${escapeInfoText(governance.exportReadiness)}</td>
                             <td>${load}</td>
@@ -24063,6 +24527,7 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                             ? w * spanVal
                             : (Number(beam.Rleft || 0) || Number(beam.Rright || 0) || (w * spanVal / 2));
                         const isLocked = isBeamLocked(beam.id, floorID);
+                        const memberStatus = getBeamMemberStatus(beam, floorID);
                         const lockedAttr = isLocked ? ' disabled title="Beam is locked"' : '';
                         const inputStyle = `width:45px;${isLocked ? ' opacity:0.55; cursor:not-allowed;' : ''}`;
                         const actionHtml = isLocked
@@ -24080,6 +24545,8 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                             <td>${spanVal.toFixed(2)}</td>
                             <td><input type="number" value="${bW}" onchange="updateBeamParam('${beam.id}', 'webW', this.value, '${floorID}')" style="${inputStyle}"${lockedAttr}></td>
                             <td><input type="number" value="${bD}" onchange="updateBeamParam('${beam.id}', 'webD', this.value, '${floorID}')" style="${inputStyle}"${lockedAttr}></td>
+                            <td><select onchange="updateBeamParam('${beam.id}', 'memberStatus', this.value, '${floorID}')"
+                                style="width:118px;"${lockedAttr}>${getMemberStatusOptionsHtml(memberStatus)}</select></td>
                             <td>${w.toFixed(2)}</td>
                             <td>${reaction.toFixed(1)}</td>
                             <td data-export="skip">${actionHtml}</td>
@@ -24101,6 +24568,7 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                             <td>-</td>
                             <td><input type="number" value="${tbW}" onchange="updateBeamParam('__TIE_BEAMS__', 'webW', this.value, 'GND')" style="width:45px;"></td>
                             <td><input type="number" value="${tbD}" onchange="updateBeamParam('__TIE_BEAMS__', 'webD', this.value, 'GND')" style="width:45px;"></td>
+                            <td>${escapeInfoText(formatMemberStatusLabel('proposed_new'))}</td>
                             <td>-</td>
                             <td>-</td>
                             <td data-export="skip"><span class="schedule-note">foundation</span></td>
@@ -24295,7 +24763,12 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                 if (!col) return;
 
                 const size = getColumnSizeMm(col);
-                if (param === 'webB' || param === 'b') {
+                if (param === 'memberStatus') {
+                    col.memberStatus = normalizeMemberStatus(value);
+                } else if (param === 'orientationDeg') {
+                    const orientation = Number(value);
+                    col.orientationDeg = Number.isFinite(orientation) ? orientation : 0;
+                } else if (param === 'webB' || param === 'b') {
                     applyColumnSizeMm(col, value, size.h);
                 } else if (param === 'webD' || param === 'h') {
                     applyColumnSizeMm(col, size.b, value);
@@ -24307,14 +24780,28 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                     return;
                 }
 
-                console.log(`v3.9: Column ${colId} ${param} = ${value}mm`);
+                console.log(`v3.9: Column ${colId} ${param} = ${value}`);
                 refreshMemberSizeDependents();
             };
 
             window.updateBeamParam = function (beamId, param, value, floorId = null) {
                 if (beamId === '__TIE_BEAMS__') {
-                    if (param === 'webW' || param === 'b') state.tieBeamWidth = normalizeMemberSizeMm(value, state.tieBeamWidth || 200, 150, 1500, 25);
-                    if (param === 'webD' || param === 'h') state.tieBeamDepth = normalizeMemberSizeMm(value, state.tieBeamDepth || 350, 200, 2000, 25);
+                    if (param === 'webW' || param === 'b') {
+                        state.tieBeamWidth = normalizeMemberSizeMm(
+                            value,
+                            state.tieBeamWidth || 200,
+                            MEMBER_GEOMETRY_MIN_MM,
+                            1500
+                        );
+                    }
+                    if (param === 'webD' || param === 'h') {
+                        state.tieBeamDepth = normalizeMemberSizeMm(
+                            value,
+                            state.tieBeamDepth || 350,
+                            MEMBER_GEOMETRY_MIN_MM,
+                            2000
+                        );
+                    }
                     state.tieBeamW = state.tieBeamWidth / 1000;
                     state.tieBeamH = state.tieBeamDepth / 1000;
                     const widthInput = document.getElementById('tieBeamWidth');
@@ -24337,15 +24824,29 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                 }
 
                 const current = getBeamSizeMm(beam, activeFloorId);
+                if (param === 'memberStatus') {
+                    const currentOverride = getBeamSizeOverride(beamId, activeFloorId) || {};
+                    const memberStatus = normalizeMemberStatus(value);
+                    if (!state.beamSizeOverrides) state.beamSizeOverrides = {};
+                    state.beamSizeOverrides[getBeamSizeKey(beamId, activeFloorId)] = {
+                        ...currentOverride,
+                        webW: current.b,
+                        webD: current.h,
+                        memberStatus
+                    };
+                    refreshMemberSizeDependents();
+                    return;
+                }
                 const nextB = (param === 'webW' || param === 'b') ? value : current.b;
                 const nextH = (param === 'webD' || param === 'h') ? value : current.h;
-                const normalizedB = normalizeMemberSizeMm(nextB, current.b, 150, 1500, 25);
-                const normalizedH = normalizeMemberSizeMm(nextH, current.h, 200, 2000, 25);
+                const normalizedB = normalizeMemberSizeMm(nextB, current.b, MEMBER_GEOMETRY_MIN_MM, 1500);
+                const normalizedH = normalizeMemberSizeMm(nextH, current.h, MEMBER_GEOMETRY_MIN_MM, 2000);
 
                 applyBeamSizeMm(beam, activeFloorId, normalizedB, normalizedH);
                 if (!customBeam) {
                     if (!state.beamSizeOverrides) state.beamSizeOverrides = {};
                     state.beamSizeOverrides[getBeamSizeKey(beamId, activeFloorId)] = {
+                        ...(getBeamSizeOverride(beamId, activeFloorId) || {}),
                         webW: normalizedB,
                         webD: normalizedH
                     };
@@ -24394,25 +24895,28 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
 
             // v3.8: CSV Export Functions
 
+            function getScheduleCSVCellValue(cell) {
+                const control = cell?.querySelector?.('input, select');
+                const value = control ? control.value : cell?.textContent?.trim() || '';
+                return `"${String(value).replace(/"/g, '""')}"`;
+            }
+
             window.exportColumnScheduleCSV = function () {
-                let csv = 'No.,ID,Mark,Size (mm),Load (kN),Footing ID\n';
+                let csv = 'No.,Column ID,Column Line ID,Start,End,Support Type,Host Member,B/X (mm),H/Y (mm),Orientation (deg),Member Class,Status,Export,Pu (kN)\n';
                 const rows = document.querySelectorAll('#colScheduleBody tr');
                 rows.forEach(row => {
                     const cells = row.querySelectorAll('td');
-                    csv += Array.from(cells).map(c => c.textContent.trim()).join(',') + '\n';
+                    csv += Array.from(cells).map(getScheduleCSVCellValue).join(',') + '\n';
                 });
                 downloadCSV(csv, 'column_schedule.csv');
             };
 
             window.exportBeamScheduleCSV = function () {
-                let csv = 'No.,ID,Type,Dir,Span,Width,Depth,w (kN/m),R (kN)\n';
+                let csv = 'No.,ID,Type,Dir,Span (m),B/X (mm),H/Y (mm),Member Class,w (kN/m),R (kN)\n';
                 const rows = document.querySelectorAll('#beamScheduleBody tr');
                 rows.forEach(row => {
                     const cells = row.querySelectorAll('td:not([data-export="skip"])');
-                    const values = Array.from(cells).map(c => {
-                        const input = c.querySelector('input');
-                        return input ? input.value : c.textContent.trim();
-                    });
+                    const values = Array.from(cells).map(getScheduleCSVCellValue);
                     csv += values.join(',') + '\n';
                 });
                 downloadCSV(csv, 'beam_schedule.csv');
@@ -24604,11 +25108,11 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                         <td style="${cellStyle} font-weight:bold;">${col.id}</td>
                         <td style="${cellStyle}">${(col.type || 'Corner').toUpperCase()}</td>
                         <td style="${cellStyle} width:80px;">
-                            <input type="number" value="${colSize.b}" step="50" min="150" style="${inputStyle}"
+                            <input type="number" value="${colSize.b}" step="25" min="25" style="${inputStyle}"
                                    onchange="updateColumnParam('${col.id}', 'b', this.value)">
                         </td>
                         <td style="${cellStyle} width:80px;">
-                            <input type="number" value="${colSize.h}" step="50" min="150" style="${inputStyle}"
+                            <input type="number" value="${colSize.h}" step="25" min="25" style="${inputStyle}"
                                    onchange="updateColumnParam('${col.id}', 'h', this.value)">
                         </td>
                         <td style="${cellStyle}">${(col.P_total || 0).toFixed(1)}</td>
@@ -24719,11 +25223,11 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                             <td style="${cellStyle} width:50px;">${escapeInfoText(dirLabel)}</td>
                             <td style="${cellStyle} width:55px;">${(beam.span || 0).toFixed(2)}</td>
                             <td style="${cellStyle} width:60px;">
-                                <input type="number" value="${bW}" step="25" min="150" style="${beamInputStyle}"
+                                <input type="number" value="${bW}" step="25" min="25" style="${beamInputStyle}"
                                        onchange="updateBeamParam('${beam.id}', 'webW', this.value, '${floorID}')"${lockedAttr}>
                             </td>
                             <td style="${cellStyle} width:60px;">
-                                <input type="number" value="${bD}" step="50" min="200" style="${beamInputStyle}"
+                                <input type="number" value="${bD}" step="25" min="25" style="${beamInputStyle}"
                                        onchange="updateBeamParam('${beam.id}', 'webD', this.value, '${floorID}')"${lockedAttr}>
                             </td>
                             <td style="${cellStyle} width:70px;">${w_load.toFixed(2)}</td>
@@ -24756,11 +25260,11 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                             <td style="${cellStyle} width:40px;">${escapeInfoText(dirLabel)}</td>
                             <td style="${cellStyle} width:60px;">${(beam.span || 0).toFixed(2)}</td>
                             <td style="${cellStyle} width:70px;">
-                                <input type="number" value="${bW}" step="25" min="150" style="${beamInputStyle}"
+                                <input type="number" value="${bW}" step="25" min="25" style="${beamInputStyle}"
                                        onchange="updateBeamParam('${beam.id}', 'webW', this.value, '${floorID}')"${lockedAttr}>
                             </td>
                             <td style="${cellStyle} width:70px;">
-                                <input type="number" value="${bD}" step="50" min="200" style="${beamInputStyle}"
+                                <input type="number" value="${bD}" step="25" min="25" style="${beamInputStyle}"
                                        onchange="updateBeamParam('${beam.id}', 'webD', this.value, '${floorID}')"${lockedAttr}>
                             </td>
                             <td style="${cellStyle} width:80px;">${(beam.w_total || beam.w || 0).toFixed(2)}</td>

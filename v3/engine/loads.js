@@ -159,11 +159,16 @@ const EngineLoads = (function () {
 
         let b, h;
         let isOverride = false;
+        const geometryMinimumMm = Number(params.geometryMinimumMm) > 0
+            ? Number(params.geometryMinimumMm)
+            : 25;
 
         // Check for user override (rectangular columns)
         if (params.defaultColumnB > 0) {
-            b = params.defaultColumnB;
-            h = params.defaultColumnH > 0 ? params.defaultColumnH : b;
+            b = Math.max(geometryMinimumMm, Number(params.defaultColumnB));
+            h = params.defaultColumnH > 0
+                ? Math.max(geometryMinimumMm, Number(params.defaultColumnH))
+                : b;
             isOverride = true;
         } else {
             // Required gross area (mm²) per NSCP 410.3.5.2
@@ -218,10 +223,15 @@ const EngineLoads = (function () {
      */
     function sizeBeam(span_m, isCantilever, params) {
         let b, h;
+        const geometryMinimumMm = Number(params.geometryMinimumMm) > 0
+            ? Number(params.geometryMinimumMm)
+            : 25;
 
         if (params.defaultBeamH > 0) {
-            h = params.defaultBeamH;
-            b = params.defaultBeamB || 250;
+            h = Math.max(geometryMinimumMm, Number(params.defaultBeamH));
+            b = params.defaultBeamB > 0
+                ? Math.max(geometryMinimumMm, Number(params.defaultBeamB))
+                : 250;
         } else {
             const L = span_m * 1000;
             const minDepthRatio = isCantilever ? 8 : 16;
@@ -229,7 +239,7 @@ const EngineLoads = (function () {
             h = Math.max(h, 300);
 
             b = params.defaultBeamB > 0
-                ? params.defaultBeamB
+                ? Math.max(geometryMinimumMm, Number(params.defaultBeamB))
                 : Math.max(200, Math.ceil((h * 0.4) / 50) * 50);
         }
 
@@ -254,7 +264,10 @@ const EngineLoads = (function () {
     function sizeMembers(columns, beams, params) {
         const positiveNumber = value => {
             const n = Number(value);
-            return Number.isFinite(n) && n > 0 ? n : null;
+            const geometryMinimumMm = Number(params.geometryMinimumMm) > 0
+                ? Number(params.geometryMinimumMm)
+                : 25;
+            return Number.isFinite(n) && n > 0 ? Math.max(geometryMinimumMm, n) : null;
         };
 
         let totalColumnSelfWeight = 0;

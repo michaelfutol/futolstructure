@@ -222,9 +222,16 @@
             const position = typeof getColumnPlanPosition === 'function'
                 ? getColumnPlanPosition(col)
                 : { x: finite(col.x), y: finite(col.y) };
-            const size = typeof getColumnSizeMm === 'function' ? getColumnSizeMm(col) : { b: 300, h: 300 };
-            include(position.x - size.b / 2000, position.y - size.h / 2000);
-            include(position.x + size.b / 2000, position.y + size.h / 2000);
+            const footprint = typeof getColumnPlanFootprint === 'function'
+                ? getColumnPlanFootprint(col, position)
+                : null;
+            if (footprint?.corners?.length) {
+                footprint.corners.forEach(point => include(point.x, point.y));
+            } else {
+                const size = typeof getColumnSizeMm === 'function' ? getColumnSizeMm(col) : { b: 300, h: 300 };
+                include(position.x - size.b / 2000, position.y - size.h / 2000);
+                include(position.x + size.b / 2000, position.y + size.h / 2000);
+            }
             if (isFoundationPlanEnabled()) {
                 const half = Math.max(0.5, finite(col.footingSize, 1) / 2);
                 include(position.x - half, position.y - half);
@@ -384,15 +391,26 @@
         getFloorColumns(floor).forEach(col => {
             const position = getColumnPlanPosition(col);
             const size = getColumnSizeMm(col);
-            const rect = transform.rect(
-                position.x - size.b / 2000,
-                position.y - size.h / 2000,
-                position.x + size.b / 2000,
-                position.y + size.h / 2000
-            );
-            writer.rectangle(rect.x1, rect.y1, rect.x2, rect.y2, DXF_LAYER.COLUMN);
+            const footprint = typeof getColumnPlanFootprint === 'function'
+                ? getColumnPlanFootprint(col, position)
+                : {
+                    corners: [
+                        { x: position.x - size.b / 2000, y: position.y - size.h / 2000 },
+                        { x: position.x + size.b / 2000, y: position.y - size.h / 2000 },
+                        { x: position.x + size.b / 2000, y: position.y + size.h / 2000 },
+                        { x: position.x - size.b / 2000, y: position.y + size.h / 2000 }
+                    ],
+                    right: position.x + size.b / 2000
+                };
+            footprint.corners.forEach((start, index) => {
+                const end = footprint.corners[(index + 1) % footprint.corners.length];
+                const first = transform.point(start.x, start.y);
+                const second = transform.point(end.x, end.y);
+                writer.line(first.x, first.y, second.x, second.y, DXF_LAYER.COLUMN);
+            });
             const center = transform.point(position.x, position.y);
-            writer.text(center.x + size.b / 2000 + 0.05, center.y - 0.08, col.id, DXF_LAYER.TEXT, 0.15);
+            const labelAnchor = transform.point(footprint.right, position.y);
+            writer.text(labelAnchor.x + 0.05, center.y - 0.08, col.id, DXF_LAYER.TEXT, 0.15);
             const governance = typeof getColumnLineGovernance === 'function'
                 ? getColumnLineGovernance(col, topology)
                 : null;
