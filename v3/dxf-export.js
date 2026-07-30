@@ -451,6 +451,35 @@
                 const second = isX ? transform.point(value, bounds.y2) : transform.point(bounds.x2, value);
                 writer.line(first.x, first.y, second.x, second.y, DXF_LAYER.STAIR);
             }
+            let structuralModel = stair.structuralModel;
+            if ((!structuralModel || !Array.isArray(structuralModel.beams)) &&
+                typeof buildStairStructuralModel === 'function') {
+                try {
+                    structuralModel = buildStairStructuralModel(stair);
+                } catch (error) {
+                    structuralModel = null;
+                }
+            }
+            (structuralModel?.beams || []).forEach(beam => {
+                const first = transform.point(beam.start.x, beam.start.y);
+                const second = transform.point(beam.end.x, beam.end.y);
+                const isIntermediate = Math.abs(Number(beam.start.z) - Number(structuralModel.coordinatePrimer?.lowerElevation)) > 0.01 &&
+                    Math.abs(Number(beam.start.z) - Number(structuralModel.coordinatePrimer?.upperElevation)) > 0.01;
+                writer.line(first.x, first.y, second.x, second.y, DXF_LAYER.STAIR, {
+                    linetype: isIntermediate ? 'HIDDEN2' : 'CONTINUOUS'
+                });
+                const midpoint = {
+                    x: (first.x + second.x) / 2,
+                    y: (first.y + second.y) / 2
+                };
+                writer.text(
+                    midpoint.x + 0.04,
+                    midpoint.y + 0.04,
+                    `${beam.id} EL ${finite(beam.start.z).toFixed(2)}`,
+                    DXF_LAYER.TEXT,
+                    0.11
+                );
+            });
         });
     }
 
@@ -759,6 +788,38 @@
         const schedules = buildScheduleData(floorGeometryById);
         const quantities = buildQuantityData(floorGeometryById);
         const loadRows = buildLoadSummaryRows(floorGeometryById);
+        let stairModels = [];
+        if (typeof collectStairStructuralModels === 'function') {
+            try {
+                stairModels = collectStairStructuralModels({ floorGeometry: floorGeometryById });
+            } catch (error) {
+                stairModels = [];
+            }
+        }
+        const stairRows = stairModels.flatMap(model => [
+            ...(model.flightSlabs || []),
+            ...(model.landingSlabs || []),
+            ...(model.beams || [])
+        ].map(component => {
+            const isBeam = component.start && component.end;
+            const startElevation = isBeam
+                ? finite(component.start.z)
+                : Math.min(...(component.topVertices || []).map(point => finite(point.z)));
+            const endElevation = isBeam
+                ? finite(component.end.z)
+                : Math.max(...(component.topVertices || []).map(point => finite(point.z)));
+            return {
+                mark: component.id,
+                stair: model.stairId,
+                type: component.memberType,
+                elevation: `${startElevation.toFixed(2)}/${endElevation.toFixed(2)}`,
+                section: isBeam
+                    ? `${component.widthMm}x${component.depthMm}`
+                    : `t=${component.thicknessMm}`,
+                source: component.source,
+                status: model.integration.status.replace(/_/g, ' ')
+            };
+        }));
         const drawingRows = [];
         (state.floors || []).forEach(floor => {
             drawingRows.push({ id: `L-${floor.id}`, title: `${floor.id} Structural Layout Plan` });
@@ -766,6 +827,7 @@
         });
         drawingRows.push({ id: 'F-01', title: isFoundationPlanEnabled() ? 'Foundation Plan' : 'Base Reaction Plan' });
         drawingRows.push({ id: 'S-01', title: 'Member Schedules' });
+        if (stairRows.length) drawingRows.push({ id: 'S-02', title: 'Stair Structural Component Schedule' });
         drawingRows.push({ id: 'Q-01', title: 'Preliminary Bill of Quantities' });
 
         let groupX = 0;
@@ -859,7 +921,7 @@
         ], schedules.slabRows, { textHeight: 0.14 });
 
         groupX += slabTable.width + 2;
-        drawTable(writer, groupX, topY, isFoundationPlanEnabled() ? 'FOOTING SCHEDULE' : 'BASE REACTION SCHEDULE', [
+        const foundationTable = drawTable(writer, groupX, topY, isFoundationPlanEnabled() ? 'FOOTING SCHEDULE' : 'BASE REACTION SCHEDULE', [
             { key: 'mark', label: 'MARK', width: 2.4 },
             { key: 'column', label: 'COLUMN', width: 1.7 },
             { key: 'size', label: isFoundationPlanEnabled() ? 'B x L mm' : 'SIZE', width: 2.4 },
@@ -867,6 +929,18 @@
             { key: 'factored', label: 'Pu kN', width: 1.8 },
             { key: 'bearing', label: isFoundationPlanEnabled() ? 'q kPa' : 'Ps kN', width: 1.7 }
         ], schedules.foundationRows, { textHeight: 0.14 });
+        if (stairRows.length) {
+            groupX += foundationTable.width + 2;
+            drawTable(writer, groupX, topY, 'STAIR STRUCTURAL COMPONENT SCHEDULE', [
+                { key: 'mark', label: 'MARK', width: 3.4 },
+                { key: 'stair', label: 'STAIR', width: 1.5 },
+                { key: 'type', label: 'TYPE', width: 2.7 },
+                { key: 'elevation', label: 'EL START/END m', width: 2.8 },
+                { key: 'section', label: 'SECTION mm', width: 2.2 },
+                { key: 'source', label: 'SOURCE', width: 3.0 },
+                { key: 'status', label: 'STATUS', width: 3.2 }
+            ], stairRows, { textHeight: 0.12, rowHeight: 0.42 });
+        }
 
         audit.tables = {
             drawingIndex: drawingRows.length,
@@ -876,6 +950,7 @@
             beamSchedule: schedules.beamRows.length,
             slabSchedule: schedules.slabRows.length,
             foundationSchedule: schedules.foundationRows.length,
+            stairSchedule: stairRows.length,
             boqConcrete: concreteRows.length,
             boqRebar: 1
         };

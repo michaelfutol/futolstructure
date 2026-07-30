@@ -1607,6 +1607,24 @@
             border-color: #2563eb;
         }
 
+        .stair-builder-check {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            color: var(--text-secondary);
+            font-size: 0.68rem;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+
+        .stair-builder-check input {
+            width: 16px;
+            height: 16px;
+            margin: 1px 0 0;
+            accent-color: #2563eb;
+        }
+
         .stair-builder-actions {
             grid-column: 1 / -1;
             display: flex;
@@ -1671,6 +1689,32 @@
             margin-top: 3px;
             color: var(--text-primary);
             font: 700 0.82rem var(--font-mono);
+        }
+
+        .stair-preview-shell {
+            position: relative;
+            height: 260px;
+            margin: 0 0 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: #101827;
+        }
+
+        .stair-preview-shell canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .stair-preview-label {
+            position: absolute;
+            top: 8px;
+            left: 10px;
+            z-index: 2;
+            color: #dbeafe;
+            font: 700 0.64rem var(--font-main);
+            pointer-events: none;
         }
 
         @media (max-width: 900px) {
@@ -2827,9 +2871,25 @@
                             </select>
                         </label>
                         <label class="stair-builder-field">Run axis
-                            <select id="stairAxis" onchange="refreshStairBuilderPreview()">
+                            <select id="stairAxis" onchange="syncStairAxisRotation('axis')">
                                 <option value="X">Along X</option>
                                 <option value="Y">Along Y</option>
+                            </select>
+                        </label>
+                        <label class="stair-builder-field">Rotation
+                            <select id="stairRotation" onchange="syncStairAxisRotation('rotation')">
+                                <option value="0">0 deg</option>
+                                <option value="90">90 deg</option>
+                                <option value="180">180 deg</option>
+                                <option value="270">270 deg</option>
+                            </select>
+                        </label>
+                        <label class="stair-builder-field wide">Insertion anchor
+                            <select id="stairInsertionAnchor" onchange="refreshStairBuilderPreview()">
+                                <option value="bay_center">Bay center</option>
+                                <option value="support_beam_line">Lower support beam line</option>
+                                <option value="lower_landing_corner">Lower landing corner</option>
+                                <option value="stair_centerline">Stair centerline</option>
                             </select>
                         </label>
                         <label class="stair-builder-field">Clear width (mm)
@@ -2850,8 +2910,36 @@
                         <label class="stair-builder-field">Well gap (mm)
                             <input type="number" id="stairGap" value="150" min="0" max="600" step="25" oninput="refreshStairBuilderPreview()">
                         </label>
+                        <label class="stair-builder-field">Stair beam B (mm)
+                            <input type="number" id="stairBeamWidth" value="200" min="100" max="800" step="25" oninput="refreshStairBuilderPreview()">
+                        </label>
+                        <label class="stair-builder-field">Stair beam D (mm)
+                            <input type="number" id="stairBeamDepth" value="350" min="150" max="1200" step="25" oninput="refreshStairBuilderPreview()">
+                        </label>
+                        <label class="stair-builder-field">Landing beam B (mm)
+                            <input type="number" id="stairLandingBeamWidth" value="200" min="100" max="800" step="25" oninput="refreshStairBuilderPreview()">
+                        </label>
+                        <label class="stair-builder-field">Landing beam D (mm)
+                            <input type="number" id="stairLandingBeamDepth" value="350" min="150" max="1200" step="25" oninput="refreshStairBuilderPreview()">
+                        </label>
+                        <label class="stair-builder-field">Finishes (kPa)
+                            <input type="number" id="stairFinishesLoad" value="1.5" min="0" max="10" step="0.1" oninput="refreshStairBuilderPreview()">
+                        </label>
+                        <label class="stair-builder-field">Live load (kPa)
+                            <input type="number" id="stairLiveLoad" value="4.8" min="0" max="15" step="0.1" oninput="refreshStairBuilderPreview()">
+                        </label>
+                        <label class="stair-builder-field">Railing line load (kN/m)
+                            <input type="number" id="stairRailingLoad" value="0" min="0" max="20" step="0.1" oninput="refreshStairBuilderPreview()">
+                        </label>
+                        <label class="stair-builder-field">Wall line load (kN/m)
+                            <input type="number" id="stairWallLoad" value="0" min="0" max="30" step="0.1" oninput="refreshStairBuilderPreview()">
+                        </label>
+                        <label class="stair-builder-check">
+                            <input type="checkbox" id="stairEngineerApproval" onchange="refreshStairBuilderPreview()">
+                            <span>Engineer reviewed the support map and preliminary load path for analytical handoff.</span>
+                        </label>
                         <div class="stair-builder-actions">
-                            <button type="button" class="stair-builder-primary" onclick="createStairFromBuilder()">Create Stair</button>
+                            <button type="button" class="stair-builder-primary" onclick="createStairFromBuilder()">Create &amp; Integrate</button>
                         </div>
                         <div id="stairBuilderStatus" class="stair-builder-status"></div>
                     </div>
@@ -2861,6 +2949,13 @@
                             <div class="stair-builder-metric"><span>Actual rise</span><strong id="stairMetricRise">-</strong></div>
                             <div class="stair-builder-metric"><span>Footprint</span><strong id="stairMetricFootprint">-</strong></div>
                             <div class="stair-builder-metric"><span>Factored load</span><strong id="stairMetricLoad">-</strong></div>
+                            <div class="stair-builder-metric"><span>Elevations</span><strong id="stairMetricElevations">-</strong></div>
+                            <div class="stair-builder-metric"><span>Components</span><strong id="stairMetricComponents">-</strong></div>
+                            <div class="stair-builder-metric"><span>Main supports</span><strong id="stairMetricSupports">-</strong></div>
+                            <div class="stair-builder-metric"><span>Integration</span><strong id="stairMetricIntegration">-</strong></div>
+                        </div>
+                        <div id="stair3DPreview" class="stair-preview-shell">
+                            <div class="stair-preview-label">Stair 3D / transparent main-frame context</div>
                         </div>
                         <div class="schedule-table-wrapper" style="max-height:52vh;">
                             <table class="schedule-table">
@@ -3985,6 +4080,7 @@
     <!-- ========== ENGINE MODULES ========== -->
     <script src="engine/loads.js"></script>
     <script src="engine/tributary.js"></script>
+    <script src="engine/stairs.js"></script>
     <script src="persistence/project-revisions.js"></script>
 
     <!-- ========== JAVASCRIPT ========== -->
@@ -4338,37 +4434,176 @@
         function normalizeStairList(stairs) {
             const seen = new Set();
             return (Array.isArray(stairs) ? stairs : []).map((stair, index) => {
-                const id = String(stair?.id || `ST-${index + 1}`).trim();
-                if (!id || seen.has(id)) return null;
-                seen.add(id);
-                const bounds = stair?.bounds || {};
-                const x1 = Number(bounds.x1 ?? stair?.x1);
-                const y1 = Number(bounds.y1 ?? stair?.y1);
-                const x2 = Number(bounds.x2 ?? stair?.x2);
-                const y2 = Number(bounds.y2 ?? stair?.y2);
-                if (![x1, y1, x2, y2].every(Number.isFinite) || x2 <= x1 || y2 <= y1) return null;
-                return {
-                    id,
-                    type: stair?.type === 'straight' ? 'straight' : 'dogleg',
-                    fromFloorId: String(stair?.fromFloorId || ''),
-                    toFloorId: String(stair?.toFloorId || ''),
-                    bayX: Math.max(0, Math.floor(Number(stair?.bayX) || 0)),
-                    bayY: Math.max(0, Math.floor(Number(stair?.bayY) || 0)),
-                    axis: stair?.axis === 'Y' ? 'Y' : 'X',
-                    widthM: Math.max(0.75, Number(stair?.widthM) || 1),
-                    landingM: Math.max(0.75, Number(stair?.landingM) || 1.1),
-                    gapM: Math.max(0, Number(stair?.gapM) || 0),
-                    treadMm: Math.max(230, Number(stair?.treadMm) || 275),
-                    preferredRiseMm: Math.max(140, Number(stair?.preferredRiseMm) || 175),
-                    actualRiseMm: Math.max(1, Number(stair?.actualRiseMm) || Number(stair?.preferredRiseMm) || 175),
-                    waistMm: Math.max(100, Number(stair?.waistMm) || 150),
-                    risers: Math.max(2, Math.round(Number(stair?.risers) || 18)),
-                    flightRunM: Math.max(0.5, Number(stair?.flightRunM) || 2.2),
-                    bounds: { x1, y1, x2, y2 },
-                    opening: stair?.opening ? cloneSerializable(stair.opening, null) : null,
-                    analysisExport: 'pending-validation'
-                };
+                const normalized = typeof EngineStairs !== 'undefined' && EngineStairs?.normalizeStair
+                    ? EngineStairs.normalizeStair(stair, index)
+                    : null;
+                if (!normalized || seen.has(normalized.id)) return null;
+                seen.add(normalized.id);
+                return normalized;
             }).filter(Boolean);
+        }
+
+        function getStairBayBounds(stair) {
+            const coordinates = getStairGridCoordinates();
+            const bayX = Math.max(0, Math.min((state.xSpans || []).length - 1, Number(stair?.bayX) || 0));
+            const bayY = Math.max(0, Math.min((state.ySpans || []).length - 1, Number(stair?.bayY) || 0));
+            return {
+                x1: coordinates.x[bayX],
+                y1: coordinates.y[bayY],
+                x2: coordinates.x[bayX + 1],
+                y2: coordinates.y[bayY + 1]
+            };
+        }
+
+        function getStairMainSupportResolver(floorGeometryById) {
+            return request => {
+                const geometry = floorGeometryById?.get(request.floorId) || { beams: [] };
+                const topology = resolveBeamEndpointTopology(
+                    request.point,
+                    request.floorId,
+                    geometry.beams || []
+                );
+                if (topology.kind === 'free') return null;
+                return {
+                    kind: topology.kind,
+                    referenceId: `${request.floorId}:${topology.id}`,
+                    floorId: request.floorId
+                };
+            };
+        }
+
+        function getStairStructuralContext(stair, options = {}) {
+            const fromIndex = (state.floors || []).findIndex(floor => floor.id === stair?.fromFloorId);
+            const toIndex = (state.floors || []).findIndex(floor => floor.id === stair?.toFloorId);
+            const elevations = getExportStoryElevations(state.floors || []);
+            const floorGeometryById = options.floorGeometry || collect3DFloorGeometry();
+            const destinationFloor = state.floors?.[toIndex];
+            return {
+                lowerElevation: fromIndex >= 0 ? elevations[fromIndex + 1] : 0,
+                upperElevation: toIndex >= 0 ? elevations[toIndex + 1] : 0,
+                destinationSlabThicknessMm: Number(destinationFloor?.slabThickness) || 150,
+                concreteDensityKNPerM3: Number(state.concreteDensity) || 24,
+                bayBounds: getStairBayBounds(stair),
+                clashFree: options.clashFree !== false,
+                resolveSupport: getStairMainSupportResolver(floorGeometryById),
+                solverConnectionValidated: options.solverConnectionValidated === true,
+                generatedAt: options.generatedAt || stair?.structuralModel?.generatedAt || ''
+            };
+        }
+
+        function buildStairStructuralModel(stair, options = {}) {
+            if (typeof EngineStairs === 'undefined' || !EngineStairs?.buildStairStructuralModel) {
+                throw new Error('Stair structural engine is unavailable.');
+            }
+            return EngineStairs.buildStairStructuralModel(
+                stair,
+                getStairStructuralContext(stair, options)
+            );
+        }
+
+        function getStairAnalysisExportStatus(model) {
+            if (model?.integration?.solverReady) return 'solver-ready';
+            if (!model?.integration?.supportMapped) return 'blocked-unresolved-supports';
+            if (!model?.integration?.engineerApproved) return 'blocked-engineer-review';
+            return 'blocked-native-solver-validation';
+        }
+
+        function reconcileStairStructuralModel(stair, options = {}) {
+            if (!stair) return null;
+            const model = buildStairStructuralModel(stair, options);
+            const supportMappings = {};
+            (model.supportReactions || []).forEach(reaction => {
+                if (reaction.support?.status !== 'resolved') return;
+                supportMappings[reaction.id] = cloneSerializable(reaction.support, {});
+            });
+            stair.integration = {
+                ...cloneSerializable(stair.integration, {}),
+                supportMappings,
+                status: model.integration.status,
+                alignedAt: stair.integration?.alignedAt || (model.integration.aligned ? new Date().toISOString() : ''),
+                approvedAt: stair.integration?.engineerApproved
+                    ? (stair.integration.approvedAt || new Date().toISOString())
+                    : ''
+            };
+            stair.analysisExport = getStairAnalysisExportStatus(model);
+            stair.structuralModel = model;
+            return model;
+        }
+
+        function collectStairStructuralModels(options = {}) {
+            const floorGeometry = options.floorGeometry || collect3DFloorGeometry();
+            return normalizeStairList(state.stairs).map(stair => {
+                const stateStair = (state.stairs || []).find(item => item?.id === stair.id);
+                const target = stateStair || stair;
+                const model = buildStairStructuralModel(target, {
+                    ...options,
+                    floorGeometry
+                });
+                if (options.persist && stateStair) {
+                    stateStair.structuralModel = model;
+                    stateStair.integration = {
+                        ...stateStair.integration,
+                        status: model.integration.status,
+                        supportMappings: Object.fromEntries(
+                            model.supportReactions
+                                .filter(reaction => reaction.support?.status === 'resolved')
+                                .map(reaction => [reaction.id, cloneSerializable(reaction.support, {})])
+                        )
+                    };
+                    stateStair.analysisExport = getStairAnalysisExportStatus(model);
+                }
+                return model;
+            });
+        }
+
+        function collectStairTopologyValidation(options = {}) {
+            const models = collectStairStructuralModels(options);
+            const items = models.map(model => ({
+                stairId: model.stairId,
+                status: model.integration.solverReady ? 'PASS' : 'BLOCKED',
+                code: model.integration.supportMapped
+                    ? (model.integration.engineerApproved
+                        ? (model.integration.solverConnectionValidated
+                            ? 'solver_ready'
+                            : 'native_solver_validation_required')
+                        : 'engineer_approval_required')
+                    : 'unresolved_main_frame_supports',
+                integrationStatus: model.integration.status,
+                supportMapped: model.integration.supportMapped,
+                loadMapped: model.integration.loadMapped,
+                engineerApproved: model.integration.engineerApproved,
+                solverConnectionValidated: model.integration.solverConnectionValidated,
+                solverReady: model.integration.solverReady,
+                message: model.integration.solverReady
+                    ? 'Stair supports, loads, and analytical approval are resolved.'
+                    : 'Stair analytical export remains blocked until supports and engineer approval are resolved.'
+            }));
+            const summary = {
+                pass: items.filter(item => item.status === 'PASS').length,
+                blocked: items.filter(item => item.status === 'BLOCKED').length,
+                solverReady: !items.some(item => item.status === 'BLOCKED')
+            };
+            const result = {
+                schema: 'FutolStructure.StairTopologyValidation.v1',
+                summary,
+                items,
+                models
+            };
+            window.lastStairTopologyValidation = result;
+            return result;
+        }
+
+        function assertSolverStairTopologyReady(target = 'Solver', validation = null) {
+            const result = validation || collectStairTopologyValidation();
+            if (result.summary.solverReady) return result;
+            const examples = result.items
+                .filter(item => item.status === 'BLOCKED')
+                .slice(0, 4)
+                .map(item => `${item.stairId}: ${item.code}`)
+                .join('; ');
+            throw new Error(
+                `${target} export blocked by ${result.summary.blocked} unresolved stair integration issue(s). ${examples}`
+            );
         }
 
         function normalizeCantileverSpec(value) {
@@ -4936,7 +5171,7 @@
             addModelReadinessWarning(
                 warnings,
                 'IFC',
-                'IFC2x3 schema and all active column, beam, and slab geometry are validated. Autodesk Revit open/link validation is still pending.'
+                'IFC2x3 coordination export includes active frame/slab geometry and explicit stair components. Autodesk Revit open/link validation is still pending.'
             );
 
             let nonRegularCount = 0;
@@ -5003,10 +5238,20 @@
 
             const stairCount = normalizeStairList(state.stairs).length;
             if (stairCount > 0) {
+                const stairValidation = collectStairTopologyValidation({
+                    floorGeometry: floorGeometryById || undefined
+                });
+                const stairSummary = typeof EngineStairs !== 'undefined'
+                    ? EngineStairs.summarize(stairValidation.models)
+                    : null;
                 addModelReadinessWarning(
                     warnings,
                     'Stairs',
-                    `${stairCount} stair(s) have persistent plan/3D geometry and destination-floor openings. Sloped flight and landing shell export remains blocked until native ETABS/STAAD connectivity and load validation passes.`
+                    `${stairCount} stair(s) contain ${stairSummary?.stairBeams || 0} stair beam(s), ` +
+                    `${stairSummary?.landingBeams || 0} landing beam(s), explicit flight/landing slabs, ` +
+                    `destination openings, and preliminary load handoff. ` +
+                    `${stairValidation.summary.blocked} stair(s) currently block STAAD/ETABS; ` +
+                    `sloped shells are excluded from horizontal rigid diaphragms.`
                 );
             }
 
@@ -14902,109 +15147,115 @@
             }
         }
 
-        function add3DStairFlight(stair, start, end, widthM, waistM, offsetX, offsetZ, partId) {
-            const vector = new THREE.Vector3(end.x - start.x, end.y - start.y, end.z - start.z);
+        function create3DPrismGeometry(topVertices, bottomVertices, offsetX = 0, offsetZ = 0) {
+            const top = (topVertices || []).slice(0, 4);
+            const bottom = (bottomVertices || []).slice(0, 4);
+            if (top.length !== 4 || bottom.length !== 4) return null;
+            const positions = [...top, ...bottom].flatMap(point => [
+                Number(point.x) + offsetX,
+                Number(point.z),
+                Number(point.y) + offsetZ
+            ]);
+            if (!positions.every(Number.isFinite)) return null;
+            const indices = [
+                0, 1, 2, 0, 2, 3,
+                7, 6, 5, 7, 5, 4,
+                0, 4, 5, 0, 5, 1,
+                1, 5, 6, 1, 6, 2,
+                2, 6, 7, 2, 7, 3,
+                3, 7, 4, 3, 4, 0
+            ];
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setIndex(indices);
+            geometry.computeVertexNormals();
+            geometry.computeBoundingBox();
+            geometry.computeBoundingSphere();
+            return geometry;
+        }
+
+        function create3DFrameMesh(component, material, offsetX = 0, offsetZ = 0) {
+            const start = component?.start;
+            const end = component?.end;
+            if (!start || !end) return null;
+            const vector = new THREE.Vector3(
+                Number(end.x) - Number(start.x),
+                Number(end.z) - Number(start.z),
+                Number(end.y) - Number(start.y)
+            );
             const length = vector.length();
-            if (length <= 0.05) return;
-            const geometry = new THREE.BoxGeometry(length, waistM, widthM);
-            const material = new THREE.MeshStandardMaterial(get3DDisplayMaterialOptions('stairs', {
-                roughness: 0.72,
-                metalness: 0.01
-            }));
+            if (!(length > 0.01)) return null;
+            const geometry = new THREE.BoxGeometry(
+                length,
+                Math.max(0.05, Number(component.depthMm) / 1000 || 0.35),
+                Math.max(0.05, Number(component.widthMm) / 1000 || 0.2)
+            );
             const mesh = new THREE.Mesh(geometry, material);
             mesh.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), vector.clone().normalize());
             mesh.position.set(
-                (start.x + end.x) / 2 + offsetX,
-                (start.y + end.y) / 2 - waistM / 2,
-                (start.z + end.z) / 2 + offsetZ
+                (Number(start.x) + Number(end.x)) / 2 + offsetX,
+                (Number(start.z) + Number(end.z)) / 2 - (Number(component.depthMm) / 2000 || 0.175),
+                (Number(start.y) + Number(end.y)) / 2 + offsetZ
             );
-            mesh.userData = {
-                type: 'stair',
-                id: `${stair.id}-${partId}`,
-                floorId: stair.fromFloorId,
-                member: { ...stair, part: partId, span: length }
-            };
-            scene3D.add(mesh);
-            meshes3D.push(mesh);
+            return mesh;
         }
 
-        function add3DStairLanding(stair, centerX, centerY, centerZ, sizeX, sizeZ, waistM, offsetX, offsetZ) {
-            const geometry = new THREE.BoxGeometry(Math.max(0.1, sizeX), waistM, Math.max(0.1, sizeZ));
-            const material = new THREE.MeshStandardMaterial(get3DDisplayMaterialOptions('stairs', {
-                roughness: 0.76,
-                metalness: 0.01
-            }));
-            const mesh = new THREE.Mesh(geometry, material);
-            mesh.position.set(centerX + offsetX, centerY - waistM / 2, centerZ + offsetZ);
-            mesh.userData = {
-                type: 'stair',
-                id: `${stair.id}-LANDING`,
-                floorId: stair.fromFloorId,
-                member: { ...stair, part: 'landing' }
-            };
-            scene3D.add(mesh);
-            meshes3D.push(mesh);
-        }
-
-        function add3DStairMeshes(offsetX, offsetZ) {
-            const elevations = getExportStoryElevations(state.floors || []);
-            normalizeStairList(state.stairs).forEach(stair => {
-                const fromIndex = state.floors.findIndex(floor => floor.id === stair.fromFloorId);
-                const toIndex = state.floors.findIndex(floor => floor.id === stair.toFloorId);
-                if (fromIndex < 0 || toIndex !== fromIndex + 1) return;
-                const lowerY = elevations[fromIndex + 1];
-                const upperY = elevations[toIndex + 1];
-                const midY = (lowerY + upperY) / 2;
-                const waistM = stair.waistMm / 1000;
-                const b = stair.bounds;
-                const isX = stair.axis === 'X';
-                const farRun = isX ? b.x2 - stair.landingM : b.y2 - stair.landingM;
-
-                if (stair.type === 'dogleg') {
-                    if (isX) {
-                        const lane1 = b.y1 + stair.widthM / 2;
-                        const lane2 = b.y2 - stair.widthM / 2;
-                        add3DStairFlight(stair,
-                            { x: b.x1, y: lowerY, z: lane1 },
-                            { x: farRun, y: midY, z: lane1 },
-                            stair.widthM, waistM, offsetX, offsetZ, 'FLIGHT-1');
-                        add3DStairFlight(stair,
-                            { x: farRun, y: midY, z: lane2 },
-                            { x: b.x1, y: upperY, z: lane2 },
-                            stair.widthM, waistM, offsetX, offsetZ, 'FLIGHT-2');
-                        add3DStairLanding(stair, b.x2 - stair.landingM / 2, midY, (b.y1 + b.y2) / 2,
-                            stair.landingM, b.y2 - b.y1, waistM, offsetX, offsetZ);
-                    } else {
-                        const lane1 = b.x1 + stair.widthM / 2;
-                        const lane2 = b.x2 - stair.widthM / 2;
-                        add3DStairFlight(stair,
-                            { x: lane1, y: lowerY, z: b.y1 },
-                            { x: lane1, y: midY, z: farRun },
-                            stair.widthM, waistM, offsetX, offsetZ, 'FLIGHT-1');
-                        add3DStairFlight(stair,
-                            { x: lane2, y: midY, z: farRun },
-                            { x: lane2, y: upperY, z: b.y1 },
-                            stair.widthM, waistM, offsetX, offsetZ, 'FLIGHT-2');
-                        add3DStairLanding(stair, (b.x1 + b.x2) / 2, midY, b.y2 - stair.landingM / 2,
-                            b.x2 - b.x1, stair.landingM, waistM, offsetX, offsetZ);
+        function add3DStairMeshes(offsetX, offsetZ, floorGeometry = null) {
+            let models = [];
+            try {
+                models = collectStairStructuralModels({
+                    floorGeometry: floorGeometry || collect3DFloorGeometry()
+                });
+            } catch (error) {
+                console.warn('Stair 3D structural model could not be resolved:', error);
+                return;
+            }
+            models.forEach(model => {
+                [...(model.flightSlabs || []), ...(model.landingSlabs || [])].forEach(component => {
+                    const geometry = create3DPrismGeometry(
+                        component.topVertices,
+                        component.bottomVertices,
+                        offsetX,
+                        offsetZ
+                    );
+                    if (!geometry) return;
+                    const material = new THREE.MeshStandardMaterial(get3DDisplayMaterialOptions('stairs', {
+                        roughness: 0.76,
+                        metalness: 0.01
+                    }));
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.userData = {
+                        type: 'stair',
+                        id: component.id,
+                        floorId: component.floorId,
+                        member: component,
+                        stairId: model.stairId
+                    };
+                    apply3DMeshPresentation(mesh);
+                    scene3D.add(mesh);
+                    meshes3D.push(mesh);
+                });
+                (model.beams || []).forEach(component => {
+                    const material = new THREE.MeshStandardMaterial(get3DDisplayMaterialOptions('stairs', {
+                        roughness: 0.68,
+                        metalness: 0.01
+                    }));
+                    const mesh = create3DFrameMesh(component, material, offsetX, offsetZ);
+                    if (!mesh) {
+                        material.dispose();
+                        return;
                     }
-                } else if (isX) {
-                    const centerZ = (b.y1 + b.y2) / 2;
-                    add3DStairFlight(stair,
-                        { x: b.x1, y: lowerY, z: centerZ },
-                        { x: farRun, y: upperY, z: centerZ },
-                        stair.widthM, waistM, offsetX, offsetZ, 'FLIGHT-1');
-                    add3DStairLanding(stair, b.x2 - stair.landingM / 2, upperY, centerZ,
-                        stair.landingM, stair.widthM, waistM, offsetX, offsetZ);
-                } else {
-                    const centerX = (b.x1 + b.x2) / 2;
-                    add3DStairFlight(stair,
-                        { x: centerX, y: lowerY, z: b.y1 },
-                        { x: centerX, y: upperY, z: farRun },
-                        stair.widthM, waistM, offsetX, offsetZ, 'FLIGHT-1');
-                    add3DStairLanding(stair, centerX, upperY, b.y2 - stair.landingM / 2,
-                        stair.widthM, stair.landingM, waistM, offsetX, offsetZ);
-                }
+                    mesh.userData = {
+                        type: 'stair',
+                        id: component.id,
+                        floorId: component.floorId,
+                        member: component,
+                        stairId: model.stairId
+                    };
+                    apply3DMeshPresentation(mesh);
+                    scene3D.add(mesh);
+                    meshes3D.push(mesh);
+                });
             });
         }
 
@@ -15254,7 +15505,7 @@
                 cumulativeY += floor.height;
             });
 
-            add3DStairMeshes(offsetX, offsetZ);
+            add3DStairMeshes(offsetX, offsetZ, floorGeometryById);
 
             // v2.6: ELEVATED GF BEAMS - when gfSuspended is checked
             const elevationHeight = state.gfSuspended
@@ -16044,6 +16295,13 @@
             applyTypicalFloorLayoutInheritance();
             const savedAt = new Date().toISOString();
             const releaseManifest = getReleaseManifest();
+            if ((state.stairs || []).length) {
+                collectStairStructuralModels({
+                    persist: true,
+                    generatedAt: savedAt
+                });
+            }
+            const persistedStairs = normalizeStairList(state.stairs);
             return {
                 fileType: FSTR_FILE_TYPE,
                 schemaVersion: FSTR_SCHEMA_VERSION,
@@ -16078,7 +16336,7 @@
                 ySpans: state.ySpans || [5.0, 5.0],
                 gridBubbleOffsetPx: getGridBubbleOffsetPx(),
                 cantilevers: state.cantilevers || { top: [], bottom: [], left: [], right: [] },
-                stairs: normalizeStairList(state.stairs),
+                stairs: persistedStairs,
                 floors: (state.floors || []).map(f => ({
                     id: f.id,
                     name: f.name,
@@ -16767,6 +17025,7 @@
             }
 
             calculate();
+            if (state.stairs.length) collectStairStructuralModels({ persist: true });
             draw();
             if (typeof render3DFrame === 'function' && view3DInitialized) render3DFrame();
             fitView();
@@ -18666,6 +18925,60 @@ function generatePDFReport() {
     }
     report += '</table>';
 
+    const stairModels = collectStairStructuralModels({ floorGeometry: floorGeometryById });
+    report += '<h2>STAIR STRUCTURAL INTEGRATION</h2>';
+    if (!stairModels.length) {
+        report += '<p>No integrated stairs are present in this model.</p>';
+    } else {
+        stairModels.forEach(stairModel => {
+            const primer = stairModel.coordinatePrimer;
+            report += '<h3>' + escapeInfoText(stairModel.stairId) + ' - ' +
+                escapeInfoText(primer.fromFloorId) + ' to ' + escapeInfoText(primer.toFloorId) + '</h3>';
+            report += '<table>';
+            report += '<tr><th>Alignment</th><th>Elevations (m)</th><th>Components</th><th>Dead (kN)</th><th>Live (kN)</th><th>Status</th></tr>';
+            report += '<tr><td>' + escapeInfoText(primer.anchorGridId || '-') + ' / ' +
+                escapeInfoText(primer.insertionAnchor.replace(/_/g, ' ')) + ' / ' +
+                primer.rotationDeg + '&deg;</td><td>' +
+                Number(primer.lowerElevation).toFixed(3) + ' / ' +
+                (primer.landingElevations.length ? Number(primer.landingElevations[0]).toFixed(3) : '-') + ' / ' +
+                Number(primer.upperElevation).toFixed(3) + '</td><td>' +
+                stairModel.components.length + '</td><td>' +
+                Number(stairModel.loadHandoff.totalDeadKN).toFixed(2) + '</td><td>' +
+                Number(stairModel.loadHandoff.totalLiveKN).toFixed(2) + '</td><td>' +
+                escapeInfoText(stairModel.integration.status.replace(/_/g, ' ')) + '</td></tr></table>';
+            report += '<table><tr><th>ID</th><th>Type</th><th>Source</th><th>Section</th><th>Start EL</th><th>End EL</th><th>Export</th></tr>';
+            [...stairModel.flightSlabs, ...stairModel.landingSlabs, ...stairModel.beams].forEach(component => {
+                const isBeam = component.start && component.end;
+                const startElevation = isBeam
+                    ? component.start.z
+                    : Math.min(...component.topVertices.map(point => point.z));
+                const endElevation = isBeam
+                    ? component.end.z
+                    : Math.max(...component.topVertices.map(point => point.z));
+                const section = isBeam
+                    ? `${component.widthMm}x${component.depthMm}`
+                    : `t=${component.thicknessMm}`;
+                report += '<tr><td>' + escapeInfoText(component.id) + '</td><td>' +
+                    escapeInfoText(component.memberType.replace(/_/g, ' ')) + '</td><td>' +
+                    escapeInfoText(component.source.replace(/_/g, ' ')) + '</td><td>' +
+                    escapeInfoText(section) + '</td><td>' + Number(startElevation).toFixed(3) +
+                    '</td><td>' + Number(endElevation).toFixed(3) + '</td><td>' +
+                    escapeInfoText(component.solverExportReadiness) + '</td></tr>';
+            });
+            report += '</table>';
+            report += '<table><tr><th>Reaction</th><th>Main support</th><th>DL (kN)</th><th>LL (kN)</th><th>Status</th></tr>';
+            stairModel.supportReactions.forEach(reaction => {
+                report += '<tr><td>' + escapeInfoText(reaction.id) + '</td><td>' +
+                    escapeInfoText(reaction.support.referenceId || 'unresolved') + '</td><td>' +
+                    Number(reaction.deadKN).toFixed(2) + '</td><td>' +
+                    Number(reaction.liveKN).toFixed(2) + '</td><td>' +
+                    escapeInfoText(reaction.status) + '</td></tr>';
+            });
+            report += '</table>';
+            report += '<p>Stair loads are preliminary. Explicit stair shells and frames, or handoff reactions, must be used mutually exclusively. Sloped stair shells are excluded from the horizontal rigid diaphragm.</p>';
+        });
+    }
+
     // Load governance scaffold - report visibility only, not yet analysis/export truth.
     report += '<h2>5. LOAD GOVERNANCE SCAFFOLD</h2>';
     report += '<p>Explicit wall loads and point loads are data-scaffolded for governance. They are not yet applied to analysis/export until support mapping is resolved.</p>';
@@ -19460,6 +19773,21 @@ function populateStairBuilderSelectors() {
     bayYSelect.value = Number(previousY) < state.ySpans.length ? previousY : '0';
 }
 
+function syncStairAxisRotation(source = 'rotation') {
+    const axisSelect = document.getElementById('stairAxis');
+    const rotationSelect = document.getElementById('stairRotation');
+    if (!axisSelect || !rotationSelect) return refreshStairBuilderPreview();
+    if (source === 'axis') {
+        const currentRotation = Number(rotationSelect.value) || 0;
+        rotationSelect.value = axisSelect.value === 'Y'
+            ? (currentRotation === 270 ? '270' : '90')
+            : (currentRotation === 180 ? '180' : '0');
+    } else {
+        axisSelect.value = Number(rotationSelect.value) % 180 === 0 ? 'X' : 'Y';
+    }
+    return refreshStairBuilderPreview();
+}
+
 function calculateStairBuilderPreview() {
     const pairValue = document.getElementById('stairLevelPair')?.value || '';
     const [fromFloorId, toFloorId] = pairValue.split('|');
@@ -19469,13 +19797,34 @@ function calculateStairBuilderPreview() {
     const bayX = Math.max(0, Math.min(state.xSpans.length - 1, Number(document.getElementById('stairBayX')?.value) || 0));
     const bayY = Math.max(0, Math.min(state.ySpans.length - 1, Number(document.getElementById('stairBayY')?.value) || 0));
     const type = document.getElementById('stairType')?.value === 'straight' ? 'straight' : 'dogleg';
-    const axis = document.getElementById('stairAxis')?.value === 'Y' ? 'Y' : 'X';
+    const rotationDeg = [0, 90, 180, 270].includes(Number(document.getElementById('stairRotation')?.value))
+        ? Number(document.getElementById('stairRotation')?.value)
+        : (document.getElementById('stairAxis')?.value === 'Y' ? 90 : 0);
+    const axis = rotationDeg % 180 === 0 ? 'X' : 'Y';
+    const insertionAnchor = document.getElementById('stairInsertionAnchor')?.value || 'bay_center';
     const widthM = Math.max(0.75, Number(document.getElementById('stairWidth')?.value || 1000) / 1000);
     const landingM = Math.max(0.75, Number(document.getElementById('stairLanding')?.value || 1100) / 1000);
     const preferredRiseMm = Math.max(140, Number(document.getElementById('stairRise')?.value || 175));
     const treadMm = Math.max(230, Number(document.getElementById('stairTread')?.value || 275));
     const waistMm = Math.max(100, Number(document.getElementById('stairWaist')?.value || 150));
     const gapM = type === 'dogleg' ? Math.max(0, Number(document.getElementById('stairGap')?.value || 0) / 1000) : 0;
+    const sections = {
+        stairBeam: {
+            widthMm: Math.max(100, Number(document.getElementById('stairBeamWidth')?.value) || 200),
+            depthMm: Math.max(150, Number(document.getElementById('stairBeamDepth')?.value) || 350)
+        },
+        landingBeam: {
+            widthMm: Math.max(100, Number(document.getElementById('stairLandingBeamWidth')?.value) || 200),
+            depthMm: Math.max(150, Number(document.getElementById('stairLandingBeamDepth')?.value) || 350)
+        }
+    };
+    const loads = {
+        finishesKPa: Math.max(0, Number(document.getElementById('stairFinishesLoad')?.value) || 0),
+        liveLoadKPa: Math.max(0, Number(document.getElementById('stairLiveLoad')?.value) || 0),
+        railingLoadKNPerM: Math.max(0, Number(document.getElementById('stairRailingLoad')?.value) || 0),
+        wallLoadKNPerM: Math.max(0, Number(document.getElementById('stairWallLoad')?.value) || 0)
+    };
+    const engineerApproved = !!document.getElementById('stairEngineerApproval')?.checked;
     const floorHeightM = Math.max(2, Number(pair.toFloor.height) || 3);
     let risers = Math.max(4, Math.round(floorHeightM * 1000 / preferredRiseMm));
     if (type === 'dogleg' && risers % 2) risers += 1;
@@ -19489,34 +19838,105 @@ function calculateStairBuilderPreview() {
     const { x, y } = getStairGridCoordinates();
     const bayWidth = x[bayX + 1] - x[bayX];
     const bayDepth = y[bayY + 1] - y[bayY];
-    const x1 = x[bayX] + (bayWidth - footprintX) / 2;
-    const y1 = y[bayY] + (bayDepth - footprintY) / 2;
+    let x1 = x[bayX] + (bayWidth - footprintX) / 2;
+    let y1 = y[bayY] + (bayDepth - footprintY) / 2;
+    if (insertionAnchor === 'lower_landing_corner') {
+        x1 = x[bayX] + 0.1;
+        y1 = y[bayY] + 0.1;
+    } else if (insertionAnchor === 'support_beam_line') {
+        if (rotationDeg === 0) x1 = x[bayX];
+        if (rotationDeg === 180) x1 = x[bayX + 1] - footprintX;
+        if (rotationDeg === 90) y1 = y[bayY];
+        if (rotationDeg === 270) y1 = y[bayY + 1] - footprintY;
+    }
     const x2 = x1 + footprintX;
     const y2 = y1 + footprintY;
-    const fits = footprintX <= bayWidth - 0.1 && footprintY <= bayDepth - 0.1;
+    const fits = x1 >= x[bayX] - 0.001 && y1 >= y[bayY] - 0.001 &&
+        x2 <= x[bayX + 1] + 0.001 && y2 <= y[bayY + 1] + 0.001;
     const targetSlabId = `S${bayY * state.xSpans.length + bayX + 1}`;
     const existingOpening = (pair.toFloor.slabOpenings || []).find(opening =>
         opening.id === targetSlabId && opening.source === 'stair'
     );
     const conflict = !!existingOpening;
-    const theta = Math.atan(actualRiseMm / treadMm);
-    const effectiveThicknessMm = waistMm / Math.cos(theta) + actualRiseMm / 2;
-    const slabDL = effectiveThicknessMm / 1000 * 24;
-    const totalDL = slabDL + 1.5;
-    const liveLoad = 4.8;
-    const factoredLoad = 1.2 * totalDL + 1.6 * liveLoad;
+    const columnClashes = (state.columns || []).filter(column => {
+        if (!isColumnActiveOnFloor(column, fromFloorId) && !isColumnActiveOnFloor(column, toFloorId)) return false;
+        const position = getColumnPlanPosition(column);
+        return position.x > x1 + 0.1 && position.x < x2 - 0.1 &&
+            position.y > y1 + 0.1 && position.y < y2 - 0.1;
+    }).map(column => column.id);
+    const anchorGridId = `${String.fromCharCode(65 + bayX)}${bayY + 1}`;
+    const candidateStair = {
+        id: 'ST-PREVIEW',
+        type,
+        fromFloorId,
+        toFloorId,
+        bayX,
+        bayY,
+        axis,
+        rotationDeg,
+        insertionAnchor,
+        widthM,
+        landingM,
+        gapM,
+        preferredRiseMm,
+        actualRiseMm,
+        treadMm,
+        waistMm,
+        risers,
+        flightRunM,
+        bounds: { x1, y1, x2, y2 },
+        opening: { slabId: targetSlabId, x1, y1, x2, y2 },
+        material: 'Concrete',
+        sections,
+        loads,
+        integration: {
+            anchorGridId,
+            engineerApproved,
+            supportMappings: {}
+        }
+    };
+    let structuralModel = null;
+    try {
+        structuralModel = buildStairStructuralModel(candidateStair, {
+            clashFree: columnClashes.length === 0
+        });
+    } catch (error) {
+        structuralModel = null;
+    }
+    const mappedSupportCount = structuralModel?.supportReactions?.filter(
+        reaction => reaction.support?.status === 'resolved'
+    ).length || 0;
+    const totalSupportCount = structuralModel?.supportReactions?.length || 0;
+    const factoredLoad = structuralModel
+        ? 1.2 * structuralModel.loadHandoff.totalDeadKN + 1.6 * structuralModel.loadHandoff.totalLiveKN
+        : 0;
+    const geometryReady = fits && !conflict && columnClashes.length === 0 && !!structuralModel;
+    let message = 'Geometry fits the selected bay.';
+    if (!fits) {
+        message = `Footprint ${footprintX.toFixed(2)} x ${footprintY.toFixed(2)} m does not fit Bay ${bayX + 1}-${bayY + 1} (${bayWidth.toFixed(2)} x ${bayDepth.toFixed(2)} m).`;
+    } else if (conflict) {
+        message = `${targetSlabId} already has a stair opening.`;
+    } else if (columnClashes.length) {
+        message = `Stair footprint clashes with column(s): ${columnClashes.join(', ')}.`;
+    } else if (structuralModel) {
+        message = `${mappedSupportCount}/${totalSupportCount} main-frame supports mapped. ` +
+            (structuralModel.integration.solverReady
+                ? 'Approved stair is solver-ready; sloped shells remain outside the rigid diaphragm.'
+                : 'Geometry and preliminary loads are coordinated; analytical approval remains governed.');
+    }
 
     return {
-        ready: fits && !conflict,
-        message: !fits
-            ? `Footprint ${footprintX.toFixed(2)} x ${footprintY.toFixed(2)} m does not fit Bay ${bayX + 1}-${bayY + 1} (${bayWidth.toFixed(2)} x ${bayDepth.toFixed(2)} m).`
-            : (conflict ? `${targetSlabId} already has a stair opening.` : 'Geometry fits the selected bay. Destination slab opening will be reserved.'),
+        ready: geometryReady,
+        message,
         fromFloorId,
         toFloorId,
         bayX,
         bayY,
         type,
         axis,
+        rotationDeg,
+        insertionAnchor,
+        anchorGridId,
         widthM,
         landingM,
         gapM,
@@ -19531,7 +19951,184 @@ function calculateStairBuilderPreview() {
         footprintY,
         factoredLoad,
         targetSlabId,
-        bounds: { x1, y1, x2, y2 }
+        bounds: { x1, y1, x2, y2 },
+        sections,
+        loads,
+        engineerApproved,
+        columnClashes,
+        structuralModel
+    };
+}
+
+let stairBuilder3D = null;
+let stairBuilderPreviewMeshes = [];
+
+function clearStairBuilder3DPreview() {
+    if (!stairBuilder3D?.scene) return;
+    stairBuilderPreviewMeshes.forEach(item => {
+        stairBuilder3D.scene.remove(item);
+        item.traverse?.(child => {
+            child.geometry?.dispose?.();
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.filter(Boolean).forEach(material => material.dispose?.());
+        });
+    });
+    stairBuilderPreviewMeshes = [];
+}
+
+function initStairBuilder3DPreview() {
+    const container = document.getElementById('stair3DPreview');
+    if (!container || typeof THREE === 'undefined') return null;
+    if (stairBuilder3D?.container === container) return stairBuilder3D;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x101827);
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 200);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.domElement.setAttribute('aria-label', 'Stair structural integration 3D preview');
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.addEventListener('change', () => renderer.render(scene, camera));
+    scene.add(new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 1.15));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.35);
+    keyLight.position.set(6, 10, 8);
+    keyLight.castShadow = true;
+    scene.add(keyLight);
+
+    const resize = () => {
+        const width = Math.max(320, container.clientWidth || 640);
+        const height = Math.max(220, container.clientHeight || 260);
+        renderer.setSize(width, height, false);
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        renderer.render(scene, camera);
+    };
+    stairBuilder3D = { container, scene, camera, renderer, controls, resize };
+    if (typeof ResizeObserver !== 'undefined') {
+        stairBuilder3D.resizeObserver = new ResizeObserver(resize);
+        stairBuilder3D.resizeObserver.observe(container);
+    }
+    resize();
+    return stairBuilder3D;
+}
+
+function addStairBuilderContextLine(points, color, opacity = 0.5) {
+    if (!stairBuilder3D?.scene || !points?.length) return;
+    const positions = points.flatMap(point => [point.x, point.z, point.y]);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+    const line = new THREE.LineSegments(geometry, material);
+    stairBuilder3D.scene.add(line);
+    stairBuilderPreviewMeshes.push(line);
+}
+
+function renderStairBuilder3DPreview(preview) {
+    const view = initStairBuilder3DPreview();
+    if (!view) return;
+    clearStairBuilder3DPreview();
+    const model = preview?.structuralModel;
+    if (!model) {
+        view.renderer.render(view.scene, view.camera);
+        return;
+    }
+
+    const stairMaterial = new THREE.MeshStandardMaterial({
+        color: 0x2dd4bf,
+        transparent: true,
+        opacity: 0.82,
+        roughness: 0.72,
+        metalness: 0.01,
+        side: THREE.DoubleSide
+    });
+    const beamMaterial = new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        roughness: 0.62,
+        metalness: 0.02
+    });
+    [...model.flightSlabs, ...model.landingSlabs].forEach(component => {
+        const geometry = create3DPrismGeometry(component.topVertices, component.bottomVertices);
+        if (!geometry) return;
+        const mesh = new THREE.Mesh(geometry, stairMaterial.clone());
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.userData = { type: component.memberType, id: component.id };
+        view.scene.add(mesh);
+        stairBuilderPreviewMeshes.push(mesh);
+    });
+    model.beams.forEach(component => {
+        const mesh = create3DFrameMesh(component, beamMaterial.clone());
+        if (!mesh) return;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.userData = { type: component.memberType, id: component.id };
+        view.scene.add(mesh);
+        stairBuilderPreviewMeshes.push(mesh);
+    });
+    stairMaterial.dispose();
+    beamMaterial.dispose();
+
+    const bay = getStairBayBounds({
+        bayX: preview.bayX,
+        bayY: preview.bayY
+    });
+    const primer = model.coordinatePrimer;
+    [primer.lowerElevation, primer.upperElevation].forEach(elevation => {
+        addStairBuilderContextLine([
+            { x: bay.x1, y: bay.y1, z: elevation }, { x: bay.x2, y: bay.y1, z: elevation },
+            { x: bay.x2, y: bay.y1, z: elevation }, { x: bay.x2, y: bay.y2, z: elevation },
+            { x: bay.x2, y: bay.y2, z: elevation }, { x: bay.x1, y: bay.y2, z: elevation },
+            { x: bay.x1, y: bay.y2, z: elevation }, { x: bay.x1, y: bay.y1, z: elevation }
+        ], 0x94a3b8, 0.45);
+    });
+    [[bay.x1, bay.y1], [bay.x2, bay.y1], [bay.x2, bay.y2], [bay.x1, bay.y2]].forEach(point => {
+        addStairBuilderContextLine([
+            { x: point[0], y: point[1], z: primer.lowerElevation },
+            { x: point[0], y: point[1], z: primer.upperElevation }
+        ], 0x64748b, 0.32);
+    });
+
+    model.supportReactions.forEach(reaction => {
+        const geometry = new THREE.SphereGeometry(0.08, 14, 10);
+        const material = new THREE.MeshBasicMaterial({
+            color: reaction.support.status === 'resolved' ? 0x22c55e : 0xf59e0b
+        });
+        const marker = new THREE.Mesh(geometry, material);
+        marker.position.set(reaction.point.x, reaction.point.z, reaction.point.y);
+        marker.userData = { type: 'stair_support_reaction', id: reaction.id };
+        view.scene.add(marker);
+        stairBuilderPreviewMeshes.push(marker);
+    });
+
+    const centerX = (preview.bounds.x1 + preview.bounds.x2) / 2;
+    const centerY = (preview.bounds.y1 + preview.bounds.y2) / 2;
+    const centerZ = (primer.lowerElevation + primer.upperElevation) / 2;
+    const span = Math.max(
+        preview.bounds.x2 - preview.bounds.x1,
+        preview.bounds.y2 - preview.bounds.y1,
+        primer.upperElevation - primer.lowerElevation,
+        2
+    );
+    view.controls.target.set(centerX, centerZ, centerY);
+    view.camera.position.set(centerX + span * 1.45, centerZ + span * 0.9, centerY + span * 1.45);
+    view.camera.lookAt(centerX, centerZ, centerY);
+    view.controls.update();
+    view.resize();
+    view.renderer.render(view.scene, view.camera);
+    window.lastStairBuilderPreviewAudit = {
+        stairId: model.stairId,
+        meshCount: stairBuilderPreviewMeshes.filter(item => item.isMesh).length,
+        componentCount: model.components.length,
+        mappedSupports: model.supportReactions.filter(reaction => reaction.support.status === 'resolved').length,
+        totalSupports: model.supportReactions.length,
+        integrationStatus: model.integration.status
     };
 }
 
@@ -19549,7 +20146,24 @@ function refreshStairBuilderPreview() {
     setText('stairMetricRisers', preview.risers ? String(preview.risers) : '-');
     setText('stairMetricRise', preview.actualRiseMm ? `${preview.actualRiseMm.toFixed(1)} mm` : '-');
     setText('stairMetricFootprint', preview.footprintX ? `${preview.footprintX.toFixed(2)} x ${preview.footprintY.toFixed(2)} m` : '-');
-    setText('stairMetricLoad', preview.factoredLoad ? `${preview.factoredLoad.toFixed(2)} kPa` : '-');
+    setText('stairMetricLoad', preview.factoredLoad ? `${preview.factoredLoad.toFixed(1)} kN` : '-');
+    const primer = preview.structuralModel?.coordinatePrimer;
+    setText('stairMetricElevations', primer
+        ? `${primer.lowerElevation.toFixed(2)} / ${primer.landingElevations[0]?.toFixed(2) || '-'} / ${primer.upperElevation.toFixed(2)} m`
+        : '-');
+    setText('stairMetricComponents', preview.structuralModel
+        ? `${preview.structuralModel.components.length} objects`
+        : '-');
+    const mappedSupports = preview.structuralModel?.supportReactions?.filter(
+        reaction => reaction.support?.status === 'resolved'
+    ).length || 0;
+    setText('stairMetricSupports', preview.structuralModel
+        ? `${mappedSupports}/${preview.structuralModel.supportReactions.length} mapped`
+        : '-');
+    setText('stairMetricIntegration', preview.structuralModel
+        ? preview.structuralModel.integration.status.replace(/_/g, ' ')
+        : '-');
+    renderStairBuilder3DPreview(preview);
     renderStairBuilderTable();
     return preview;
 }
@@ -19600,6 +20214,8 @@ function createStairFromBuilder() {
         bayX: preview.bayX,
         bayY: preview.bayY,
         axis: preview.axis,
+        rotationDeg: preview.rotationDeg,
+        insertionAnchor: preview.insertionAnchor,
         widthM: preview.widthM,
         landingM: preview.landingM,
         gapM: preview.gapM,
@@ -19614,16 +20230,32 @@ function createStairFromBuilder() {
             slabId: preview.targetSlabId,
             ...preview.bounds
         },
+        material: 'Concrete',
+        sections: cloneSerializable(preview.sections, {}),
+        loads: cloneSerializable(preview.loads, {}),
+        integration: {
+            anchorGridId: preview.anchorGridId,
+            engineerApproved: preview.engineerApproved,
+            supportMappings: {},
+            status: 'aligned',
+            alignedAt: new Date().toISOString(),
+            approvedAt: preview.engineerApproved ? new Date().toISOString() : ''
+        },
         analysisExport: 'pending-validation'
     };
     state.stairs = normalizeStairList([...(state.stairs || []), stair]);
-    syncStairOpening(stair);
+    const createdStair = state.stairs.find(item => item.id === id);
+    if (createdStair) reconcileStairStructuralModel(createdStair, { generatedAt: new Date().toISOString() });
+    syncStairOpening(createdStair || stair);
     calculate();
     renderStairBuilderTable();
     refreshStairBuilderPreview();
     const status = document.getElementById('stairBuilderStatus');
     if (status) {
-        status.textContent = `${id} created. Opening reserved on ${preview.toFloorId} ${preview.targetSlabId}.`;
+        const model = createdStair?.structuralModel;
+        status.textContent = `${id} integrated with ${model?.components?.length || 0} structural objects. ` +
+            `Opening reserved on ${preview.toFloorId} ${preview.targetSlabId}. ` +
+            `Status: ${(model?.integration?.status || 'aligned').replace(/_/g, ' ')}.`;
         status.classList.add('ready');
     }
     scheduleProjectAutosave('stair-create');
@@ -19659,11 +20291,21 @@ function renderStairBuilderTable() {
     tbody.innerHTML = stairs.length ? stairs.map(stair => {
         const size = `${(stair.bounds.x2 - stair.bounds.x1).toFixed(2)} x ${(stair.bounds.y2 - stair.bounds.y1).toFixed(2)} m`;
         const type = stair.type === 'dogleg' ? 'Dog-leg' : 'Straight';
+        const model = stair.structuralModel?.schema === EngineStairs?.SCHEMA
+            ? stair.structuralModel
+            : (() => {
+                try {
+                    return buildStairStructuralModel(stair);
+                } catch (error) {
+                    return null;
+                }
+            })();
+        const status = model?.integration?.status?.replace(/_/g, ' ') || 'detached draft';
         return `<tr>
             <td>${escapeInfoText(stair.id)}</td>
             <td>${escapeInfoText(stair.fromFloorId)} to ${escapeInfoText(stair.toFloorId)}</td>
             <td>${stair.bayX + 1}-${stair.bayY + 1}</td>
-            <td>${type}</td>
+            <td>${type}<br><span class="schedule-note">${escapeInfoText(status)}</span></td>
             <td>${size}</td>
             <td>${escapeInfoText(stair.opening?.slabId || '-')}</td>
             <td><button class="mini-action-btn" onclick="showStairOnPlan('${stair.id}')">Plan</button> <button class="mini-action-btn remove" onclick="removeStair('${stair.id}')">Remove</button></td>
@@ -19760,6 +20402,36 @@ function drawStairPlanObjects(floorId) {
             }
             ctx.stroke();
         }
+
+        let structuralModel = stair.structuralModel;
+        if (!structuralModel?.beams) {
+            try {
+                structuralModel = buildStairStructuralModel(stair);
+            } catch (error) {
+                structuralModel = null;
+            }
+        }
+        (structuralModel?.beams || []).forEach(beam => {
+            const lowerElevation = structuralModel.coordinatePrimer.lowerElevation;
+            const upperElevation = structuralModel.coordinatePrimer.upperElevation;
+            const intermediate = Math.abs(Number(beam.start.z) - lowerElevation) > 0.01 &&
+                Math.abs(Number(beam.start.z) - upperElevation) > 0.01;
+            ctx.setLineDash(intermediate ? [5 * scaleFactor, 3 * scaleFactor] : []);
+            ctx.strokeStyle = beam.memberType === 'landing_beam' ? '#0369a1' : '#155e75';
+            ctx.lineWidth = Math.max(1.1, 1.35 * scaleFactor);
+            ctx.beginPath();
+            ctx.moveTo(px(beam.start.x), py(beam.start.y));
+            ctx.lineTo(px(beam.end.x), py(beam.end.y));
+            ctx.stroke();
+            ctx.setLineDash([]);
+            const mx = px((beam.start.x + beam.end.x) / 2);
+            const my = py((beam.start.y + beam.end.y) / 2);
+            ctx.fillStyle = '#0f172a';
+            ctx.font = `600 ${Math.max(6, Math.round(6.5 * scaleFactor))}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(beam.id, mx, my - 2 * scaleFactor);
+        });
 
         const cx = (x1 + x2) / 2;
         const cy = (y1 + y2) / 2;
@@ -20345,6 +21017,7 @@ function populateBOM() {
             assertSolverColumnTopologyReady('STAAD');
             assertSolverMemberSizeReady('STAAD');
             const model = modelData;
+            assertSolverStairTopologyReady('STAAD', model.stairTopologyValidation);
             const nodes = [];
             const nodeByCoordinate = new Map();
             const frameNodeIds = new Set();
@@ -21269,6 +21942,10 @@ function populateBOM() {
             const columns = [];
             const beams = [];
             const slabs = [];
+            const stairBeams = [];
+            const stairSlabs = [];
+            const stairOpenings = [];
+            const stairSupportReactions = [];
 
             const registerFrameSection = (prefix, type, bMm, hMm) => {
                 const b = normalizeMemberSizeMm(bMm, MEMBER_GEOMETRY_MIN_MM, MEMBER_GEOMETRY_MIN_MM, 1500);
@@ -21430,6 +22107,79 @@ function populateBOM() {
                 state.beams = originalBeams;
             }
 
+            const stairTopologyValidation = collectStairTopologyValidation({ floorGeometry });
+            stairTopologyValidation.models.forEach(stairModel => {
+                (stairModel.beams || []).forEach(beam => {
+                    const prefix = beam.memberType === 'landing_beam' ? 'LB' : 'SB';
+                    const section = registerFrameSection(prefix, beam.memberType, beam.widthMm, beam.depthMm);
+                    const start = toSolverPlanPoint(beam.start.x, beam.start.y);
+                    const end = toSolverPlanPoint(beam.end.x, beam.end.y);
+                    stairBeams.push({
+                        id: sanitizeCSIName(beam.id, `SB-${stairBeams.length + 1}`),
+                        sourceId: beam.id,
+                        stairId: stairModel.stairId,
+                        floorId: beam.floorId,
+                        destinationFloorId: beam.destinationFloorId,
+                        type: beam.memberType,
+                        source: beam.source,
+                        x1: start.x,
+                        y1: start.y,
+                        z1: Number(beam.start.z) || 0,
+                        x2: end.x,
+                        y2: end.y,
+                        z2: Number(beam.end.z) || 0,
+                        section,
+                        supportTopology: cloneSerializable(beam.supportTopology, []),
+                        appliedLoads: cloneSerializable(beam.appliedLoads, []),
+                        reactionHandoffStatus: beam.reactionHandoffStatus,
+                        solverExportReadiness: beam.solverExportReadiness
+                    });
+                });
+                [...(stairModel.flightSlabs || []), ...(stairModel.landingSlabs || [])].forEach(slab => {
+                    const section = registerSlabSection(slab.thicknessMm);
+                    const topPoints = (slab.topVertices || []).map(point => {
+                        const solverPoint = toSolverPlanPoint(point.x, point.y);
+                        return {
+                            x: solverPoint.x,
+                            y: solverPoint.y,
+                            z: Number(point.z) || 0
+                        };
+                    });
+                    const stepAndFinishesKN = Number(slab.loads?.stepAllowanceKN || 0) +
+                        Number(slab.loads?.finishesKN || 0);
+                    stairSlabs.push({
+                        id: sanitizeCSIName(slab.id, `SS-${stairSlabs.length + 1}`),
+                        sourceId: slab.id,
+                        stairId: stairModel.stairId,
+                        floorId: slab.floorId,
+                        destinationFloorId: slab.destinationFloorId,
+                        type: slab.memberType,
+                        source: slab.source,
+                        section,
+                        points: topPoints,
+                        superDead: slab.surfaceAreaM2 > 0 ? stepAndFinishesKN / slab.surfaceAreaM2 : 0,
+                        live: (Number(slab.loads?.liveKN) || 0) /
+                            Math.max(0.001, slab.surfaceAreaM2),
+                        diaphragmPolicy: slab.diaphragmPolicy,
+                        solverExportReadiness: slab.solverExportReadiness
+                    });
+                });
+                (stairModel.openings || []).forEach(opening => {
+                    const bounds = opening.bounds || {};
+                    const sourcePoints = [
+                        { x: bounds.x1, y: bounds.y1 },
+                        { x: bounds.x2, y: bounds.y1 },
+                        { x: bounds.x2, y: bounds.y2 },
+                        { x: bounds.x1, y: bounds.y2 }
+                    ];
+                    stairOpenings.push({
+                        ...cloneSerializable(opening, {}),
+                        points: sourcePoints.map(point => toSolverPlanPoint(point.x, point.y))
+                    });
+                });
+                stairSupportReactions.push(...cloneSerializable(stairModel.supportReactions, []));
+            });
+
             const model = {
                 schema: 'FutolStructure.CSIExportModel.v1',
                 generatedAt: new Date().toISOString(),
@@ -21454,15 +22204,28 @@ function populateBOM() {
                     summary: topologyValidation.summary,
                     items: topologyValidation.items.filter(item => item.status !== 'PASS')
                 },
+                stairTopologyValidation: {
+                    summary: stairTopologyValidation.summary,
+                    items: stairTopologyValidation.items
+                },
                 memberSizeGovernance,
                 columns,
                 beams,
                 slabs,
+                stairBeams,
+                stairSlabs,
+                stairOpenings,
+                stairSupportReactions,
                 counts: {
                     stories: (state.floors || []).length,
                     columns: columns.length,
                     beams: beams.length,
-                    slabs: slabs.length
+                    slabs: slabs.length,
+                    stairs: stairTopologyValidation.models.length,
+                    stairBeams: stairBeams.length,
+                    stairSlabs: stairSlabs.length,
+                    stairOpenings: stairOpenings.length,
+                    stairSupportReactions: stairSupportReactions.length
                 }
             };
 
@@ -21475,6 +22238,7 @@ function populateBOM() {
         function generateETABSOAPIScript(modelData = collectCSIExportModelData()) {
             assertSolverColumnTopologyReady('ETABS');
             assertSolverMemberSizeReady('ETABS');
+            assertSolverStairTopologyReady('ETABS', modelData.stairTopologyValidation);
             const encodedModel = encodeUtf8Base64(JSON.stringify(modelData));
             return String.raw`param(
     [string]$OutputDirectory = (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'FutolStructure ETABS Exports'),
@@ -21967,11 +22731,27 @@ try {
                 const axis = makeAxis3(0, 0, 0, directionZ, directionX);
                 return emit(`IFCLOCALPLACEMENT(${storeyPlacementId},${axis})`);
             };
-            const makeBRepShape = (footprint, zBottom, zTop) => {
-                const polygon = ensureCounterClockwise(footprint);
-                if (polygon.length !== 4) throw new Error('IFC BRep currently requires four-point slab/member footprints.');
-                const bottom = polygon.map(point => point3(point.x, point.y, zBottom));
-                const top = polygon.map(point => point3(point.x, point.y, zTop));
+            const makeVertexBRepShape = (topVertices, bottomVertices) => {
+                let topPolygon = (topVertices || []).map(point => ({
+                    x: Number(point.x) || 0,
+                    y: Number(point.y) || 0,
+                    z: Number(point.z) || 0
+                }));
+                let bottomPolygon = (bottomVertices || []).map(point => ({
+                    x: Number(point.x) || 0,
+                    y: Number(point.y) || 0,
+                    z: Number(point.z) || 0
+                }));
+                if (topPolygon.length !== 4 || bottomPolygon.length !== 4) {
+                    throw new Error('IFC BRep currently requires paired four-point faces.');
+                }
+                const ccw = ensureCounterClockwise(topPolygon);
+                if (ccw[0].x !== topPolygon[0].x || ccw[0].y !== topPolygon[0].y) {
+                    topPolygon = [...topPolygon].reverse();
+                    bottomPolygon = [...bottomPolygon].reverse();
+                }
+                const bottom = bottomPolygon.map(point => point3(point.x, point.y, point.z));
+                const top = topPolygon.map(point => point3(point.x, point.y, point.z));
                 const faceLoops = [
                     [bottom[3], bottom[2], bottom[1], bottom[0]],
                     [top[0], top[1], top[2], top[3]],
@@ -21989,6 +22769,32 @@ try {
                 const brep = emit(`IFCFACETEDBREP(${closedShell})`);
                 const representation = emit(`IFCSHAPEREPRESENTATION(${contextId},'Body','Brep',(${brep}))`);
                 return emit(`IFCPRODUCTDEFINITIONSHAPE($,$,(${representation}))`);
+            };
+            const makeBRepShape = (footprint, zBottom, zTop) => {
+                const polygon = ensureCounterClockwise(footprint);
+                return makeVertexBRepShape(
+                    polygon.map(point => ({ ...point, z: zTop })),
+                    polygon.map(point => ({ ...point, z: zBottom }))
+                );
+            };
+            const makeFrameBRepShape = (frame, section, storeyElevation) => {
+                const dx = Number(frame.x2) - Number(frame.x1);
+                const dy = Number(frame.y2) - Number(frame.y1);
+                const planLength = Math.hypot(dx, dy);
+                if (!(planLength > 0.01)) throw new Error(`IFC stair frame ${frame.id} has zero plan length.`);
+                const perpendicularX = -dy / planLength;
+                const perpendicularY = dx / planLength;
+                const halfWidth = section.bMm / 2000;
+                const localZ1 = Number(frame.z1) - storeyElevation;
+                const localZ2 = Number(frame.z2) - storeyElevation;
+                const top = [
+                    { x: frame.x1 - perpendicularX * halfWidth, y: frame.y1 - perpendicularY * halfWidth, z: localZ1 },
+                    { x: frame.x2 - perpendicularX * halfWidth, y: frame.y2 - perpendicularY * halfWidth, z: localZ2 },
+                    { x: frame.x2 + perpendicularX * halfWidth, y: frame.y2 + perpendicularY * halfWidth, z: localZ2 },
+                    { x: frame.x1 + perpendicularX * halfWidth, y: frame.y1 + perpendicularY * halfWidth, z: localZ1 }
+                ];
+                const depth = section.hMm / 1000;
+                return makeVertexBRepShape(top, top.map(point => ({ ...point, z: point.z - depth })));
             };
             const releaseManifest = getReleaseManifest();
             const projectProvenance = getProjectProvenance();
@@ -22013,6 +22819,7 @@ try {
             };
 
             const allProducts = [];
+            const nonMaterialProducts = new Set();
             model.columns.forEach(column => {
                 const ref = storeyRefs.get(column.floorId);
                 const section = frameSections.get(column.section);
@@ -22097,12 +22904,83 @@ try {
                 attachProperties(productId, slab.sourceId, slab.floorId, 'Slab', slab.section);
             });
 
+            (model.stairBeams || []).forEach(beam => {
+                const ref = storeyRefs.get(beam.floorId);
+                const section = frameSections.get(beam.section);
+                if (!ref || !section) return;
+                const placement = makeIdentityPlacement(ref.placementId);
+                const shape = makeFrameBRepShape(beam, section, ref.story.elevation);
+                const label = beam.type === 'landing_beam' ? 'Landing Beam' : 'Stair Beam';
+                const productId = emit(`IFCBEAM('${generateIFCGUID()}',${ownerHistoryId},'${escapeIFCString(beam.sourceId)}','${label} ${escapeIFCString(beam.sourceId)}',$,${placement},${shape},'${escapeIFCString(beam.id)}')`);
+                ref.products.push(productId);
+                allProducts.push(productId);
+                attachProperties(productId, beam.sourceId, beam.floorId, beam.type, beam.section, {
+                    FS_StairId: beam.stairId,
+                    FS_SourcePart: beam.source,
+                    FS_StartElevation: beam.z1,
+                    FS_EndElevation: beam.z2,
+                    FS_SupportTopology: JSON.stringify(beam.supportTopology || []),
+                    FS_ReactionHandoffStatus: beam.reactionHandoffStatus,
+                    FS_ExportStatus: beam.solverExportReadiness,
+                    FS_LoadSource: JSON.stringify(beam.appliedLoads || [])
+                });
+            });
+
+            (model.stairSlabs || []).forEach(slab => {
+                const ref = storeyRefs.get(slab.floorId);
+                const section = slabSections.get(slab.section);
+                if (!ref || !section || (slab.points || []).length !== 4) return;
+                const top = slab.points.map(point => ({
+                    x: point.x,
+                    y: point.y,
+                    z: Number(point.z) - ref.story.elevation
+                }));
+                const bottom = top.map(point => ({
+                    ...point,
+                    z: point.z - section.thicknessMm / 1000
+                }));
+                const placement = makeIdentityPlacement(ref.placementId);
+                const shape = makeVertexBRepShape(top, bottom);
+                const predefinedType = slab.type === 'landing_slab' ? '.LANDING.' : '.USERDEFINED.';
+                const label = slab.type === 'landing_slab' ? 'Landing Slab' : 'Stair Flight Slab';
+                const productId = emit(`IFCSLAB('${generateIFCGUID()}',${ownerHistoryId},'${escapeIFCString(slab.sourceId)}','${label} ${escapeIFCString(slab.sourceId)}',$,${placement},${shape},'${escapeIFCString(slab.id)}',${predefinedType})`);
+                ref.products.push(productId);
+                allProducts.push(productId);
+                attachProperties(productId, slab.sourceId, slab.floorId, slab.type, slab.section, {
+                    FS_StairId: slab.stairId,
+                    FS_SourcePart: slab.source,
+                    FS_DiaphragmPolicy: slab.diaphragmPolicy,
+                    FS_ExportStatus: slab.solverExportReadiness,
+                    FS_SuperDeadKPa: slab.superDead,
+                    FS_LiveLoadKPa: slab.live
+                });
+            });
+
+            (model.stairOpenings || []).forEach(opening => {
+                const ref = storeyRefs.get(opening.floorId);
+                if (!ref || (opening.points || []).length !== 4) return;
+                const topZ = Number(opening.topElevation) - ref.story.elevation;
+                const bottomZ = Number(opening.bottomElevation) - ref.story.elevation;
+                const placement = makeIdentityPlacement(ref.placementId);
+                const shape = makeBRepShape(opening.points, bottomZ, topZ);
+                const productId = emit(`IFCOPENINGELEMENT('${generateIFCGUID()}',${ownerHistoryId},'${escapeIFCString(opening.id)}','Stair opening ${escapeIFCString(opening.stairId)}','Coordination opening',${placement},${shape},'${escapeIFCString(opening.id)}')`);
+                ref.products.push(productId);
+                allProducts.push(productId);
+                nonMaterialProducts.add(productId);
+                attachProperties(productId, opening.id, opening.floorId, 'stair_opening', opening.slabId || '-', {
+                    FS_StairId: opening.stairId,
+                    FS_HostSlabId: opening.slabId,
+                    FS_ExportStatus: 'COORDINATION_ONLY'
+                });
+            });
+
             storeyRefs.forEach(ref => {
                 if (!ref.products.length) return;
                 emit(`IFCRELCONTAINEDINSPATIALSTRUCTURE('${generateIFCGUID()}',${ownerHistoryId},$,$,(${ref.products.join(',')}),${ref.storeyId})`);
             });
-            if (allProducts.length) {
-                emit(`IFCRELASSOCIATESMATERIAL('${generateIFCGUID()}',${ownerHistoryId},$,$,(${allProducts.join(',')}),${concreteMaterialId})`);
+            const concreteProducts = allProducts.filter(productId => !nonMaterialProducts.has(productId));
+            if (concreteProducts.length) {
+                emit(`IFCRELASSOCIATESMATERIAL('${generateIFCGUID()}',${ownerHistoryId},$,$,(${concreteProducts.join(',')}),${concreteMaterialId})`);
             }
 
             lines.push('ENDSEC;');
@@ -22115,10 +22993,18 @@ try {
                     columns: model.counts.columns,
                     beams: model.counts.beams,
                     slabs: model.counts.slabs,
+                    stairs: model.counts.stairs || 0,
+                    stairBeams: model.counts.stairBeams || 0,
+                    stairSlabs: model.counts.stairSlabs || 0,
+                    stairOpenings: model.counts.stairOpenings || 0,
                     products: allProducts.length,
                     entities: entityId - 1
                 },
                 topologyValidation: model.topologyValidation || { summary: { pass: 0, warning: 0, blocked: 0, solverReady: true }, items: [] },
+                stairTopologyValidation: model.stairTopologyValidation || {
+                    summary: { pass: 0, blocked: 0, solverReady: true },
+                    items: []
+                },
                 memberSizeGovernance: model.memberSizeGovernance || {
                     softwareGeometryMinimumMm: MEMBER_GEOMETRY_MIN_MM,
                     policy: normalizeMemberSizePolicy(),
@@ -22136,13 +23022,25 @@ try {
                 const audit = window.lastIFCExportAudit;
                 const blocked = audit.topologyValidation?.summary?.blocked || 0;
                 const sizeBlocked = audit.memberSizeGovernance?.summary?.blocked || 0;
+                const stairBlocked = audit.stairTopologyValidation?.summary?.blocked || 0;
                 const coordinationNotes = [];
                 if (blocked) coordinationNotes.push(`${blocked} unresolved topology issue(s)`);
                 if (sizeBlocked) coordinationNotes.push(`${sizeBlocked} project-policy member size issue(s)`);
+                if (stairBlocked) coordinationNotes.push(`${stairBlocked} unresolved stair integration issue(s)`);
                 const coordinationWarning = coordinationNotes.length
                     ? `\n\nCoordination warning: ${coordinationNotes.join(' and ')} are included with FutolStructure metadata. This IFC is not solver-ready.`
                     : '';
-                alert(`IFC2x3 BIM model exported.\n\nPayload:\n- ${audit.counts.stories} storeys\n- ${audit.counts.columns} columns\n- ${audit.counts.beams} beams\n- ${audit.counts.slabs} active slabs${coordinationWarning}\n\nUse Revit -> Open -> IFC for a converted RVT, or Insert -> Link IFC for coordination.`);
+                alert(
+                    `IFC2x3 BIM model exported.\n\nPayload:\n` +
+                    `- ${audit.counts.stories} storeys\n` +
+                    `- ${audit.counts.columns} columns\n` +
+                    `- ${audit.counts.beams} main beams\n` +
+                    `- ${audit.counts.slabs} active floor slabs\n` +
+                    `- ${audit.counts.stairBeams || 0} stair/landing beams\n` +
+                    `- ${audit.counts.stairSlabs || 0} stair flight/landing slabs\n` +
+                    `- ${audit.counts.stairOpenings || 0} stair openings` +
+                    `${coordinationWarning}\n\nUse Revit -> Open -> IFC for a converted RVT, or Insert -> Link IFC for coordination.`
+                );
             } catch (err) {
                 alert('Export failed: ' + err.message);
             }

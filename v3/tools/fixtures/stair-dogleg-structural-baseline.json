@@ -1,0 +1,84 @@
+{
+  "fixtureId": "stair-dogleg-structural-v1",
+  "description": "Deterministic aligned dogleg stair with mapped main-frame supports and native solver validation intentionally pending.",
+  "stair": {
+    "id": "ST-FIX-1",
+    "type": "dogleg",
+    "fromFloorId": "2F",
+    "toFloorId": "RF",
+    "bayX": 0,
+    "bayY": 0,
+    "axis": "X",
+    "rotationDeg": 0,
+    "insertionAnchor": "bay_center",
+    "widthM": 1,
+    "landingM": 1.1,
+    "gapM": 0.1,
+    "treadMm": 275,
+    "preferredRiseMm": 175,
+    "actualRiseMm": 166.667,
+    "waistMm": 150,
+    "risers": 18,
+    "flightRunM": 2.2,
+    "bounds": {
+      "x1": 0,
+      "y1": 0,
+      "x2": 3.3,
+      "y2": 2.1
+    },
+    "opening": {
+      "slabId": "S2"
+    },
+    "material": "Concrete",
+    "sections": {
+      "stairBeam": {
+        "widthMm": 200,
+        "depthMm": 350
+      },
+      "landingBeam": {
+        "widthMm": 200,
+        "depthMm": 400
+      }
+    },
+    "loads": {
+      "finishesKPa": 1.5,
+      "liveLoadKPa": 4.8,
+      "railingLoadKNPerM": 0.75,
+      "wallLoadKNPerM": 0
+    },
+    "integration": {
+      "engineerApproved": true,
+      "supportMappings": {}
+    }
+  },
+  "context": {
+    "lowerElevation": 3,
+    "upperElevation": 6,
+    "destinationSlabThicknessMm": 120,
+    "concreteDensityKNPerM3": 24,
+    "clashFree": true,
+    "solverConnectionValidated": false
+  },
+  "expected": {
+    "schema": "FutolStructure.StairStructuralModel.v1",
+    "componentCounts": {
+      "flightSlabs": 2,
+      "landingSlabs": 1,
+      "stairBeams": 6,
+      "landingBeams": 4,
+      "openings": 1,
+      "supportReactions": 4
+    },
+    "componentTotal": 18,
+    "physicalMeshTotal": 13,
+    "intermediateLandingElevation": 4.5,
+    "intermediateLandingBeamId": "ST-FIX-1-LB-IN",
+    "totalDeadKN": 87.58391713136137,
+    "totalLiveKN": 32.208000000000006,
+    "supportMappingCount": 4,
+    "integrationStatus": "solver_validation_required",
+    "solverReady": false,
+    "doubleCountPolicy": "export_shells_and_frames_or_reactions_never_both",
+    "diaphragmPolicy": "excluded_from_horizontal_rigid_diaphragm"
+  }
+}

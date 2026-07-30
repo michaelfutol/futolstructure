@@ -15,6 +15,7 @@ const HISTORICAL_FSTR_FIXTURE = path.join(V3, 'tools', 'fixtures', 'legacy-v2.8-
 const REGULAR_3F_FSTR_FIXTURE = path.join(V3, 'tools', 'fixtures', 'regular-v2.8-3floor-pre-p0c.fstr');
 const TERMINATED_3F_FSTR_FIXTURE = path.join(V3, 'tools', 'fixtures', 'terminated-v2.8-3floor-pre-p0c.fstr');
 const COLUMN_SEGMENT_BASELINES = path.join(V3, 'tools', 'fixtures', 'p0-c1a-pre-migration-baselines.json');
+const STAIR_STRUCTURAL_BASELINE = path.join(V3, 'tools', 'fixtures', 'stair-dogleg-structural-baseline.json');
 const DXF_VALIDATOR = path.join(V3, 'tools', 'validate-dxf.py');
 const DEFAULT_PORT = Number(process.env.FS_CDP_PORT || 9234);
 const CDP_TIMEOUT_MS = Math.max(15000, Number(process.env.FS_CDP_TIMEOUT_MS) || 15000);
@@ -157,6 +158,119 @@ function checkDxfSourceContract() {
     };
 }
 
+function checkStairSourceContract() {
+    const html = fs.readFileSync(INDEX, 'utf8');
+    const enginePath = path.join(V3, 'engine', 'stairs.js');
+    const engine = fs.readFileSync(enginePath, 'utf8');
+    const dxf = fs.readFileSync(path.join(V3, 'dxf-export.js'), 'utf8');
+    assert(html.includes('engine/stairs.js'), 'Stair structural engine is not loaded by the app');
+    [
+        'stair_flight_slab',
+        'landing_slab',
+        'stair_beam',
+        'landing_beam',
+        'stair_opening',
+        'stair_support_reaction'
+    ].forEach(memberType => {
+        assert(engine.includes(memberType), `Stair structural member type ${memberType} is missing`);
+    });
+    assert(engine.includes('excluded_from_horizontal_rigid_diaphragm'), 'Stair diaphragm exclusion policy is missing');
+    assert(engine.includes('export_shells_and_frames_or_reactions_never_both'), 'Stair load double-count policy is missing');
+    assert(html.includes("assertSolverStairTopologyReady('STAAD'"), 'STAAD stair integration gate is missing');
+    assert(html.includes("assertSolverStairTopologyReady('ETABS'"), 'ETABS stair integration gate is missing');
+    assert(html.includes('IFCOPENINGELEMENT') && html.includes('FS_StairId'), 'IFC stair components or metadata are missing');
+    assert(dxf.includes('STAIR STRUCTURAL COMPONENT SCHEDULE'), 'DXF stair component schedule is missing');
+    return {
+        schema: 'FutolStructure.StairStructuralModel.v1',
+        memberTypes: [
+            'stair_flight_slab',
+            'landing_slab',
+            'stair_beam',
+            'landing_beam',
+            'stair_opening',
+            'stair_support_reaction'
+        ],
+        solverGate: ['STAAD', 'ETABS'],
+        coordinationExports: ['DXF', 'IFC', 'A4 report']
+    };
+}
+
+function checkStairStructuralFixture() {
+    const EngineStairs = require(path.join(V3, 'engine', 'stairs.js'));
+    const fixture = JSON.parse(fs.readFileSync(STAIR_STRUCTURAL_BASELINE, 'utf8'));
+    const supportMappings = {};
+    const model = EngineStairs.buildStairStructuralModel(fixture.stair, {
+        ...fixture.context,
+        bayBounds: fixture.stair.bounds,
+        resolveSupport(request) {
+            const support = {
+                kind: 'beam',
+                referenceId: `${request.floorId}-HOST-${request.role}`,
+                floorId: request.floorId
+            };
+            supportMappings[request.reactionId] = support;
+            return support;
+        }
+    });
+    const expected = fixture.expected;
+    const physicalMeshTotal = model.counts.flightSlabs +
+        model.counts.landingSlabs +
+        model.counts.stairBeams +
+        model.counts.landingBeams;
+    const intermediate = model.beams.find(beam => beam.id === expected.intermediateLandingBeamId);
+    assert(model.schema === expected.schema, 'Stair fixture schema changed', model);
+    assert(
+        Object.entries(expected.componentCounts).every(([key, value]) => model.counts[key] === value),
+        'Stair fixture component counts changed',
+        { expected: expected.componentCounts, actual: model.counts }
+    );
+    assert(
+        model.components.length === expected.componentTotal &&
+        physicalMeshTotal === expected.physicalMeshTotal,
+        'Stair fixture physical or governed component total changed',
+        { expected, physicalMeshTotal, componentTotal: model.components.length }
+    );
+    assert(
+        Math.abs(intermediate?.start?.z - expected.intermediateLandingElevation) < 1e-9 &&
+        Math.abs(intermediate?.end?.z - expected.intermediateLandingElevation) < 1e-9,
+        'Stair fixture intermediate landing beam elevation changed',
+        intermediate
+    );
+    assert(
+        Math.abs(model.loadHandoff.totalDeadKN - expected.totalDeadKN) < 1e-9 &&
+        Math.abs(model.loadHandoff.totalLiveKN - expected.totalLiveKN) < 1e-9,
+        'Stair fixture preliminary load handoff changed',
+        model.loadHandoff
+    );
+    assert(
+        Object.keys(supportMappings).length === expected.supportMappingCount &&
+        model.supportReactions.every(reaction => reaction.support.status === 'resolved'),
+        'Stair fixture support map changed',
+        model.supportReactions
+    );
+    assert(
+        model.integration.status === expected.integrationStatus &&
+        model.integration.solverReady === expected.solverReady &&
+        model.loadHandoff.doubleCountPolicy === expected.doubleCountPolicy &&
+        model.flightSlabs.every(slab => slab.diaphragmPolicy === expected.diaphragmPolicy),
+        'Stair fixture analytical governance changed',
+        { integration: model.integration, loadHandoff: model.loadHandoff }
+    );
+    return {
+        file: path.relative(ROOT, STAIR_STRUCTURAL_BASELINE),
+        fixtureId: fixture.fixtureId,
+        counts: model.counts,
+        componentTotal: model.components.length,
+        physicalMeshTotal,
+        elevations: model.coordinatePrimer,
+        loads: {
+            deadKN: model.loadHandoff.totalDeadKN,
+            liveKN: model.loadHandoff.totalLiveKN
+        },
+        integration: model.integration
+    };
+}
+
 function checkNodeSyntax(relativeFile) {
     execFileSync(process.execPath, ['--check', path.join(ROOT, relativeFile)], {
         stdio: 'pipe'
@@ -239,7 +353,7 @@ function validateIfcWithIfcOpenShell(ifcContent, label = 'generated') {
         const script = [
             'import ifcopenshell, json, sys',
             'model = ifcopenshell.open(sys.argv[1])',
-            "types = ['IfcBuildingStorey','IfcColumn','IfcBeam','IfcSlab','IfcFooting']",
+            "types = ['IfcBuildingStorey','IfcColumn','IfcBeam','IfcSlab','IfcFooting','IfcOpeningElement']",
             'counts = {name: len(model.by_type(name)) for name in types}',
             "print(json.dumps({'schema': model.schema, 'counts': counts, 'products': len(model.by_type('IfcProduct'))}))"
         ].join('\n');
@@ -1674,6 +1788,24 @@ async function runBrowserSmoke(historicalFixture) {
             if (typeof render3DFrame === 'function') render3DFrame();
             const stairMeshes = meshes3D.filter(mesh => mesh?.userData?.type === 'stair');
             const destinationGeometry = collect3DFloorGeometry().get(createdStair?.toFloorId)?.slabs || [];
+            const stairStructuralModel = createdStair?.structuralModel;
+            const stairCSIModel = collectCSIExportModelData();
+            const stairIFC = generateIFCContent(stairCSIModel);
+            window.__fsQaStairIFC = stairIFC;
+            const stairIFCAudit = cloneSerializable(window.lastIFCExportAudit, {});
+            const stairDXF = generateDXFContent();
+            let staadGate = { blocked: false, message: '' };
+            let etabsGate = { blocked: false, message: '' };
+            try {
+                generateSTAADContent(stairCSIModel);
+            } catch (error) {
+                staadGate = { blocked: true, message: error.message };
+            }
+            try {
+                generateETABSOAPIScript(stairCSIModel);
+            } catch (error) {
+                etabsGate = { blocked: true, message: error.message };
+            }
             const afterStairCreate = {
                 previewReady: stairPreview.ready,
                 previewMessage: stairPreview.message,
@@ -1691,9 +1823,36 @@ async function runBrowserSmoke(historicalFixture) {
                 } : null,
                 savedCount: stairProject.stairs?.length || 0,
                 stairMeshCount: stairMeshes.length,
+                structuralSchema: stairStructuralModel?.schema,
+                componentCounts: stairStructuralModel?.counts,
+                structuralComponentCount: stairStructuralModel?.components?.length || 0,
+                intermediateLandingBeam: stairStructuralModel?.beams?.find(beam =>
+                    beam.memberType === 'landing_beam' &&
+                    beam.source === 'intermediate_landing_support'
+                ) || null,
+                elevations: stairStructuralModel?.coordinatePrimer,
+                supportSummary: {
+                    mapped: stairStructuralModel?.supportReactions?.filter(
+                        reaction => reaction.support?.status === 'resolved'
+                    ).length || 0,
+                    total: stairStructuralModel?.supportReactions?.length || 0
+                },
+                loadHandoff: stairStructuralModel?.loadHandoff,
+                integration: stairStructuralModel?.integration,
+                analysisExport: createdStair?.analysisExport,
+                csiCounts: stairCSIModel.counts,
+                ifcAudit: stairIFCAudit,
+                ifcHasStairTypes: stairIFC.includes("'stair_flight_slab'") &&
+                    stairIFC.includes("'landing_slab'") &&
+                    stairIFC.includes("'landing_beam'") &&
+                    stairIFC.includes('IFCOPENINGELEMENT'),
+                solverGates: { staad: staadGate, etabs: etabsGate },
+                preview3D: cloneSerializable(window.lastStairBuilderPreviewAudit, {}),
                 destinationFragmentCount: destinationGeometry.filter(slab => slab.isStairOpeningFragment).length,
                 tableHasStair: document.getElementById('staircaseBody')?.textContent.includes(createdStair?.id || '') || false,
-                dxfHasStair: generateDXFContent().includes(createdStair?.id || 'missing-stair')
+                dxfHasStair: stairDXF.includes(createdStair?.id || 'missing-stair'),
+                dxfHasStructuralSchedule: stairDXF.includes('STAIR STRUCTURAL COMPONENT SCHEDULE') &&
+                    stairDXF.includes((createdStair?.id || '') + '-LB-IN')
             };
             applyLoadedProject(stairProject, 'qa-stair-builder.fstr', {
                 silent: true,
@@ -1703,7 +1862,12 @@ async function runBrowserSmoke(historicalFixture) {
             const afterStairReload = {
                 count: state.stairs.length,
                 id: state.stairs[0]?.id,
-                openingCount: state.floors.reduce((sum, floor) => sum + (floor.slabOpenings || []).filter(opening => opening.source === 'stair').length, 0)
+                openingCount: state.floors.reduce((sum, floor) => sum + (floor.slabOpenings || []).filter(opening => opening.source === 'stair').length, 0),
+                structuralSchema: state.stairs[0]?.structuralModel?.schema,
+                componentIds: state.stairs[0]?.structuralModel?.components?.map(component => component.id) || [],
+                rotationDeg: state.stairs[0]?.rotationDeg,
+                analysisExport: state.stairs[0]?.analysisExport,
+                supportMappingCount: Object.keys(state.stairs[0]?.integration?.supportMappings || {}).length
             };
             removeStair(state.stairs[0]?.id);
             const afterStairRemove = {
@@ -2312,6 +2476,11 @@ async function runBrowserSmoke(historicalFixture) {
             };
         })()`);
 
+        const stairIfcContent = await tab.evaluate('window.__fsQaStairIFC || ""');
+        const stairIfcParser = validateIfcWithIfcOpenShell(stairIfcContent, 'browser-stair-structural');
+        await tab.evaluate('window.__fsQaStairIFC = ""');
+        result.afterStairCreate.ifcParser = stairIfcParser;
+
         assert(result.initial.title === 'FutolStructure | Structural Engineering', 'Unexpected app title', result.initial);
         assert(!result.initial.initError && !result.initError, 'Init error shown in app', result);
         assert(result.initial.columns === 9, 'Default 2x2 model did not initialize 9 columns', result.initial);
@@ -2726,18 +2895,60 @@ async function runBrowserSmoke(historicalFixture) {
             result.afterStairCreate.levels[1] === 'RF' &&
             result.afterStairCreate.risers >= 4 &&
             result.afterStairCreate.opening?.slabId === 'S2' &&
-            result.afterStairCreate.stairMeshCount === 3 &&
+            result.afterStairCreate.structuralSchema === 'FutolStructure.StairStructuralModel.v1' &&
+            result.afterStairCreate.componentCounts?.flightSlabs === 2 &&
+            result.afterStairCreate.componentCounts?.landingSlabs === 1 &&
+            result.afterStairCreate.componentCounts?.stairBeams >= 6 &&
+            result.afterStairCreate.componentCounts?.landingBeams >= 4 &&
+            result.afterStairCreate.componentCounts?.supportReactions === 4 &&
+            result.afterStairCreate.stairMeshCount ===
+                result.afterStairCreate.componentCounts.flightSlabs +
+                result.afterStairCreate.componentCounts.landingSlabs +
+                result.afterStairCreate.componentCounts.stairBeams +
+                result.afterStairCreate.componentCounts.landingBeams &&
+            Math.abs(
+                result.afterStairCreate.intermediateLandingBeam?.start?.z -
+                (
+                    result.afterStairCreate.elevations?.lowerElevation +
+                    result.afterStairCreate.elevations?.upperElevation
+                ) / 2
+            ) < 0.001 &&
+            result.afterStairCreate.supportSummary.mapped === 4 &&
+            result.afterStairCreate.supportSummary.total === 4 &&
+            result.afterStairCreate.loadHandoff?.totalDeadKN > 0 &&
+            result.afterStairCreate.loadHandoff?.totalLiveKN > 0 &&
+            result.afterStairCreate.integration?.solverReady === false &&
+            result.afterStairCreate.analysisExport !== 'solver-ready' &&
+            result.afterStairCreate.csiCounts?.stairBeams >= 10 &&
+            result.afterStairCreate.csiCounts?.stairSlabs === 3 &&
+            result.afterStairCreate.ifcAudit?.counts?.stairBeams >= 10 &&
+            result.afterStairCreate.ifcAudit?.counts?.stairSlabs === 3 &&
+            result.afterStairCreate.ifcAudit?.counts?.stairOpenings === 1 &&
+            /^IFC2X3/i.test(result.afterStairCreate.ifcParser?.schema || '') &&
+            result.afterStairCreate.ifcParser?.counts?.IfcOpeningElement === 1 &&
+            result.afterStairCreate.ifcHasStairTypes &&
+            result.afterStairCreate.solverGates?.staad?.blocked &&
+            /stair integration/i.test(result.afterStairCreate.solverGates.staad.message) &&
+            result.afterStairCreate.solverGates?.etabs?.blocked &&
+            /stair integration/i.test(result.afterStairCreate.solverGates.etabs.message) &&
+            result.afterStairCreate.preview3D?.meshCount >= result.afterStairCreate.stairMeshCount &&
             result.afterStairCreate.destinationFragmentCount >= 2 &&
             result.afterStairCreate.tableHasStair &&
-            result.afterStairCreate.dxfHasStair,
-            'Stair Builder did not create persistent plan/opening/3D/DXF geometry',
+            result.afterStairCreate.dxfHasStair &&
+            result.afterStairCreate.dxfHasStructuralSchedule,
+            'Stair Builder did not create governed structural components, loads, views, exports, and solver gates',
             result.afterStairCreate
         );
         assert(
             result.afterStairReload.count === 1 &&
             result.afterStairReload.id === result.afterStairCreate.id &&
-            result.afterStairReload.openingCount === 1,
-            'Stair Builder object or destination opening did not survive FSTR save/load',
+            result.afterStairReload.openingCount === 1 &&
+            result.afterStairReload.structuralSchema === 'FutolStructure.StairStructuralModel.v1' &&
+            result.afterStairReload.componentIds.includes(`${result.afterStairCreate.id}-LB-IN`) &&
+            result.afterStairReload.rotationDeg === 0 &&
+            result.afterStairReload.analysisExport === result.afterStairCreate.analysisExport &&
+            result.afterStairReload.supportMappingCount === 4,
+            'Stair Builder object, structural model, support map, or opening did not survive FSTR save/load',
             result.afterStairReload
         );
         assert(
@@ -5293,7 +5504,9 @@ async function main() {
         historicalFixture: checkHistoricalFstrFixture(),
         columnSegmentFixtures: checkColumnSegmentFixtures(),
         columnSegmentSourceContract: checkColumnSegmentSourceContract(),
-        dxfSourceContract: checkDxfSourceContract()
+        dxfSourceContract: checkDxfSourceContract(),
+        stairSourceContract: checkStairSourceContract(),
+        stairStructuralFixture: checkStairStructuralFixture()
     };
     const projectPath = getArgValue('--project');
     const etabsScriptPath = getArgValue('--write-etabs-script');
@@ -5303,7 +5516,7 @@ async function main() {
     const p0C1AReleaseGate = process.argv.includes('--p0-c1a-release-gate');
     const p0C1AOutputDir = getArgValue('--p0-c1a-output-dir');
 
-    ['v3/engine/loads.js', 'v3/engine/tributary.js', 'v3/persistence/project-revisions.js'].forEach(file => {
+    ['v3/engine/loads.js', 'v3/engine/tributary.js', 'v3/engine/stairs.js', 'v3/persistence/project-revisions.js'].forEach(file => {
         checkNodeSyntax(file);
         summary.engines.push(file);
     });
