@@ -5,6 +5,16 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      acceptance_scope:
+        description: 'Acceptance scope for Lum or a maintainer'
+        required: false
+        default: 'source-browser-parser'
+        type: choice
+        options:
+          - source-browser-parser
+          - source-only
 
 permissions:
   contents: read
@@ -42,6 +52,7 @@ jobs:
         run: node v3/tools/check-fs.js --no-browser
 
       - name: Validate browser workflow and DXF round trip
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance_scope != 'source-only'
         env:
           FS_HEADLESS: '1'
           FS_CDP_TIMEOUT_MS: '120000'
@@ -50,3 +61,14 @@ jobs:
       - name: Validate deployment configuration
         run: |
           node -e "JSON.parse(require('fs').readFileSync('vercel.json', 'utf8')); console.log('vercel.json: valid')"
+
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: futolstructure-${{ github.run_id }}-acceptance
+          path: |
+            output/playwright/**
+            output/acceptance/**
+          if-no-files-found: ignore
+          retention-days: 14
