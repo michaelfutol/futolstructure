@@ -51,7 +51,7 @@ The Roof Frame workspace renders each node with its assigned symbol and lists th
 
 The Analysis Workbench now exposes a governed PyNite run-request path. v3/engine/pynite-adapter.js consumes the immutable FutolStructure.AnalysisRequest.v1 snapshot produced from the canonical CSI model, preserves shared load cases/combinations/mass/support data, blocks unresolved topology or analytical-input states, and hard-locks result application. The UI can prepare or download a dated runner JSON without changing the source model.
 
-This is the first ANALYSIS-03 slice, not a completed analysis engine. The controlled Python runner, pinned PyNite execution, analytic gravity benchmark, reaction/member-force readback, cancellation/logging, and comparison against an accepted ETABS/STAAD fixture remain the next gate.
+The controlled Python runner now executes in an isolated environment pinned to `PyNiteFEA==3.0.0`. The dated ANALYSIS-03 fixture completed with 43 nodes, 42 frame members, 8 slab quads, 9 supports, 3 governed combinations, 36 applied loads, and zero unresolved loads; reaction equilibrium residuals were below `1.1e-13` in the reported combinations. Results remain read-only comparison evidence and are never applied to the canonical model. Native ETABS/STAAD force comparison, controlled cancellation/logging, and production acceptance remain open gates.
 
 ## Delivery Sequence and Acceptance
 

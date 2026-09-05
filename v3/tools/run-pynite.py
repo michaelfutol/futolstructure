@@ -21,6 +21,7 @@ RUN_REQUEST_CONTRACT = "FutolStructure.PyNiteRunRequest.v1"
 REQUEST_CONTRACT = "FutolStructure.AnalysisRequest.v1"
 RESULT_CONTRACT = "FutolStructure.PyNiteResult.v1"
 MATERIAL_NAME = "FS_CONCRETE"
+PINNED_PYNITE_VERSION = "3.0.0"
 
 
 class RunnerError(RuntimeError):
@@ -447,6 +448,25 @@ def run(request, raw_wrapper):
             "error": str(error),
         }, 2
 
+    try:
+        solver_version = importlib.metadata.version("PyNiteFEA")
+    except importlib.metadata.PackageNotFoundError:
+        return {
+            "contract": RESULT_CONTRACT,
+            "status": "BLOCKED_DEPENDENCY",
+            "solver": "PyNite",
+            "message": f"Install the pinned PyNiteFEA dependency ({PINNED_PYNITE_VERSION}) before execution.",
+        }, 2
+    if solver_version != PINNED_PYNITE_VERSION:
+        return {
+            "contract": RESULT_CONTRACT,
+            "status": "BLOCKED_DEPENDENCY",
+            "solver": "PyNite",
+            "solverVersion": solver_version,
+            "requiredVersion": PINNED_PYNITE_VERSION,
+            "message": f"PyNiteFEA {solver_version} is installed; the governed runner requires {PINNED_PYNITE_VERSION}.",
+        }, 2
+
     source_model = preflight(request)
     warnings = list(dict.fromkeys(as_list(request.get("readiness", {}).get("warnings"))))
     model = FEModel3D()
@@ -462,15 +482,11 @@ def run(request, raw_wrapper):
     except Exception as error:
         raise RunnerError(f"PyNite linear gravity analysis failed: {error}") from error
     results = collect_results(model, frame_members, supports, load_audit["combinations"])
-    try:
-        version = importlib.metadata.version("PyNiteFEA")
-    except importlib.metadata.PackageNotFoundError:
-        version = "unknown"
     return {
         "contract": RESULT_CONTRACT,
         "status": "COMPLETED",
         "solver": "PyNite",
-        "solverVersion": version,
+        "solverVersion": solver_version,
         "mode": "linear_static_gravity",
         "source": {
             "contract": request.get("contract"),
@@ -487,7 +503,7 @@ def run(request, raw_wrapper):
         "assumptions": {
             "concreteElasticModulus": "E = 4700 * sqrt(fc) MPa",
             "poisson": material["poisson"],
-            "slabSelfWeight": "not added as a separate surface pressure; plate self-weight is not included by PyNite member self-weight",
+            "slabSelfWeight": "added explicitly as FS_DEAD quad surface pressure because PyNite member self-weight does not include plates/quads",
             "unmappedLoads": "reported as warnings and not guessed onto nearby members",
         },
         "counts": {

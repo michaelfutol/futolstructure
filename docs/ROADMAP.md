@@ -20,7 +20,7 @@ Locally Verified does not imply a published installer or a production deployment
 | WALL-01 | Walls, openings, lintels and attached-element loads | In Progress | `v3/engine/walls.js` canonical inventory plus Wall Elevations workspace govern line IDs, CHB/plaster, openings, lintels, elevations, and solver opt-in; next gate is plan drawing/hover editor plus save/load regression |
 | ANALYSIS-01 | Immutable shared analysis request and QUBO study drafts | Locally Verified | AnalysisOptimization source contract; execution disabled, zero fabricated candidates |
 | ANALYSIS-02 | Shared analytical loads, combinations, supports and mass | Locally Verified | `v3/engine/analysis-inputs.js`; canonical CSI model now carries governed cases, combinations, mass policy, explicit base supports, and validation; full browser rerun awaits local `ezdxf` dependency |
-| ANALYSIS-03 | PyNite gravity runner and force/reaction readback | In Progress | Frozen PyNite run-request adapter now consumes ANALYSIS-02 without rebuilding loads; next gate is the controlled Python runner, analytic benchmark, and force/reaction readback |
+| ANALYSIS-03 | PyNite gravity runner and force/reaction readback | Locally Verified - baseline | Pinned PyNiteFEA 3.0.0 runner completed the canonical two-storey fixture with reactions/member readback and zero unresolved loads; native ETABS/STAAD comparison remains required |
 | ANALYSIS-04 | OpenSees static and modal adapters | Planned | Depends on ANALYSIS-02; each formulation and analysis mode needs independent acceptance |
 | OPT-01 | QUBO section candidates and reanalysis | Planned | Depends on validated baseline analysis, section catalogs and explicit constraints |
 | IMPORT-01 | ETABS audit JSON comparison | Locally Verified | solver-roundtrip.js; match/difference/foreign-project cases; read-only |
@@ -36,7 +36,7 @@ Locally Verified does not imply a published installer or a production deployment
 
 1. Review [PR #11](https://github.com/michaelfutol/futolstructure/pull/11) and complete native acceptance before production promotion.
 2. Record MODEL-01 regression evidence, then validate a dated Bacacay export against source coordinates and member sizes.
-3. Complete the PyNite Python runner and analytic benchmark from the new frozen run-request adapter; do not duplicate load or support assembly.
+3. Compare the pinned PyNite baseline against an accepted ETABS/STAAD fixture, then add controlled cancellation/logging and a dated acceptance artifact; do not duplicate load or support assembly.
 4. Complete the STAIR-01 editable centerline-node and floor-plan projection slice, then validate explicit stair frames/shells or equivalent reactions in native solvers.
 5. Build the WALL-01 plan line editor and hover properties, then connect its explicit inventory to DXF/IFC and opt-in ETABS/STAAD export.
 
