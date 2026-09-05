@@ -5,11 +5,11 @@ Date: 2026-09-05 (Asia/Singapore)
 ## Source of Truth
 
 - Active worktree: `D:\projects\futolStructure 04-14-26\futolstructure-fs123-vertical-datum-foundation`.
-- Branch: `feature/fs-123-vertical-datum-foundation`; committed baseline: `a3eb9d8`.
-- This is an uncommitted local candidate on top of existing work. Other dirty files were preserved.
+- Branch: `release/fs-124-desktop-workspaces-rc1`; source checkpoint: `db13836f698cbd90d49ec5382f5fe193788e10b0`.
+- Candidate identity: `3.16.124-rc.1 / FS-124-RC1`. The manifest references the source checkpoint; a subsequent commit records release metadata and acceptance evidence.
 - Governing [Drive roadmap](https://docs.google.com/document/d/1l4THhH7AIRu_SW5WWB0ixpKqgR0jLG21cRenhR96Xc4/edit) now includes P7, shared analysis and member optimization, and the current delivery sequence. Its append was read back successfully.
-- No commit, push, deployment, installer rebuild, or installation was performed in this continuation. Installed Windows and public web copies must not be assumed to contain these changes.
-- The existing FS-119 display identity is not a unique identity for this candidate. Assign truthful release metadata and matching web/desktop artifacts before publication.
+- The Windows candidate was rebuilt, installed, and tested on 2026-09-05. Production web deployment remains a separate acceptance step.
+- Current progress and GitHub links are maintained in [the delivery tracker](ROADMAP.md).
 
 ## Delivered in This Continuation
 
@@ -67,12 +67,14 @@ The ETABS audit action accepts the existing audit JSON workflow. It is not an im
 - [x] Local source and focused workspace regression passed.
 - [x] Full source/browser regression passed with the 120-second CDP timeout.
 - [x] Windows NSIS installer built: output/desktop/FutolStructure-Setup-3.16.124-rc.1-x64.exe.
-- [ ] Install the candidate on this PC. The app is closed, but the controlled installer launch was blocked by the current Codex usage-limit approval gate.
-- [ ] Stage/commit the scoped candidate. Git object writes are currently blocked because this linked worktree uses D:/projects/futolStructure 04-14-26/futolstructure/.git, outside the writable worktree boundary.
+- [x] Install the candidate on this PC. Installer exit code 0; installed manifest and isolated desktop smoke confirm FS-124-RC1, source db13836, working desktop bridge/workspaces, and no page errors.
+- [x] Stage/commit the scoped candidate. Earlier usage-limit approval rejection resolved; source checkpoint db13836 now exists.
 - [ ] Push release/fs-124-desktop-workspaces-rc1 and open a GitHub PR.
 - [ ] Run Vercel preview and native ETABS/IFC/Revit acceptance before any production merge.
 
-The source candidate is therefore ready for a local handoff, but GitHub and the installed PC copy are not yet updated. Do not use the old installed build as evidence for this candidate.
+Installer SHA256: DADD15B89B104306B327272BF8066E172AD96331C0146D107580444AB87671D7.
+Installed executable: C:/Users/Futol/AppData/Local/Programs/FutolStructure/FutolStructure.exe.
+Desktop evidence: output/playwright/desktop/desktop-smoke.json and installed-workspaces.png.
 
 ## Local Test Commands
 

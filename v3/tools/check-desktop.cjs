@@ -29,6 +29,8 @@ async function main() {
         assert.equal(provenance.gitCommit, expected.gitCommit);
         const recent = await page.evaluate(() => window.FutolStructureDesktop.getRecentProjects());
         assert.deepEqual(recent, [], 'Smoke profile must not load user project history');
+        await page.getByRole('button', { name: 'Close recent projects', exact: true }).click();
+        await page.locator('#desktopRecentProjects').waitFor({ state: 'detached' });
         await page.locator('[data-tab-group="analysis"].plan-tab-group-btn').click();
         await page.locator('#panelAnalysisWorkbench').waitFor({ state: 'visible' });
         await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();

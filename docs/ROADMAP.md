@@ -13,7 +13,7 @@ Locally Verified does not imply a published installer or a production deployment
 | UI-01 | Contextual workspaces, Stair Builder under Model, responsive draft panels | Locally Verified | check-workspaces.cjs; desktop/tablet/phone navigation and unchanged model geometry |
 | MODEL-01 | Independent floor edge defaults and manual member sizes | Locally Verified | check-fs.js partialCantilever.edgeSizing; independent, inherited and detached floors; native Bacacay readback still required |
 | MODEL-02 | Persistent column segments, exact columnation and vertical datums | Native Acceptance Pending | Legacy/regular/terminated fixtures and vertical-datum baseline; compare current candidate in ETABS/STAAD/Revit |
-| SAVE-01 | Protected revisions, explicit project opening and last ten files | Locally Verified | Browser persistence and desktop source checks; installed candidate smoke required |
+| SAVE-01 | Protected revisions, explicit project opening and last ten files | Locally Verified | Browser persistence; installed candidate bridge and isolated recent-project startup passed |
 | STAIR-01 | Canonical stair frames/shells and load handoff | Native Acceptance Pending | Stair structural fixture and IFC parser; validate actual support connectivity and loads in solver |
 | FND-01 | IFC footings, pedestals and tie beams | Native Acceptance Pending | Vertical datum/foundation fixtures and parser; native Revit acceptance pending |
 | WALL-01 | Walls, openings, lintels and attached-element loads | Planned | Replace overlapping blanket load assumptions with explicit load inventory |
@@ -40,4 +40,10 @@ Locally Verified does not imply a published installer or a production deployment
 
 ## Release Evidence
 
-Pending completion of RELEASE-01. Earlier blocked installation/Git operations are historical; inspect current evidence before assuming the block remains.
+- Source checkpoint: db13836f698cbd90d49ec5382f5fe193788e10b0.
+- Installed version: 3.16.124-rc.1 / FS-124-RC1, installer exit code 0.
+- Installed smoke: passed with isolated profile, correct source revision and no page errors; output/playwright/desktop/desktop-smoke.json.
+- Installer SHA256: DADD15B89B104306B327272BF8066E172AD96331C0146D107580444AB87671D7.
+- Full release regression: passed; output/playwright/workspaces/fs124-full-regression.log. Independent edge defaults: 2F 225x475 mm, RF 330x620 mm. After detaching typical framing, changing 2F to 250x500 leaves RF 225x475. Manual overrides: 2F 210x360, RF 330x620.
+- GitHub review PR: pending push; production main has not been changed.
+- Next implementation remains ANALYSIS-02. Native solver acceptance is tracked separately from this installed UI/contract check.

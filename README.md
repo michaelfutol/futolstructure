@@ -87,6 +87,8 @@ Open `http://127.0.0.1:4173/v3/index.html`.
 
 ## Windows Desktop Installer
 
+Track implemented features, acceptance evidence, and pending work in [the delivery roadmap](docs/ROADMAP.md).
+
 The same FutolStructure `v3` application can be packaged as a Windows desktop app. The Electron shell adds a desktop shortcut, `.fstr` file association, native windowing, and a controlled update channel without changing the structural model engine.
 
 ```powershell

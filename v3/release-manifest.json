@@ -3,8 +3,8 @@
   "buildId": "FS-124-RC1",
   "releaseName": "Desktop Workspaces Candidate",
   "fstrSchemaVersion": "0.2.0",
-  "releaseChannel": "development",
-  "gitCommit": "",
+  "releaseChannel": "candidate",
+  "gitCommit": "db13836f698cbd90d49ec5382f5fe193788e10b0",
   "buildDate": "2026-09-05",
   "validatedFixtures": [
     "legacy-v2.8-2floor",
