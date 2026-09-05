@@ -529,6 +529,7 @@ function checkRoofFrameSourceContract() {
     const modulePath = path.join(V3, 'engine', 'roof-frame.js');
     const source = fs.readFileSync(modulePath, 'utf8');
     assert(html.includes('engine/roof-frame.js') && html.includes('tabRoofFrame') && html.includes('panelRoofFrame'), 'Steel roof-frame workspace is not wired');
+    assert(html.includes('roofFrameCanvas') && html.includes('setRoofFrameSupportType') && html.includes('renderRoofFrameViewport'), 'Roof-frame viewport or support controls are missing');
     assert(source.includes('FutolStructure.RoofFrameModel.v1') && source.includes('solverMembers'), 'Roof-frame analytical contract is missing');
     const api = require(modulePath);
     const frame = api.build({ floors: [{ id: 'RF', isRoof: true }], roofFrame: { enabled: true, members: [{ id: 'R1', type: 'rafter', start: { x: 0, y: 0, z: 6 }, end: { x: 4, y: 0, z: 6.8 } }] } });

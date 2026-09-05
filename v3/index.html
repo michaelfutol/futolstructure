@@ -4263,7 +4263,7 @@
 
             <div id="panelRoofFrame" class="schedule-panel" style="display:none;">
                 <div class="schedule-header"><h3>Steel Roof Frame</h3></div>
-                <div style="padding:12px;"><p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Separate steel roof framing subsystem for rafters, purlins, ties, and bracing. Members retain independent IDs and solver-export policy.</p><div id="roofFrameSummary" style="font-size:0.8rem;margin-bottom:10px;">Roof frame draft: no members defined.</div><table class="schedule-table" style="width:100%;"><thead><tr><th>ID</th><th>Type</th><th>Section</th><th>Material</th><th>Solver</th></tr></thead><tbody id="roofFrameBody"><tr><td colspan="5">No steel roof members defined.</td></tr></tbody></table></div>
+                <div style="padding:12px;"><p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Dedicated roof-plan modeling space. Steel members are shown over the roof support grid; where no roof beams exist, column supports remain visible with the selected analytical support convention.</p><label style="font-size:0.75rem;">Default roof support <select id="roofFrameSupportType" onchange="setRoofFrameSupportType(this.value)" style="margin-left:6px;"><option value="hinge">Hinge</option><option value="fixed">Fixed</option><option value="roller">Roller</option></select></label><button type="button" onclick="renderRoofFrameViewport()" style="margin-left:10px;">Refresh View</button><div id="roofFrameSummary" style="font-size:0.8rem;margin:10px 0;">Roof frame draft: no members defined.</div><canvas id="roofFrameCanvas" width="1100" height="560" style="width:100%;height:560px;background:#101827;border:1px solid #334155;display:block;"></canvas><table class="schedule-table" style="width:100%;margin-top:12px;"><thead><tr><th>ID</th><th>Type</th><th>Section</th><th>Material</th><th>Solver</th></tr></thead><tbody id="roofFrameBody"><tr><td colspan="5">No steel roof members defined.</td></tr></tbody></table></div>
             </div>
             <div style="padding:16px 20px;">
                 <div id="solverRoundTripStatus" style="padding:10px 12px; border-radius:5px; font:700 0.82rem Arial,sans-serif; margin-bottom:12px;"></div>
@@ -5172,7 +5172,7 @@
             ],
             stairs: [],             // FS-113: inter-storey stair objects
             nextStairId: 1,
-            roofFrame: { enabled: false, members: [], framingSystem: 'steel_rafters_and_purlins' },
+            roofFrame: { enabled: false, members: [], framingSystem: 'steel_rafters_and_purlins', supportType: 'hinge' },
             currentFloorIndex: 0,    // Which floor is selected
 
             // Generated data
@@ -21963,8 +21963,48 @@ function calculateWaterTank() {
             const summary = document.getElementById('roofFrameSummary');
             if (!body || !globalThis.FSRoofFrame) return;
             const frame = globalThis.FSRoofFrame.build({ floors: state.floors, roofFrame: state.roofFrame });
+            const supportSelect = document.getElementById('roofFrameSupportType');
+            if (supportSelect) supportSelect.value = frame.supportType;
             if (summary) summary.textContent = `${frame.framingSystem} | ${frame.members.length} member(s) | ${frame.solverMembers.length} solver-enabled`;
             body.innerHTML = frame.members.map(item => `<tr><td>${item.id}</td><td>${item.type}</td><td>${item.section}</td><td>${item.material} ${item.grade}</td><td>${item.exportToSolvers ? 'ON' : 'OFF'}</td></tr>`).join('') || '<tr><td colspan="5">No steel roof members defined.</td></tr>';
+            renderRoofFrameViewport(frame);
+        }
+
+        function setRoofFrameSupportType(value) {
+            if (!state.roofFrame) state.roofFrame = { enabled: false, members: [] };
+            state.roofFrame.supportType = ['hinge', 'fixed', 'roller'].includes(value) ? value : 'hinge';
+            renderRoofFrameViewport();
+        }
+
+        function renderRoofFrameViewport(frame = null) {
+            const canvas = document.getElementById('roofFrameCanvas');
+            if (!canvas || !globalThis.FSRoofFrame) return;
+            const context = canvas.getContext('2d');
+            const model = frame || globalThis.FSRoofFrame.build({ floors: state.floors, roofFrame: state.roofFrame });
+            const roofIndex = Math.max(0, (state.floors || []).findIndex(floor => floor.isRoof));
+            const roofColumns = (state.columns || []).filter(column => column.floorIndex == null || column.floorIndex <= roofIndex);
+            const xGrid = [0]; let xTotal = 0; (state.xSpans || []).forEach(span => { xTotal += Number(span) || 0; xGrid.push(xTotal); });
+            const yGrid = [0]; let yTotal = 0; (state.ySpans || []).forEach(span => { yTotal += Number(span) || 0; yGrid.push(yTotal); });
+            const maxX = Math.max(xTotal, 1), maxY = Math.max(yTotal, 1), pad = 55;
+            const sx = value => pad + (Number(value) / maxX) * (canvas.width - pad * 2);
+            const sy = value => canvas.height - pad - (Number(value) / maxY) * (canvas.height - pad * 2);
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            context.fillStyle = '#101827'; context.fillRect(0, 0, canvas.width, canvas.height);
+            context.strokeStyle = '#334155'; context.lineWidth = 1;
+            xGrid.forEach(value => { context.beginPath(); context.moveTo(sx(value), pad); context.lineTo(sx(value), canvas.height - pad); context.stroke(); });
+            yGrid.forEach(value => { context.beginPath(); context.moveTo(pad, sy(value)); context.lineTo(canvas.width - pad, sy(value)); context.stroke(); });
+            context.strokeStyle = '#f59e0b'; context.lineWidth = 4;
+            (model.members || []).forEach(item => { context.beginPath(); context.moveTo(sx(item.start.x), sy(item.start.y)); context.lineTo(sx(item.end.x), sy(item.end.y)); context.stroke(); });
+            context.fillStyle = '#cbd5e1'; context.font = '13px Arial';
+            const supportType = model.supportType || 'hinge';
+            roofColumns.forEach(column => {
+                const x = sx(column.x), y = sy(column.y); context.beginPath();
+                if (supportType === 'fixed') { context.rect(x - 7, y - 7, 14, 14); context.fillStyle = '#ef4444'; }
+                else if (supportType === 'roller') { context.arc(x, y, 7, 0, Math.PI * 2); context.fillStyle = '#38bdf8'; }
+                else { context.moveTo(x, y - 8); context.lineTo(x - 8, y + 7); context.lineTo(x + 8, y + 7); context.closePath(); context.fillStyle = '#a78bfa'; }
+                context.fill(); context.fillStyle = '#cbd5e1'; context.fillText(column.id || 'SUP', x + 10, y - 10);
+            });
+            context.fillStyle = '#f8fafc'; context.fillText(`Roof plan | supports: ${supportType} | members: ${(model.members || []).length}`, 18, 24);
         }
 
         function calculateBlockwalls() {

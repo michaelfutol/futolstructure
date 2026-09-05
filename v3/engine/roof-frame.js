@@ -18,7 +18,8 @@
         const members = (source.members || []).map(member);
         const roof = (model.floors || []).find(floor => floor.isRoof) || null;
         return { contract: CONTRACT, enabled: source.enabled === true, roofFloorId: source.roofFloorId || roof?.id || '',
-            framingSystem: source.framingSystem || 'steel_rafters_and_purlins', members,
+            framingSystem: source.framingSystem || 'steel_rafters_and_purlins',
+            supportType: ['hinge', 'fixed', 'roller'].includes(source.supportType) ? source.supportType : 'hinge', members,
             solverMembers: members.filter(item => item.exportToSolvers),
             loadPolicy: source.loadPolicy || 'roof-cladding-and-maintenance-loads-assigned-explicitly',
             validation: { status: source.enabled === true && members.length ? 'READY_FOR_COORDINATION' : 'DRAFT', warnings: source.enabled === true && !members.length ? ['Roof frame is enabled but has no members.'] : [] } };
