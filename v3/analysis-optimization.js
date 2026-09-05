@@ -190,7 +190,9 @@
                 topology: clone(model.topologyValidation, {}),
                 stairs: clone(model.stairTopologyValidation, {}),
                 memberSizes: clone(model.memberSizeGovernance, {}),
-                analyticalInputs: clone(model.analysisInputValidation, {}),
+            analyticalInputs: clone(model.analysisInputValidation, {}),
+                wallInventory: clone(model.wallInventory, {}),
+                wallElevations: clone(model.wallElevations, []),
                 foundationHandoff: clone(model.foundationHandoff, {}),
                 noSilentGeometryRewrite: true
             },

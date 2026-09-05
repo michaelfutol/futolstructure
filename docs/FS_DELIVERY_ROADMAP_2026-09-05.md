@@ -26,6 +26,10 @@ Model editing tools are hidden in non-model views. Duplicate tab-name mappings a
 - Requests preserve detached, deeply frozen canonical source snapshots, levels, coordinates, materials, geometry, source identity, and validation evidence.
 - The canonical CSI export model now carries `FutolStructure.AnalyticalInputs.v1`: governed load cases/combinations, explicit base supports, and a mass-source policy with element self-mass exactly once and live load excluded pending an occupancy decision.
 - `node v3/tools/check-fs.js --no-browser` passes the shared-input source and fixture gate. The browser rerun reached the new assertions, then stopped at the existing strict-DXF gate because this machine has no Python interpreter with `ezdxf` installed.
+
+### Masonry and Wall Inventory - WALL-01
+
+The first wall-modeling slice is now present in `v3/engine/walls.js` as `FutolStructure.WallInventory.v1`. It preserves the existing legacy floor wall-load path while adding a separate inventory for explicit line geometry, CHB thickness, wall height, inside/outside plaster thickness, openings, lintel metadata, net wall area, and derived line load. Solver participation is opt-in per wall (`exportToSolvers: true`); unresolved lines remain coordination-only with warnings. The source fixture gate passes for wall, opening, lintel, and line-load derivation. Plan drawing, hover editing, persistence UI, and native solver acceptance remain next.
 - Invalid topology/member-size summaries block requests. Missing common load cases, combinations, mass source, and support assignments are explicit pending definitions.
 - Planned adapters use neutral pending states. Null elevations are not converted to zero.
 - Downloads collect fresh source state. QUBO studies contain zero candidates until an optimizer exists.

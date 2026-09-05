@@ -2485,6 +2485,8 @@
                     <button class="plan-tab" id="tabColDesign" onclick="setPlanTab('colDesign')">Column</button>
                     <button class="plan-tab" id="tabSlabDesign" onclick="setPlanTab('slabDesign')">Slab</button>
                     <button class="plan-tab" id="tabBlockwall" onclick="setPlanTab('blockwall')">Blockwall</button>
+                    <button class="plan-tab" id="tabWallElevations" onclick="setPlanTab('wallElevations')">Wall Elev.</button>
+                    <button class="plan-tab" id="tabRoofFrame" onclick="setPlanTab('roofFrame')">Roof Frame</button>
                     <button class="plan-tab" id="tabStaircase" onclick="setPlanTab('staircase')">Stair Builder</button>
                     <button class="plan-tab" id="tabWaterTank" onclick="setPlanTab('waterTank')">Tank</button>
                     <button class="plan-tab" id="tabRetainingWall" onclick="setPlanTab('retainingWall')">Ret. Wall</button>
@@ -4247,6 +4249,22 @@
                 <button type="button" onclick="closeSolverRoundTrip()" aria-label="Close ETABS audit import"
                     style="border:1px solid #64748b; background:#1f2937; color:#e5e7eb; border-radius:5px; cursor:pointer; padding:5px 10px; font-size:1rem;">&times;</button>
             </div>
+
+            <div id="panelWallElevations" class="schedule-panel" style="display:none;">
+                <div class="schedule-header"><h3>Wall Elevations</h3></div>
+                <div style="padding:12px;">
+                    <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Review wall heights, opening heads, lintels, and solver opt-in status by floor. Plan drawing and programmable snapping are governed by the wall inventory.</p>
+                    <table class="schedule-table" style="width:100%;">
+                        <thead><tr><th>Wall</th><th>Floor</th><th>Base</th><th>Top</th><th>Openings</th><th>Lintel</th><th>Solver</th></tr></thead>
+                        <tbody id="wallElevationsBody"><tr><td colspan="7">No wall lines defined.</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="panelRoofFrame" class="schedule-panel" style="display:none;">
+                <div class="schedule-header"><h3>Steel Roof Frame</h3></div>
+                <div style="padding:12px;"><p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Separate steel roof framing subsystem for rafters, purlins, ties, and bracing. Members retain independent IDs and solver-export policy.</p><div id="roofFrameSummary" style="font-size:0.8rem;margin-bottom:10px;">Roof frame draft: no members defined.</div><table class="schedule-table" style="width:100%;"><thead><tr><th>ID</th><th>Type</th><th>Section</th><th>Material</th><th>Solver</th></tr></thead><tbody id="roofFrameBody"><tr><td colspan="5">No steel roof members defined.</td></tr></tbody></table></div>
+            </div>
             <div style="padding:16px 20px;">
                 <div id="solverRoundTripStatus" style="padding:10px 12px; border-radius:5px; font:700 0.82rem Arial,sans-serif; margin-bottom:12px;"></div>
                 <div style="font:0.73rem/1.45 Arial,sans-serif; color:#94a3b8; margin-bottom:12px;">Read-only comparison. No FutolStructure geometry, loads, levels, or member intent is changed by this import.</div>
@@ -4461,6 +4479,8 @@
     <script src="engine/loads.js"></script>
     <script src="engine/tributary.js"></script>
     <script src="engine/stairs.js"></script>
+    <script src="engine/walls.js"></script>
+    <script src="engine/roof-frame.js"></script>
     <script src="engine/analysis-inputs.js"></script>
     <script src="persistence/project-revisions.js"></script>
     <script src="analysis-optimization.js"></script>
@@ -5152,6 +5172,7 @@
             ],
             stairs: [],             // FS-113: inter-storey stair objects
             nextStairId: 1,
+            roofFrame: { enabled: false, members: [], framingSystem: 'steel_rafters_and_purlins' },
             currentFloorIndex: 0,    // Which floor is selected
 
             // Generated data
@@ -7075,6 +7096,7 @@
                 columnPositionOverrides: JSON.parse(JSON.stringify(state.columnPositionOverrides || {})),
                 beamAlignmentOverrides: JSON.parse(JSON.stringify(state.beamAlignmentOverrides || {})),
                 foundationTieBeamAlignmentOverrides: JSON.parse(JSON.stringify(state.foundationTieBeamAlignmentOverrides || {})),
+                roofFrame: cloneSerializable(state.roofFrame, { enabled: false, members: [] }),
                 foundationMode: state.foundationMode || 'plan'
             };
         }
@@ -7086,6 +7108,7 @@
             state.ySpans = [...(snapshot.ySpans || state.ySpans || [])];
             state.floors = hydrateFloors(snapshot.floors, state.xSpans, state.ySpans, snapshot.cantilevers || null);
             state.stairs = normalizeStairList(snapshot.stairs);
+            state.roofFrame = cloneSerializable(snapshot.roofFrame, { enabled: false, members: [] });
             state.nextStairId = Math.max(Number(snapshot.nextStairId) || 1, getNextStairSequence(state.stairs));
             state.cantilevers = normalizeCantileverSet(snapshot.cantilevers, state.xSpans.length, state.ySpans.length);
             state.gfSuspended = !!snapshot.gfSuspended;
@@ -7250,7 +7273,7 @@
         // ========== v3.0: PLAN TABS & LAYER TOGGLES ==========
         let currentPlanTab = 'structural';  // 'structural' first, then 'analysis' for tributary
         const PLAN_TAB_GROUPS = {
-            model: ['tabStructural', 'tabAnalysis', 'tabFoundation', 'tabBlockwall', 'tabStaircase'],
+            model: ['tabStructural', 'tabAnalysis', 'tabFoundation', 'tabBlockwall', 'tabWallElevations', 'tabRoofFrame', 'tabStaircase'],
             schedules: ['tabColSchedule', 'tabBeamSchedule', 'tabFootingSchedule', 'tabSlabSchedule'],
             loads: ['tabLoadSummary', 'tabLoadCombos', 'tabSeismic', 'tabWind'],
             analysis: ['tabAnalysisWorkbench'],
@@ -7267,7 +7290,7 @@
             const tabBtnMap = {
                 analysis: 'tabAnalysis', structural: 'tabStructural', foundation: 'tabFoundation',
                 colSchedule: 'tabColSchedule', beamSchedule: 'tabBeamSchedule', footingSchedule: 'tabFootingSchedule',
-                slabSchedule: 'tabSlabSchedule', blockwall: 'tabBlockwall', loadSummary: 'tabLoadSummary',
+                slabSchedule: 'tabSlabSchedule', blockwall: 'tabBlockwall', wallElevations: 'tabWallElevations', roofFrame: 'tabRoofFrame', loadSummary: 'tabLoadSummary',
                 loadCombos: 'tabLoadCombos', seismic: 'tabSeismic', wind: 'tabWind', beamDesign: 'tabBeamDesign',
                 colDesign: 'tabColDesign', slabDesign: 'tabSlabDesign', staircase: 'tabStaircase', waterTank: 'tabWaterTank',
                 crackWidth: 'tabCrackWidth', slenderness: 'tabSlenderness', ductile: 'tabDuctile', deflection: 'tabDeflection',
@@ -7367,7 +7390,7 @@
             }
 
             // Hide all schedule panels
-            const schedulePanels = ['panelColSchedule', 'panelBeamSchedule', 'panelFootingSchedule', 'panelSlabSchedule', 'panelBlockwall', 'panelLoadSummary', 'panelRebarSchedule', 'panelBOM', 'panelSeismic', 'panelWind', 'panelBeamDesign', 'panelColDesign', 'panelSlabDesign', 'panelStaircase', 'panelWaterTank', 'panelBBS', 'panelCrackWidth', 'panelSlenderness', 'panelDuctile', 'panelDeflection', 'panelLoadCombos', 'panelDevLength', 'panelFdnStability', 'panelPDFReport', 'panelDashboard', 'panelRecovery', 'panelSettings', 'panelCostEstimate', 'panelSteelSummary', 'panelRetainingWall', 'panelCombinedFtg', 'panelTorsion', 'panelMixDesign', 'panelAIAssistant', 'panelAnalysisWorkbench', 'panelOptimization'];
+            const schedulePanels = ['panelColSchedule', 'panelBeamSchedule', 'panelFootingSchedule', 'panelSlabSchedule', 'panelBlockwall', 'panelWallElevations', 'panelRoofFrame', 'panelLoadSummary', 'panelRebarSchedule', 'panelBOM', 'panelSeismic', 'panelWind', 'panelBeamDesign', 'panelColDesign', 'panelSlabDesign', 'panelStaircase', 'panelWaterTank', 'panelBBS', 'panelCrackWidth', 'panelSlenderness', 'panelDuctile', 'panelDeflection', 'panelLoadCombos', 'panelDevLength', 'panelFdnStability', 'panelPDFReport', 'panelDashboard', 'panelRecovery', 'panelSettings', 'panelCostEstimate', 'panelSteelSummary', 'panelRetainingWall', 'panelCombinedFtg', 'panelTorsion', 'panelMixDesign', 'panelAIAssistant', 'panelAnalysisWorkbench', 'panelOptimization'];
             schedulePanels.forEach(id => {
                 const panel = document.getElementById(id);
                 if (panel) panel.style.display = 'none';
@@ -7378,7 +7401,7 @@
             const container3D = document.getElementById('container3D');
 
             // v3.8: Handle schedule tabs
-            const isScheduleTab = ['colSchedule', 'beamSchedule', 'footingSchedule', 'slabSchedule', 'blockwall', 'loadSummary', 'rebarSchedule', 'bom', 'seismic', 'wind', 'beamDesign', 'colDesign', 'slabDesign', 'staircase', 'waterTank', 'bbs', 'crackWidth', 'slenderness', 'ductile', 'deflection', 'loadCombos', 'devLength', 'fdnStability', 'pdfReport', 'dashboard', 'recovery', 'settings', 'costEstimate', 'steelSummary', 'retainingWall', 'combinedFtg', 'torsion', 'mixDesign', 'aiAssistant', 'analysisWorkbench', 'optimization'].includes(tab);
+            const isScheduleTab = ['colSchedule', 'beamSchedule', 'footingSchedule', 'slabSchedule', 'blockwall', 'wallElevations', 'roofFrame', 'loadSummary', 'rebarSchedule', 'bom', 'seismic', 'wind', 'beamDesign', 'colDesign', 'slabDesign', 'staircase', 'waterTank', 'bbs', 'crackWidth', 'slenderness', 'ductile', 'deflection', 'loadCombos', 'devLength', 'fdnStability', 'pdfReport', 'dashboard', 'recovery', 'settings', 'costEstimate', 'steelSummary', 'retainingWall', 'combinedFtg', 'torsion', 'mixDesign', 'aiAssistant', 'analysisWorkbench', 'optimization'].includes(tab);
 
             if (isScheduleTab) {
                 document.getElementById('planModelTools').hidden = true;
@@ -7405,6 +7428,12 @@
                     } else if (tab === 'blockwall') {
                         document.getElementById('panelBlockwall').style.display = 'block';
                         calculateBlockwalls();
+                    } else if (tab === 'wallElevations') {
+                        document.getElementById('panelWallElevations').style.display = 'block';
+                        populateWallElevations();
+                    } else if (tab === 'roofFrame') {
+                        document.getElementById('panelRoofFrame').style.display = 'block';
+                        populateRoofFrame();
                     } else if (tab === 'loadSummary') {
                         document.getElementById('panelLoadSummary').style.display = 'block';
                         populateLoadSummary();
@@ -17371,6 +17400,7 @@
                 gridBubbleOffsetPx: getGridBubbleOffsetPx(),
                 cantilevers: state.cantilevers || { top: [], bottom: [], left: [], right: [] },
                 stairs: persistedStairs,
+                roofFrame: cloneSerializable(state.roofFrame, { enabled: false, members: [] }),
                 verticalDatums: EngineVerticalDatums.serializeVerticalDatums(verticalDatums),
                 gradeElevation: verticalDatums.gradeElevation,
                 groundFloorElevation: verticalDatums.groundFloorElevation,
@@ -17942,6 +17972,7 @@
                 }
                 state.columns = hydrateLoadedColumnSeeds(projectData);
                 state.stairs = normalizeStairList(projectData.stairs);
+                state.roofFrame = cloneSerializable(projectData.roofFrame, { enabled: false, members: [] });
                 state.nextStairId = getNextStairSequence(state.stairs);
                 state.stairs.forEach(stair => syncStairOpening(stair));
                 if (shouldQuarantineLoadedHiddenGeometry(projectData, options)) {
@@ -21913,7 +21944,30 @@ function calculateWaterTank() {
 // ========== v3.11: NEW TAB FUNCTIONS ==========
 
 // --- BLOCKWALL DESIGN ---
-function calculateBlockwalls() {
+        function populateWallElevations() {
+            const body = document.getElementById('wallElevationsBody');
+            if (!body) return;
+            const inventory = globalThis.FSWalls?.build?.({ floors: state.floors }) || { elevations: [], walls: [] };
+            const elevationByWall = new Map((inventory.elevations || []).map(elevation => [elevation.wallId, elevation]));
+            const rows = (inventory.walls || []).map(wall => {
+                const elevation = elevationByWall.get(wall.id) || {};
+                const lintel = wall.lintel ? `${wall.lintel.widthMm}x${wall.lintel.depthMm}` : '-';
+                const solver = wall.exportToSolvers ? 'ON' : 'OFF';
+                return `<tr><td>${wall.id}</td><td>${wall.floorId || '-'}</td><td>${Number(wall.elevationBaseM || 0).toFixed(3)}</td><td>${Number(wall.elevationTopM || 0).toFixed(3)}</td><td>${(elevation.openings || []).map(opening => `${opening.type} ${opening.widthM}x${opening.heightM} / head ${Number(opening.headElevationM || 0).toFixed(3)}`).join('<br>') || '-'}</td><td>${lintel}</td><td>${solver}</td></tr>`;
+            });
+            body.innerHTML = rows.join('') || '<tr><td colspan="7">No wall lines defined.</td></tr>';
+        }
+
+        function populateRoofFrame() {
+            const body = document.getElementById('roofFrameBody');
+            const summary = document.getElementById('roofFrameSummary');
+            if (!body || !globalThis.FSRoofFrame) return;
+            const frame = globalThis.FSRoofFrame.build({ floors: state.floors, roofFrame: state.roofFrame });
+            if (summary) summary.textContent = `${frame.framingSystem} | ${frame.members.length} member(s) | ${frame.solverMembers.length} solver-enabled`;
+            body.innerHTML = frame.members.map(item => `<tr><td>${item.id}</td><td>${item.type}</td><td>${item.section}</td><td>${item.material} ${item.grade}</td><td>${item.exportToSolvers ? 'ON' : 'OFF'}</td></tr>`).join('') || '<tr><td colspan="5">No steel roof members defined.</td></tr>';
+        }
+
+        function calculateBlockwalls() {
     const chbSize = parseInt(document.getElementById('chbSize')?.value || 150);
     const wallH = parseFloat(document.getElementById('bwHeight')?.value || 3.0);
     const plaster = parseInt(document.getElementById('plasterThk')?.value || 15);
@@ -23953,6 +24007,11 @@ function populateBOM() {
             // Attach one governed analytical-input contract to the canonical export model.
             // ETABS, STAAD, PyNite, and OpenSees adapters must consume this contract rather
             // than rebuilding load cases, mass sources, or supports independently.
+            if (globalThis.FSWalls?.build) {
+                model.wallInventory = globalThis.FSWalls.build({ floors: state.floors });
+                model.wallElevations = model.wallInventory.elevations;
+            }
+            if (globalThis.FSRoofFrame?.build) model.roofFrame = globalThis.FSRoofFrame.build({ floors: state.floors, roofFrame: state.roofFrame });
             if (globalThis.FSAnalysisInputs?.build) {
                 const analyticalInputs = globalThis.FSAnalysisInputs.build(model);
                 model.analyticalInputs = analyticalInputs;

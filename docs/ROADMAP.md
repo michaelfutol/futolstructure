@@ -13,10 +13,11 @@ Locally Verified does not imply a published installer or a production deployment
 | UI-01 | Contextual workspaces, Stair Builder under Model, responsive draft panels | Locally Verified | check-workspaces.cjs; desktop/tablet/phone navigation and unchanged model geometry |
 | MODEL-01 | Independent floor edge defaults and manual member sizes | Locally Verified | check-fs.js partialCantilever.edgeSizing; independent, inherited and detached floors; native Bacacay readback still required |
 | MODEL-02 | Persistent column segments, exact columnation and vertical datums | Native Acceptance Pending | Legacy/regular/terminated fixtures and vertical-datum baseline; compare current candidate in ETABS/STAAD/Revit |
+| ROOF-01 | Steel roof-frame modeler and solver handoff | In Progress | `FutolStructure.RoofFrameModel.v1` and Roof Frame workspace; next gate is interactive member placement, roof loads, save/load, and native solver acceptance |
 | SAVE-01 | Protected revisions, explicit project opening and last ten files | Locally Verified | Browser persistence; installed candidate bridge and isolated recent-project startup passed |
 | STAIR-01 | Canonical stair frames/shells and load handoff | Native Acceptance Pending | Stair structural fixture and IFC parser; validate actual support connectivity and loads in solver |
 | FND-01 | IFC footings, pedestals and tie beams | Native Acceptance Pending | Vertical datum/foundation fixtures and parser; native Revit acceptance pending |
-| WALL-01 | Walls, openings, lintels and attached-element loads | Planned | Replace overlapping blanket load assumptions with explicit load inventory |
+| WALL-01 | Walls, openings, lintels and attached-element loads | In Progress | `v3/engine/walls.js` canonical inventory plus Wall Elevations workspace govern line IDs, CHB/plaster, openings, lintels, elevations, and solver opt-in; next gate is plan drawing/hover editor plus save/load regression |
 | ANALYSIS-01 | Immutable shared analysis request and QUBO study drafts | Locally Verified | AnalysisOptimization source contract; execution disabled, zero fabricated candidates |
 | ANALYSIS-02 | Shared analytical loads, combinations, supports and mass | Locally Verified | `v3/engine/analysis-inputs.js`; canonical CSI model now carries governed cases, combinations, mass policy, explicit base supports, and validation; full browser rerun awaits local `ezdxf` dependency |
 | ANALYSIS-03 | PyNite gravity runner and force/reaction readback | Planned | Next implementation: consume ANALYSIS-02 without rebuilding loads; analytic benchmarks then accepted ETABS/STAAD comparison |
@@ -36,7 +37,7 @@ Locally Verified does not imply a published installer or a production deployment
 1. Review [PR #11](https://github.com/michaelfutol/futolstructure/pull/11) and complete native acceptance before production promotion.
 2. Record MODEL-01 regression evidence, then validate a dated Bacacay export against source coordinates and member sizes.
 3. Attach the PyNite adapter to the verified ANALYSIS-02 contract; do not duplicate load or support assembly.
-4. Continue native stair/foundation acceptance and explicit wall-load modeling.
+4. Build the WALL-01 plan line editor and hover properties, then connect its explicit inventory to DXF/IFC and opt-in ETABS/STAAD export.
 
 ## Release Evidence
 

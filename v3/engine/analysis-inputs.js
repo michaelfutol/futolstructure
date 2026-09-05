@@ -36,6 +36,17 @@
         (model.beams || []).forEach(beam => {
             if (positive(beam.wallLoad) > 0) beamLine.push({ elementId: beam.id, caseId: 'FS_WALL', value: positive(beam.wallLoad), unit: 'kN/m' });
         });
+        (model.wallInventory?.solverWalls || []).forEach(wall => {
+            if (positive(wall.lineLoadKNm) > 0) beamLine.push({
+                elementId: wall.id,
+                caseId: 'FS_WALL',
+                value: positive(wall.lineLoadKNm),
+                unit: 'kN/m',
+                geometry: { x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2 },
+                openingAreaM2: positive(wall.openingAreaM2),
+                lintelId: wall.lintel?.id || ''
+            });
+        });
         (model.stairSlabs || []).forEach(slab => {
             if (positive(slab.superDead) > 0) stairArea.push({ elementId: slab.id, caseId: 'FS_STAIR_DL', value: positive(slab.superDead), unit: 'kPa' });
             if (positive(slab.live) > 0) stairArea.push({ elementId: slab.id, caseId: 'FS_STAIR_LL', value: positive(slab.live), unit: 'kPa' });

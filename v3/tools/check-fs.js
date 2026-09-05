@@ -506,6 +506,36 @@ function checkAnalysisInputsSourceContract() {
     return { contract: api.contract, loadCases: inputs.loadCases.map(item => item.id), supports: inputs.supports.length, status: inputs.validation.status };
 }
 
+function checkWallInventorySourceContract() {
+    const html = fs.readFileSync(INDEX, 'utf8');
+    const modulePath = path.join(V3, 'engine', 'walls.js');
+    const source = fs.readFileSync(modulePath, 'utf8');
+    assert(html.includes('engine/walls.js'), 'Wall inventory engine is not loaded by the app');
+    assert(source.includes('FutolStructure.WallInventory.v1'), 'Wall inventory contract is missing');
+    assert(source.includes('chbThicknessMm') && source.includes('plasterInsideMm') && source.includes('plasterOutsideMm'), 'Wall masonry properties are missing');
+    assert(source.includes('openings') && source.includes('lintel') && source.includes('exportToSolvers'), 'Wall opening/lintel or solver opt-in policy is missing');
+    assert(source.includes('normalizeSnap') && source.includes('elevations'), 'Programmable wall snaps or elevation inventory is missing');
+    const api = require(modulePath);
+    const inventory = api.build({ floors: [{ id: 'GF', height: 3, wallLoads: [{ id: 'W-GF-1', x1: 0, y1: 0, x2: 4, y2: 0, chbThicknessMm: 150, plasterInsideMm: 15, plasterOutsideMm: 10, openings: [{ id: 'D1', type: 'door', widthM: 0.9, heightM: 2.1 }], lintel: { depthMm: 200 }, exportToSolvers: true }] }] });
+    assert(inventory.contract === 'FutolStructure.WallInventory.v1', 'Wall inventory API contract is not attached');
+    assert(inventory.walls.length === 1 && inventory.openings.length === 1 && inventory.lintels.length === 1, 'Wall opening/lintel inventory did not normalize');
+    assert(inventory.solverWalls.length === 1 && inventory.walls[0].lineLoadKNm > 0, 'Opted-in wall line load was not derived');
+    assert(inventory.elevations[0].openings[0].headElevationM > 0, 'Wall elevation opening head was not derived');
+    return { contract: api.contract, walls: inventory.walls.length, openings: inventory.openings.length, lintels: inventory.lintels.length, elevations: inventory.elevations.length };
+}
+
+function checkRoofFrameSourceContract() {
+    const html = fs.readFileSync(INDEX, 'utf8');
+    const modulePath = path.join(V3, 'engine', 'roof-frame.js');
+    const source = fs.readFileSync(modulePath, 'utf8');
+    assert(html.includes('engine/roof-frame.js') && html.includes('tabRoofFrame') && html.includes('panelRoofFrame'), 'Steel roof-frame workspace is not wired');
+    assert(source.includes('FutolStructure.RoofFrameModel.v1') && source.includes('solverMembers'), 'Roof-frame analytical contract is missing');
+    const api = require(modulePath);
+    const frame = api.build({ floors: [{ id: 'RF', isRoof: true }], roofFrame: { enabled: true, members: [{ id: 'R1', type: 'rafter', start: { x: 0, y: 0, z: 6 }, end: { x: 4, y: 0, z: 6.8 } }] } });
+    assert(frame.contract === 'FutolStructure.RoofFrameModel.v1' && frame.members.length === 1 && frame.solverMembers.length === 1, 'Roof-frame fixture did not normalize');
+    return { contract: api.contract, members: frame.members.length, solverMembers: frame.solverMembers.length };
+}
+
 function checkDesktopETABSBridge() {
     const main = fs.readFileSync(DESKTOP_MAIN, 'utf8');
     const preload = fs.readFileSync(DESKTOP_PRELOAD, 'utf8');
@@ -2223,6 +2253,7 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
 
                 const warningGovernance = collectMemberSizeGovernance();
                 const model = collectCSIExportModelData();
+                if (model.wallInventory?.contract !== 'FutolStructure.WallInventory.v1') throw new Error('Canonical model is missing wall inventory');
                 if (model.analyticalInputs?.contract !== 'FutolStructure.AnalyticalInputs.v1') throw new Error('Canonical model is missing shared analytical inputs');
                 if (!model.loadCases?.some(loadCase => loadCase.id === 'FS_DEAD' && loadCase.selfWeightMultiplier === 1)) throw new Error('Canonical model is missing governed element self-weight');
                 if (model.massSource?.elementSelfMassOnce !== true || model.massSource.includeLive !== false) throw new Error('Canonical mass-source policy is incorrect');
@@ -6857,6 +6888,8 @@ async function main() {
         verticalDatumFixture: checkVerticalDatumFixture(),
         solverRoundTripSourceContract: checkSolverRoundTripSourceContract(),
         analysisInputsSourceContract: checkAnalysisInputsSourceContract(),
+        wallInventorySourceContract: checkWallInventorySourceContract(),
+        roofFrameSourceContract: checkRoofFrameSourceContract(),
         analysisOptimizationSourceContract: checkAnalysisOptimizationSourceContract(),
         desktopETABSBridge: checkDesktopETABSBridge()
     };
@@ -6875,6 +6908,8 @@ async function main() {
         'v3/engine/tributary.js',
         'v3/engine/stairs.js',
         'v3/engine/analysis-inputs.js',
+        'v3/engine/walls.js',
+        'v3/engine/roof-frame.js',
         'v3/engine/vertical-datums.js',
         'v3/persistence/project-revisions.js',
         'v3/solver-roundtrip.js'
