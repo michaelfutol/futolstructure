@@ -4461,6 +4461,7 @@
     <script src="engine/loads.js"></script>
     <script src="engine/tributary.js"></script>
     <script src="engine/stairs.js"></script>
+    <script src="engine/analysis-inputs.js"></script>
     <script src="persistence/project-revisions.js"></script>
     <script src="analysis-optimization.js"></script>
     <script src="solver-roundtrip.js"></script>
@@ -23948,6 +23949,19 @@ function populateBOM() {
                     tieBeams: foundation.tieBeams.length
                 }
             };
+
+            // Attach one governed analytical-input contract to the canonical export model.
+            // ETABS, STAAD, PyNite, and OpenSees adapters must consume this contract rather
+            // than rebuilding load cases, mass sources, or supports independently.
+            if (globalThis.FSAnalysisInputs?.build) {
+                const analyticalInputs = globalThis.FSAnalysisInputs.build(model);
+                model.analyticalInputs = analyticalInputs;
+                model.loadCases = analyticalInputs.loadCases;
+                model.loadCombinations = analyticalInputs.combinations;
+                model.massSource = analyticalInputs.massSource;
+                model.supports = analyticalInputs.supports;
+                model.analysisInputValidation = analyticalInputs.validation;
+            }
 
             if (!model.stories.length) throw new Error('ETABS export requires at least one floor.');
             if (!model.columns.length) throw new Error('ETABS export requires at least one active column.');

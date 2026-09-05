@@ -117,7 +117,8 @@
         for (const [label, validation] of [
             ['Column topology', model.topologyValidation],
             ['Stair topology', model.stairTopologyValidation],
-            ['Member sizes', model.memberSizeGovernance]
+            ['Member sizes', model.memberSizeGovernance],
+            ['Shared analytical inputs', model.analysisInputValidation]
         ]) {
             if (validation?.summary?.solverReady === false || Number(validation?.summary?.blocked) > 0 || validation?.status === 'BLOCKED') {
                 blockers.push(`${label} is blocked by the canonical model checks.`);
@@ -189,6 +190,7 @@
                 topology: clone(model.topologyValidation, {}),
                 stairs: clone(model.stairTopologyValidation, {}),
                 memberSizes: clone(model.memberSizeGovernance, {}),
+                analyticalInputs: clone(model.analysisInputValidation, {}),
                 foundationHandoff: clone(model.foundationHandoff, {}),
                 noSilentGeometryRewrite: true
             },

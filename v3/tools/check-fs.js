@@ -481,6 +481,31 @@ function checkAnalysisOptimizationSourceContract() {
     };
 }
 
+function checkAnalysisInputsSourceContract() {
+    const html = fs.readFileSync(INDEX, 'utf8');
+    const modulePath = path.join(V3, 'engine', 'analysis-inputs.js');
+    const source = fs.readFileSync(modulePath, 'utf8');
+    assert(html.includes('engine/analysis-inputs.js'), 'Shared analytical-input engine is not loaded by the app');
+    assert(source.includes('FutolStructure.AnalyticalInputs.v1'), 'Analytical-input contract is missing');
+    assert(source.includes('FS_DEAD') && source.includes('FS_SDL') && source.includes('FS_WALL'), 'Required governed load cases are missing');
+    assert(source.includes('elementSelfMassOnce: true') && source.includes('includeLive: false'), 'Mass-source policy is not explicit');
+    assert(source.includes('buildSupports') && source.includes('READY_FOR_ADAPTER'), 'Support resolution or validation gate is missing');
+    const api = require(modulePath);
+    const inputs = api.build({
+        verticalDatums: { schema: 'FutolStructure.VerticalDatums.v1', baseSupportElevation: -1.5 },
+        provenance: { buildId: 'qa' },
+        columns: [{ id: 'GF-A1', x: 0, y: 0, z1: -1.5 }],
+        slabs: [{ id: 'GF-S1', areaM2: 12, superDead: 2, live: 1.9 }],
+        beams: [{ id: 'GF-B1', wallLoad: 6 }],
+        stairSlabs: []
+    });
+    assert(inputs.contract === 'FutolStructure.AnalyticalInputs.v1', 'Analytical-input API contract is not attached');
+    assert(inputs.validation.solverReady && inputs.supports.length === 1, 'Analytical-input fixture did not resolve a governed support');
+    assert(inputs.massSource.includeLive === false && inputs.massSource.includedCaseIds.includes('FS_SDL'), 'Analytical mass source policy is incorrect');
+    assert(inputs.combinations.some(combo => combo.id === 'ULS-1.2D+1.6L'), 'Required live-load design combination is missing');
+    return { contract: api.contract, loadCases: inputs.loadCases.map(item => item.id), supports: inputs.supports.length, status: inputs.validation.status };
+}
+
 function checkDesktopETABSBridge() {
     const main = fs.readFileSync(DESKTOP_MAIN, 'utf8');
     const preload = fs.readFileSync(DESKTOP_PRELOAD, 'utf8');
@@ -2198,6 +2223,11 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
 
                 const warningGovernance = collectMemberSizeGovernance();
                 const model = collectCSIExportModelData();
+                if (model.analyticalInputs?.contract !== 'FutolStructure.AnalyticalInputs.v1') throw new Error('Canonical model is missing shared analytical inputs');
+                if (!model.loadCases?.some(loadCase => loadCase.id === 'FS_DEAD' && loadCase.selfWeightMultiplier === 1)) throw new Error('Canonical model is missing governed element self-weight');
+                if (model.massSource?.elementSelfMassOnce !== true || model.massSource.includeLive !== false) throw new Error('Canonical mass-source policy is incorrect');
+                if (!(model.supports?.length > 0)) throw new Error('Canonical model is missing explicit base supports');
+                if (model.analysisInputValidation?.solverReady !== true) throw new Error('Canonical analytical-input validation is not solver-ready');
                 const modelRectangularColumn = model.columns.find(column =>
                     column.sourceId === rectangularColumnId && column.floorId === floorId
                 );
@@ -6826,6 +6856,7 @@ async function main() {
         verticalDatumSourceContract: checkVerticalDatumSourceContract(),
         verticalDatumFixture: checkVerticalDatumFixture(),
         solverRoundTripSourceContract: checkSolverRoundTripSourceContract(),
+        analysisInputsSourceContract: checkAnalysisInputsSourceContract(),
         analysisOptimizationSourceContract: checkAnalysisOptimizationSourceContract(),
         desktopETABSBridge: checkDesktopETABSBridge()
     };
@@ -6843,6 +6874,7 @@ async function main() {
         'v3/engine/loads.js',
         'v3/engine/tributary.js',
         'v3/engine/stairs.js',
+        'v3/engine/analysis-inputs.js',
         'v3/engine/vertical-datums.js',
         'v3/persistence/project-revisions.js',
         'v3/solver-roundtrip.js'

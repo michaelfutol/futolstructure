@@ -5,7 +5,7 @@ Date: 2026-09-05 (Asia/Singapore)
 ## Source of Truth
 
 - Active worktree: `D:\projects\futolStructure 04-14-26\futolstructure-fs123-vertical-datum-foundation`.
-- Branch: `release/fs-124-desktop-workspaces-rc1`; source checkpoint: `db13836f698cbd90d49ec5382f5fe193788e10b0`.
+- Branch: `feature/fs-125-shared-analytical-inputs`; parent release checkpoint: `db13836f698cbd90d49ec5382f5fe193788e10b0`.
 - Candidate identity: `3.16.124-rc.1 / FS-124-RC1`. The manifest references the source checkpoint; a subsequent commit records release metadata and acceptance evidence.
 - Governing [Drive roadmap](https://docs.google.com/document/d/1l4THhH7AIRu_SW5WWB0ixpKqgR0jLG21cRenhR96Xc4/edit) now includes P7, shared analysis and member optimization, and the current delivery sequence. Its append was read back successfully.
 - The Windows candidate was rebuilt, installed, and tested on 2026-09-05. Production web deployment remains a separate acceptance step.
@@ -24,6 +24,8 @@ Model editing tools are hidden in non-model views. Duplicate tab-name mappings a
 - Analysis offers PyNite and OpenSees selections, draft preparation, dated JSON download, and the existing ETABS audit JSON import action.
 - Optimization offers objective selection and dated study downloads.
 - Requests preserve detached, deeply frozen canonical source snapshots, levels, coordinates, materials, geometry, source identity, and validation evidence.
+- The canonical CSI export model now carries `FutolStructure.AnalyticalInputs.v1`: governed load cases/combinations, explicit base supports, and a mass-source policy with element self-mass exactly once and live load excluded pending an occupancy decision.
+- `node v3/tools/check-fs.js --no-browser` passes the shared-input source and fixture gate. The browser rerun reached the new assertions, then stopped at the existing strict-DXF gate because this machine has no Python interpreter with `ezdxf` installed.
 - Invalid topology/member-size summaries block requests. Missing common load cases, combinations, mass source, and support assignments are explicit pending definitions.
 - Planned adapters use neutral pending states. Null elevations are not converted to zero.
 - Downloads collect fresh source state. QUBO studies contain zero candidates until an optimizer exists.

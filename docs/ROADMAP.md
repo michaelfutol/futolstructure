@@ -18,8 +18,8 @@ Locally Verified does not imply a published installer or a production deployment
 | FND-01 | IFC footings, pedestals and tie beams | Native Acceptance Pending | Vertical datum/foundation fixtures and parser; native Revit acceptance pending |
 | WALL-01 | Walls, openings, lintels and attached-element loads | Planned | Replace overlapping blanket load assumptions with explicit load inventory |
 | ANALYSIS-01 | Immutable shared analysis request and QUBO study drafts | Locally Verified | AnalysisOptimization source contract; execution disabled, zero fabricated candidates |
-| ANALYSIS-02 | Shared analytical loads, combinations, supports and mass | Planned | Next implementation: typed definitions, missing-input blockers and duplicate-self-weight tests |
-| ANALYSIS-03 | PyNite gravity runner and force/reaction readback | Planned | Depends on ANALYSIS-02; analytic benchmarks then accepted ETABS/STAAD comparison |
+| ANALYSIS-02 | Shared analytical loads, combinations, supports and mass | Locally Verified | `v3/engine/analysis-inputs.js`; canonical CSI model now carries governed cases, combinations, mass policy, explicit base supports, and validation; full browser rerun awaits local `ezdxf` dependency |
+| ANALYSIS-03 | PyNite gravity runner and force/reaction readback | Planned | Next implementation: consume ANALYSIS-02 without rebuilding loads; analytic benchmarks then accepted ETABS/STAAD comparison |
 | ANALYSIS-04 | OpenSees static and modal adapters | Planned | Depends on ANALYSIS-02; each formulation and analysis mode needs independent acceptance |
 | OPT-01 | QUBO section candidates and reanalysis | Planned | Depends on validated baseline analysis, section catalogs and explicit constraints |
 | IMPORT-01 | ETABS audit JSON comparison | Locally Verified | solver-roundtrip.js; match/difference/foreign-project cases; read-only |
@@ -35,7 +35,7 @@ Locally Verified does not imply a published installer or a production deployment
 
 1. Review [PR #11](https://github.com/michaelfutol/futolstructure/pull/11) and complete native acceptance before production promotion.
 2. Record MODEL-01 regression evidence, then validate a dated Bacacay export against source coordinates and member sizes.
-3. Implement ANALYSIS-02 common loads/supports before attaching PyNite.
+3. Attach the PyNite adapter to the verified ANALYSIS-02 contract; do not duplicate load or support assembly.
 4. Continue native stair/foundation acceptance and explicit wall-load modeling.
 
 ## Release Evidence
@@ -46,4 +46,4 @@ Locally Verified does not imply a published installer or a production deployment
 - Installer SHA256: DADD15B89B104306B327272BF8066E172AD96331C0146D107580444AB87671D7.
 - Full release regression: passed; output/playwright/workspaces/fs124-full-regression.log. Independent edge defaults: 2F 225x475 mm, RF 330x620 mm. After detaching typical framing, changing 2F to 250x500 leaves RF 225x475. Manual overrides: 2F 210x360, RF 330x620.
 - GitHub review: [draft PR #11](https://github.com/michaelfutol/futolstructure/pull/11), branch release/fs-124-desktop-workspaces-rc1. Source and release metadata pushed; production main has not been changed.
-- Next implementation remains ANALYSIS-02. Native solver acceptance is tracked separately from this installed UI/contract check.
+- ANALYSIS-02 source gate passed with `node v3/tools/check-fs.js --no-browser`; the browser run reached the new assertions but stopped at the existing strict-DXF gate because this machine has no Python interpreter with `ezdxf` installed. Native solver acceptance remains separate.
