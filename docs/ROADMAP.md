@@ -27,13 +27,13 @@ Locally Verified does not imply a published installer or a production deployment
 | IMPORT-03 | PDF/CAD underlay and assisted model entry | Planned | Calibration, user-confirmed inference and preserved source drawing |
 | DOC-01 | Coordinated DXF/IFC/A4 and quantities | Native Acceptance Pending | Parser/browser evidence; final CAD sheet and Revit inspection |
 | DETAIL-01 | Approved reinforcement, schedules and shop drawings | Planned | Reviewed solver/design results plus anchorage, laps, joints and constructability |
-| RELEASE-01 | FS-124-RC1 GitHub candidate and local Windows install | In Progress | Version 3.16.124-rc.1; source commit, installer hash and installed smoke recorded below when complete |
+| RELEASE-01 | FS-124-RC1 GitHub candidate and local Windows install | Locally Verified | Installed 3.16.124-rc.1; source checkpoint db13836; [draft PR #11](https://github.com/michaelfutol/futolstructure/pull/11); public release pending |
 | RELEASE-02 | Production web and public Windows update | Planned | Merge/release after candidate acceptance; matching version/provenance across both |
 | CLOUD-01 | Authentication and private project storage | Planned | Project ownership, access isolation, recovery and security tests before cloud sync |
 
 ## Immediate Sequence
 
-1. Finish RELEASE-01 and record the actual GitHub PR, source commit and installed version.
+1. Review [PR #11](https://github.com/michaelfutol/futolstructure/pull/11) and complete native acceptance before production promotion.
 2. Record MODEL-01 regression evidence, then validate a dated Bacacay export against source coordinates and member sizes.
 3. Implement ANALYSIS-02 common loads/supports before attaching PyNite.
 4. Continue native stair/foundation acceptance and explicit wall-load modeling.
@@ -45,5 +45,5 @@ Locally Verified does not imply a published installer or a production deployment
 - Installed smoke: passed with isolated profile, correct source revision and no page errors; output/playwright/desktop/desktop-smoke.json.
 - Installer SHA256: DADD15B89B104306B327272BF8066E172AD96331C0146D107580444AB87671D7.
 - Full release regression: passed; output/playwright/workspaces/fs124-full-regression.log. Independent edge defaults: 2F 225x475 mm, RF 330x620 mm. After detaching typical framing, changing 2F to 250x500 leaves RF 225x475. Manual overrides: 2F 210x360, RF 330x620.
-- GitHub review PR: pending push; production main has not been changed.
+- GitHub review: [draft PR #11](https://github.com/michaelfutol/futolstructure/pull/11), branch release/fs-124-desktop-workspaces-rc1. Source and release metadata pushed; production main has not been changed.
 - Next implementation remains ANALYSIS-02. Native solver acceptance is tracked separately from this installed UI/contract check.

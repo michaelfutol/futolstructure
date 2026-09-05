@@ -69,7 +69,7 @@ The ETABS audit action accepts the existing audit JSON workflow. It is not an im
 - [x] Windows NSIS installer built: output/desktop/FutolStructure-Setup-3.16.124-rc.1-x64.exe.
 - [x] Install the candidate on this PC. Installer exit code 0; installed manifest and isolated desktop smoke confirm FS-124-RC1, source db13836, working desktop bridge/workspaces, and no page errors.
 - [x] Stage/commit the scoped candidate. Earlier usage-limit approval rejection resolved; source checkpoint db13836 now exists.
-- [ ] Push release/fs-124-desktop-workspaces-rc1 and open a GitHub PR.
+- [x] Push release/fs-124-desktop-workspaces-rc1 and open [draft PR #11](https://github.com/michaelfutol/futolstructure/pull/11).
 - [ ] Run Vercel preview and native ETABS/IFC/Revit acceptance before any production merge.
 
 Installer SHA256: DADD15B89B104306B327272BF8066E172AD96331C0146D107580444AB87671D7.
