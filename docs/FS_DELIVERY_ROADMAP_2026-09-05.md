@@ -47,6 +47,12 @@ The Roof Frame workspace renders each node with its assigned symbol and lists th
 - Downloads collect fresh source state. QUBO studies contain zero candidates until an optimizer exists.
 - Execution and result application remain disabled. These are preparation tools, not new analysis or design results.
 
+### PyNite Adapter Preflight - ANALYSIS-03
+
+The Analysis Workbench now exposes a governed PyNite run-request path. v3/engine/pynite-adapter.js consumes the immutable FutolStructure.AnalysisRequest.v1 snapshot produced from the canonical CSI model, preserves shared load cases/combinations/mass/support data, blocks unresolved topology or analytical-input states, and hard-locks result application. The UI can prepare or download a dated runner JSON without changing the source model.
+
+This is the first ANALYSIS-03 slice, not a completed analysis engine. The controlled Python runner, pinned PyNite execution, analytic gravity benchmark, reaction/member-force readback, cancellation/logging, and comparison against an accepted ETABS/STAAD fixture remain the next gate.
+
 ## Delivery Sequence and Acceptance
 
 | Stage | Deliverable | Required Gate |

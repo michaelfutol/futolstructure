@@ -434,8 +434,15 @@ function checkSolverRoundTripSourceContract() {
 function checkAnalysisOptimizationSourceContract() {
     const html = fs.readFileSync(INDEX, 'utf8');
     const modulePath = path.join(V3, 'analysis-optimization.js');
+    const pyniteModulePath = path.join(V3, 'engine', 'pynite-adapter.js');
+    const pyniteRunnerPath = path.join(V3, 'tools', 'run-pynite.py');
+    const pyniteRequirementsPath = path.join(V3, 'tools', 'requirements-pynite.txt');
     const source = fs.readFileSync(modulePath, 'utf8');
+    const pyniteSource = fs.readFileSync(pyniteModulePath, 'utf8');
+    const pyniteRunner = fs.readFileSync(pyniteRunnerPath, 'utf8');
+    const pyniteRequirements = fs.readFileSync(pyniteRequirementsPath, 'utf8');
     assert(html.includes('analysis-optimization.js'), 'Analysis/optimization contract is not loaded by the app');
+    assert(html.includes('engine/pynite-adapter.js'), 'PyNite adapter is not loaded by the app');
     assert(html.includes('data-tab-group="analysis"') && html.includes('data-tab-group="optimization"'), 'Analysis and optimization workflow groups are missing');
     assert(html.includes('tabAnalysisWorkbench') && html.includes('tabOptimization'), 'Analysis and optimization tabs are missing');
     assert(html.includes('panelAnalysisWorkbench') && html.includes('panelOptimization'), 'Analysis and optimization panels are missing');
@@ -443,8 +450,13 @@ function checkAnalysisOptimizationSourceContract() {
     assert(source.includes('createCanonicalRequest') && source.includes('noSilentGeometryRewrite'), 'Canonical request governance is missing');
     assert(source.includes('pynite') && source.includes('opensees') && source.includes('qubo'), 'Required analysis engines are not registered');
     assert(source.includes('proposal-only-engineer-approval'), 'QUBO approval policy is missing');
+    assert(pyniteSource.includes('FutolStructure.PyNiteAdapter.v1') && pyniteSource.includes('FutolStructure.PyNiteRunRequest.v1'), 'PyNite adapter contracts are missing');
+    assert(pyniteSource.includes('No PyNite result may be applied') && pyniteSource.includes('run-pynite.py'), 'PyNite result/application safety boundary is missing');
+    assert(pyniteRunner.includes('FutolStructure.PyNiteResult.v1') && pyniteRunner.includes('applyResults') && pyniteRunner.includes('add_member_self_weight'), 'PyNite runner mapping or result safety contract is missing');
+    assert(pyniteRequirements.trim() === 'PyNiteFEA==3.0.0', 'PyNite dependency is not pinned to the governed version');
 
     const api = require(modulePath);
+    const pyniteApi = require(pyniteModulePath);
     assert(api.contract === 'FutolStructure.AnalysisOptimization.v1', 'Analysis/optimization API is not attached');
     const model = {
         schema: 'FutolStructure.CSIExportModel.v1',
@@ -473,12 +485,23 @@ function checkAnalysisOptimizationSourceContract() {
     model.columns[0].id = 'changed-source';
     assert(pynite.request.canonicalModel.columns[0].id === 'GF-A1', 'Draft must remain detached from current model');
     assert(api.createEngineJob('pynite', model).jobId !== api.createEngineJob('pynite', model).jobId, 'Consecutive jobs need distinct IDs');
+    const readyModel = {
+        ...model,
+        supports: [{ id: 'SUP-1', nodeX: 0, nodeY: 0, elevation: 0, restraint: [true, true, true, true, true, true] }],
+        loadCases: [{ id: 'FS_DEAD', selfWeightMultiplier: 1 }],
+        loadCombinations: [{ id: 'ULS-1.4D', factors: [{ caseId: 'FS_DEAD', factor: 1.4 }] }],
+        analysisInputValidation: { solverReady: true, blockers: [], warnings: [] }
+    };
+    const readyRun = pyniteApi.prepareJob(readyModel);
+    assert(readyRun.status === 'READY_FOR_RUN' && readyRun.execution.runAllowed, 'Ready PyNite request did not reach the runner boundary');
+    assert(readyRun.execution.applyResultsAllowed === false && readyRun.runRequest.status === 'READY_FOR_RUN', 'PyNite result application boundary is not locked');
     return {
         contract: api.contract,
         engines: api.listEngineDefinitions().map(engine => engine.id),
         canonicalRequest: api.requestContract,
         analysisStatus: [pynite.status, opensees.status],
-        optimizationStatus: qubo.status
+        optimizationStatus: qubo.status,
+        pyniteAdapter: readyRun.runRequest.contract
     };
 }
 

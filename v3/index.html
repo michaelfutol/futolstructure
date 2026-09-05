@@ -2720,11 +2720,13 @@
                     <div class="analysis-workbench-controls">
                         <label for="analysisEngine">Engine
                             <select id="analysisEngine">
-                                <option value="pynite">PyNite - planned</option>
+                                <option value="pynite">PyNite - runner preflight</option>
                                 <option value="opensees">OpenSees - planned</option>
                             </select>
                         </label>
                         <button class="schedule-back-btn" onclick="prepareAnalysisOptimizationJob(document.getElementById('analysisEngine').value)">Prepare draft</button>
+                        <button class="schedule-back-btn" onclick="preparePyniteRun()">Prepare PyNite run</button>
+                        <button class="schedule-back-btn" onclick="downloadPyniteRunRequest()">Download runner JSON</button>
                         <button class="schedule-back-btn" onclick="downloadAnalysisOptimizationDraft()">Download draft JSON</button>
                         <button class="schedule-back-btn" onclick="chooseETABSAuditFile()">Import ETABS audit</button>
                     </div>
@@ -4486,6 +4488,7 @@
     <script src="engine/walls.js"></script>
     <script src="engine/roof-frame.js"></script>
     <script src="engine/analysis-inputs.js"></script>
+    <script src="engine/pynite-adapter.js"></script>
     <script src="persistence/project-revisions.js"></script>
     <script src="analysis-optimization.js"></script>
     <script src="solver-roundtrip.js"></script>
@@ -7564,7 +7567,7 @@
                 `Stories ${summary.counts.stories} | Columns ${summary.counts.columns} | Beams ${summary.counts.beams} | Slabs ${summary.counts.slabs}`,
                 `Stairs ${summary.counts.stairs} (${summary.counts.stairBeams} frames, ${summary.counts.stairSlabs} shells) | Foundations ${summary.counts.footings} footings, ${summary.counts.pedestals} pedestals, ${summary.counts.tieBeams} tie beams`,
                 `Levels: ${summary.levels.map(level => `${level.name}=${level.elevation ?? '?'} m`).join(' | ') || 'none'}`,
-                'Engine execution unavailable. Draft preparation only.'
+                'PyNite runner request preparation is available; execution and result application remain disabled.'
             ].join('\n');
         }
 
@@ -7638,6 +7641,29 @@
                     target.textContent = `Job preparation blocked:\n${error?.message || error}`;
                 }
             }
+        }
+
+        function preparePyniteRun() {
+            try {
+                const model = collectCSIExportModelData();
+                lastAnalysisOptimizationJob = window.FSPyNite.prepareJob(model);
+                renderAnalysisOptimizationJob(lastAnalysisOptimizationJob);
+                return lastAnalysisOptimizationJob;
+            } catch (error) {
+                const target = document.getElementById('analysisOptimizationStatus');
+                if (target) {
+                    target.hidden = false;
+                    target.className = 'analysis-workbench-status blocked';
+                    target.textContent = 'PyNite run preparation blocked:\n' + (error?.message || error);
+                }
+            }
+        }
+
+        function downloadPyniteRunRequest() {
+            const job = preparePyniteRun();
+            if (!job?.runRequest) return;
+            const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+            downloadBlob(JSON.stringify(job.runRequest, null, 2), 'FutolStructure_PyNite_RUN_' + stamp + '.json', 'application/json');
         }
 
         function downloadAnalysisOptimizationDraft(engineId = document.getElementById('analysisEngine').value) {
