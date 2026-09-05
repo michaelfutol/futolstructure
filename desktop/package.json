@@ -1,0 +1,85 @@
+{
+  "name": "futolstructure-desktop",
+  "version": "3.16.124-rc.1",
+  "description": "FutolStructure Windows desktop application",
+  "main": "main.cjs",
+  "author": {
+    "name": "FutolTech"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "set ELECTRON_RUN_AS_NODE=&& electron .",
+    "dist": "electron-builder --win --publish never",
+    "dist:installer": "electron-builder --win nsis --publish never",
+    "dist:portable": "electron-builder --win portable --publish never",
+    "dist:publish": "electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9"
+  },
+  "devDependencies": {
+    "electron": "44.1.1",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.futoltech.futolstructure",
+    "productName": "FutolStructure",
+    "artifactName": "FutolStructure-${version}-${arch}.${ext}",
+    "asar": true,
+    "directories": {
+      "output": "../output/desktop",
+      "buildResources": "assets"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../v3",
+        "to": "v3",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/futolstructure.ico"
+    },
+    "nsis": {
+      "artifactName": "FutolStructure-Setup-${version}-${arch}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "FutolStructure",
+      "runAfterFinish": true
+    },
+    "portable": {
+      "artifactName": "FutolStructure-Portable-${version}-${arch}.${ext}"
+    },
+    "fileAssociations": [
+      {
+        "ext": "fstr",
+        "name": "FutolStructure Project",
+        "description": "FutolStructure structural model project",
+        "role": "Editor"
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "michaelfutol",
+        "repo": "futolstructure",
+        "releaseType": "release"
+      }
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+# FutolStructure Delivery Tracker
+
+Updated: 2026-09-05. Update this file after each verified milestone; retain evidence links and unresolved blockers.
+
+Governing direction: [Drive roadmap](https://docs.google.com/document/d/1l4THhH7AIRu_SW5WWB0ixpKqgR0jLG21cRenhR96Xc4/edit).
+Detailed scope: [September delivery plan](FS_DELIVERY_ROADMAP_2026-09-05.md).
+
+Statuses: Planned, In Progress, Locally Verified, Native Acceptance Pending, Released.
+Locally Verified does not imply a published installer or a production deployment.
+
+| ID | Milestone | Status | Evidence / Next Gate |
+| --- | --- | --- | --- |
+| UI-01 | Contextual workspaces, Stair Builder under Model, responsive draft panels | Locally Verified | check-workspaces.cjs; desktop/tablet/phone navigation and unchanged model geometry |
+| MODEL-01 | Independent floor edge defaults and manual member sizes | Locally Verified | check-fs.js partialCantilever.edgeSizing; independent, inherited and detached floors; native Bacacay readback still required |
+| MODEL-02 | Persistent column segments, exact columnation and vertical datums | Native Acceptance Pending | Legacy/regular/terminated fixtures and vertical-datum baseline; compare current candidate in ETABS/STAAD/Revit |
+| SAVE-01 | Protected revisions, explicit project opening and last ten files | Locally Verified | Browser persistence and desktop source checks; installed candidate smoke required |
+| STAIR-01 | Canonical stair frames/shells and load handoff | Native Acceptance Pending | Stair structural fixture and IFC parser; validate actual support connectivity and loads in solver |
+| FND-01 | IFC footings, pedestals and tie beams | Native Acceptance Pending | Vertical datum/foundation fixtures and parser; native Revit acceptance pending |
+| WALL-01 | Walls, openings, lintels and attached-element loads | Planned | Replace overlapping blanket load assumptions with explicit load inventory |
+| ANALYSIS-01 | Immutable shared analysis request and QUBO study drafts | Locally Verified | AnalysisOptimization source contract; execution disabled, zero fabricated candidates |
+| ANALYSIS-02 | Shared analytical loads, combinations, supports and mass | Planned | Next implementation: typed definitions, missing-input blockers and duplicate-self-weight tests |
+| ANALYSIS-03 | PyNite gravity runner and force/reaction readback | Planned | Depends on ANALYSIS-02; analytic benchmarks then accepted ETABS/STAAD comparison |
+| ANALYSIS-04 | OpenSees static and modal adapters | Planned | Depends on ANALYSIS-02; each formulation and analysis mode needs independent acceptance |
+| OPT-01 | QUBO section candidates and reanalysis | Planned | Depends on validated baseline analysis, section catalogs and explicit constraints |
+| IMPORT-01 | ETABS audit JSON comparison | Locally Verified | solver-roundtrip.js; match/difference/foreign-project cases; read-only |
+| IMPORT-02 | Native EDB/STD/Tekla import and reviewed reconciliation | Planned | Stable member IDs, source revision checks and candidate approval |
+| IMPORT-03 | PDF/CAD underlay and assisted model entry | Planned | Calibration, user-confirmed inference and preserved source drawing |
+| DOC-01 | Coordinated DXF/IFC/A4 and quantities | Native Acceptance Pending | Parser/browser evidence; final CAD sheet and Revit inspection |
+| DETAIL-01 | Approved reinforcement, schedules and shop drawings | Planned | Reviewed solver/design results plus anchorage, laps, joints and constructability |
+| RELEASE-01 | FS-124-RC1 GitHub candidate and local Windows install | In Progress | Version 3.16.124-rc.1; source commit, installer hash and installed smoke recorded below when complete |
+| RELEASE-02 | Production web and public Windows update | Planned | Merge/release after candidate acceptance; matching version/provenance across both |
+| CLOUD-01 | Authentication and private project storage | Planned | Project ownership, access isolation, recovery and security tests before cloud sync |
+
+## Immediate Sequence
+
+1. Finish RELEASE-01 and record the actual GitHub PR, source commit and installed version.
+2. Record MODEL-01 regression evidence, then validate a dated Bacacay export against source coordinates and member sizes.
+3. Implement ANALYSIS-02 common loads/supports before attaching PyNite.
+4. Continue native stair/foundation acceptance and explicit wall-load modeling.
+
+## Release Evidence
+
+Pending completion of RELEASE-01. Earlier blocked installation/Git operations are historical; inspect current evidence before assuming the block remains.

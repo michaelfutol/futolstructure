@@ -1,6 +1,15 @@
 # FutolStructure Agent RAG
 
-Last updated: 2026-04-26
+Last updated: 2026-09-05
+
+## Active Continuation: 2026-09-05
+
+- Active worktree: `D:\projects\futolStructure 04-14-26\futolstructure-fs123-vertical-datum-foundation`.
+- Active branch: `feature/fs-123-vertical-datum-foundation`, baseline `a3eb9d8`; preserve existing uncommitted changes.
+- Read `docs/FS_DELIVERY_ROADMAP_2026-09-05.md` for current local UI/analysis-contract work, Drive roadmap, acceptance evidence, and pending delivery sequence.
+- Analysis/Optimization workspaces prepare immutable draft snapshots only. PyNite/OpenSees execution, QUBO results, and native multi-solver import are not implemented by these controls.
+- No commit, push, deployment, or installer update was performed in this continuation. Do not equate the FS-119 display label with this dirty candidate's release identity.
+- Branch/path statements below are historical context and must not override this active entry.
 
 This file is the repo-local retrieval source for Codex/agents working on FutolStructure.
 Read this before continuing refactor, debugging, report work, export work, or demo preparation.

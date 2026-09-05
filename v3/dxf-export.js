@@ -533,14 +533,17 @@
         return withFloorGeometry(floor, geometry, () => {
             const transform = makePlanTransform(origin.x, origin.y, bounds);
             const planEnabled = isFoundationPlanEnabled();
+            const datums = window.getVerticalDatumContract?.(state.floors || [], state) || {};
             drawPlanHeading(writer, transform, bounds, planEnabled ? 'FOUNDATION PLAN' : 'BASE REACTION PLAN',
-                planEnabled ? 'Isolated footings, tie beams, and column stubs' : 'Footings disabled; reactions retained for external foundation design');
+                planEnabled
+                    ? `Isolated footings, tie beams, and column stubs | GRADE ${finite(datums.gradeElevation).toFixed(3)} | BASE ${finite(datums.baseSupportElevation).toFixed(3)}`
+                    : `Footings disabled; reactions retained | BASE ${finite(datums.baseSupportElevation).toFixed(3)}`);
             drawGridAndDimensions(writer, transform, bounds);
             const columns = (state.columns || []).filter(col => isFoundationColumnForPlan(col, floor.id));
 
             if (planEnabled) {
                 const typeMap = getFootingTypeMap(columns);
-                getFoundationTieBeamSegmentsForPlan().forEach(segment => {
+                getFoundationTieBeamSegmentsForPlan(floor.id).forEach(segment => {
                     const rect = transform.rect(segment.x1, segment.y1, segment.x2, segment.y2);
                     writer.rectangle(rect.x1, rect.y1, rect.x2, rect.y2, DXF_LAYER.BEAM);
                 });
@@ -839,6 +842,7 @@
         stackY = indexTable.bottomY - 1;
 
         const provenance = window.getProjectProvenance?.() || {};
+        const datums = window.getVerticalDatumContract?.(state.floors || [], state) || {};
         const modelRows = [
             { item: 'Build', value: `${audit.build} / DXF ${audit.writerBuild}` },
             { item: 'FSTR schema', value: provenance.fstrSchemaVersion || 'unknown' },
@@ -846,6 +850,10 @@
             { item: 'Migration source', value: `${provenance.migrationSourceSchemaVersion || 'unknown'} / ${provenance.migrationSourceFileVersion || 'unknown'}` },
             { item: 'Source revision', value: provenance.sourceRevisionId || 'unsaved working state' },
             { item: 'Floors', value: state.floors?.length || 0 },
+            { item: 'Grade / BASE', value: `${finite(datums.gradeElevation).toFixed(3)} / ${finite(datums.baseSupportElevation).toFixed(3)} m` },
+            { item: 'GF elevation', value: `${finite(datums.groundFloorElevation).toFixed(3)} m` },
+            { item: 'Floor levels', value: (datums.floorLevels || []).map(level => `${level.id} ${finite(level.elevation).toFixed(3)}`).join('; ') },
+            { item: 'Footing bottom / top', value: `${finite(datums.footingBottomElevation).toFixed(3)} / ${finite(datums.footingTopElevation).toFixed(3)} m` },
             { item: 'Grid', value: `${state.xSpans?.length || 0}x${state.ySpans?.length || 0}` },
             { item: 'Concrete', value: `fc'=${finite(state.fc, 21)} MPa` },
             { item: 'Rebar', value: `fy=${finite(state.fy, 415)} MPa` },

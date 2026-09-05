@@ -18,6 +18,8 @@ venv/
 
 # Node (if used later)
 node_modules/
+desktop/node_modules/
+output/desktop/
 
 # IDE
 .idea/

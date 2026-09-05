@@ -1,0 +1,14 @@
+{
+  "name": "futolstructure-desktop",
+  "version": "3.16.124-rc.1",
+  "description": "FutolStructure Windows desktop application",
+  "main": "main.cjs",
+  "author": {
+    "name": "FutolTech"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "electron-updater": "6.8.9"
+  }
+}

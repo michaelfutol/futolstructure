@@ -16,7 +16,18 @@ const REGULAR_3F_FSTR_FIXTURE = path.join(V3, 'tools', 'fixtures', 'regular-v2.8
 const TERMINATED_3F_FSTR_FIXTURE = path.join(V3, 'tools', 'fixtures', 'terminated-v2.8-3floor-pre-p0c.fstr');
 const COLUMN_SEGMENT_BASELINES = path.join(V3, 'tools', 'fixtures', 'p0-c1a-pre-migration-baselines.json');
 const STAIR_STRUCTURAL_BASELINE = path.join(V3, 'tools', 'fixtures', 'stair-dogleg-structural-baseline.json');
+const VERTICAL_DATUM_FOUNDATION_BASELINE = path.join(
+    V3,
+    'tools',
+    'fixtures',
+    'vertical-datum-foundation-baseline.json'
+);
+const DESKTOP_MAIN = path.join(ROOT, 'desktop', 'main.cjs');
+const DESKTOP_PRELOAD = path.join(ROOT, 'desktop', 'preload.cjs');
+const DESKTOP_PACKAGE = path.join(ROOT, 'desktop', 'package.json');
+const DESKTOP_ICON = path.join(ROOT, 'desktop', 'assets', 'futolstructure.ico');
 const DXF_VALIDATOR = path.join(V3, 'tools', 'validate-dxf.py');
+const IFC_VALIDATOR = path.join(V3, 'tools', 'validate-ifc.py');
 const DEFAULT_PORT = Number(process.env.FS_CDP_PORT || 9234);
 const CDP_TIMEOUT_MS = Math.max(15000, Number(process.env.FS_CDP_TIMEOUT_MS) || 15000);
 const KEEP_BROWSER = process.env.FS_KEEP_BROWSER === '1' || process.argv.includes('--keep-browser');
@@ -56,9 +67,10 @@ function checkReleaseManifest() {
     const manifestPath = path.join(V3, 'release-manifest.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     const html = fs.readFileSync(INDEX, 'utf8');
-    assert(manifest.appVersion === '3.16.119', 'Release manifest app version is stale', manifest);
-    assert(manifest.buildId === 'FS-119', 'Release manifest build ID is stale', manifest);
-    assert(manifest.releaseName === 'Canonical Column Segment Truth', 'Release manifest name is stale', manifest);
+    const desktopPackage = JSON.parse(fs.readFileSync(DESKTOP_PACKAGE, 'utf8'));
+    assert(manifest.appVersion === desktopPackage.version, 'Desktop and runtime versions differ', manifest);
+    assert(manifest.buildId === 'FS-124-RC1', 'Release manifest build ID is stale', manifest);
+    assert(manifest.releaseName === 'Desktop Workspaces Candidate', 'Release manifest name is stale', manifest);
     assert(manifest.fstrSchemaVersion === '0.2.0', 'Release manifest FSTR schema is stale', manifest);
     const allowUnstampedManifest = process.env.FS_ALLOW_UNSTAMPED_MANIFEST === '1';
     assert(
@@ -127,6 +139,9 @@ function checkColumnSegmentSourceContract() {
     assert(html.includes('const isPersistentCustom = column.isPlanted === true'), 'generateGrid does not preserve custom/planted columns');
     assert(html.includes("assertSolverColumnTopologyReady('STAAD')"), 'STAAD topology gate is missing');
     assert(html.includes("assertSolverColumnTopologyReady('ETABS')"), 'ETABS topology gate is missing');
+    assert(html.includes('$foundationGeometryInETABS = $false'), 'ETABS foundation geometry policy is missing');
+    assert(html.includes('$baseSupportRestraintsInETABS = $true'), 'ETABS base restraint policy is missing');
+    assert(html.includes('Foundation geometry remains in IFC / SAFE / STAAD Foundation handoff'), 'ETABS foundation handoff disclosure is missing');
     assert(html.includes("dependentGeometryPolicy: 'preserve-and-mark-unresolved'"), 'Column dependency policy is not explicit');
     assert(html.includes("intent: 'remove_storey_segment'") || html.includes("'remove_storey_segment'"), 'Storey-segment removal intent is missing');
     assert(html.includes("'terminated_above'"), 'Column termination intent is missing');
@@ -178,6 +193,10 @@ function checkStairSourceContract() {
     assert(engine.includes('export_shells_and_frames_or_reactions_never_both'), 'Stair load double-count policy is missing');
     assert(html.includes("assertSolverStairTopologyReady('STAAD'"), 'STAAD stair integration gate is missing');
     assert(html.includes("assertSolverStairTopologyReady('ETABS'"), 'ETABS stair integration gate is missing');
+    assert(html.includes("'FS_STAIR_DL pattern'") && html.includes("'FS_STAIR_LL pattern'"), 'ETABS stair load patterns are missing');
+    assert(html.includes('$createdStairBeams') && html.includes('$createdStairSlabs'), 'ETABS stair frame and shell creation path is missing');
+    assert(html.includes('FS_AUDIT_STAIR_COMPONENTS') && html.includes('stairLoadPolicy'), 'STAAD stair export audit path is missing');
+    assert(html.includes('data-tab-group="model"') && html.includes('data-tab-group="design"'), 'Workflow-grouped tab controls are missing');
     assert(html.includes('IFCOPENINGELEMENT') && html.includes('FS_StairId'), 'IFC stair components or metadata are missing');
     assert(dxf.includes('STAIR STRUCTURAL COMPONENT SCHEDULE'), 'DXF stair component schedule is missing');
     return {
@@ -271,6 +290,320 @@ function checkStairStructuralFixture() {
     };
 }
 
+function checkVerticalDatumSourceContract() {
+    const html = fs.readFileSync(INDEX, 'utf8');
+    const enginePath = path.join(V3, 'engine', 'vertical-datums.js');
+    const engine = fs.readFileSync(enginePath, 'utf8');
+    const dxf = fs.readFileSync(path.join(V3, 'dxf-export.js'), 'utf8');
+    const requirementsPath = path.join(V3, 'tools', 'requirements-ifc.txt');
+    assert(html.includes('engine/vertical-datums.js'), 'Vertical datum engine is not loaded by the app');
+    assert(
+        engine.includes('FutolStructure.VerticalDatums.v1') &&
+        engine.includes('resolveVerticalDatums') &&
+        engine.includes('serializeVerticalDatums'),
+        'Canonical vertical datum resolver or serializer is incomplete'
+    );
+    [
+        'gradeElevation',
+        'groundFloorElevation',
+        'baseSupportElevation',
+        'footingBottomElevation',
+        'footingTopElevation'
+    ].forEach(field => {
+        assert(engine.includes(field), `Vertical datum field ${field} is missing from the engine`);
+        assert(html.includes(field), `Vertical datum field ${field} is not integrated into the app`);
+    });
+    assert(html.includes('syncGovernedFloorElevations()'), 'App does not synchronize governed floor elevations');
+    assert(html.includes('collectFoundationExportData(verticalDatums)'), 'Foundation export does not consume governed datums');
+    assert(html.includes('IFCFOOTING('), 'IFC isolated-footing export is missing');
+    assert(html.includes("'Pedestal'"), 'IFC pedestal classification metadata is missing');
+    assert(html.includes("'Foundation Tie Beam'"), 'IFC foundation tie-beam classification is missing');
+    assert(fs.existsSync(IFC_VALIDATOR), 'Strict IFC validator is missing', { path: IFC_VALIDATOR });
+    assert(
+        fs.existsSync(requirementsPath) &&
+        fs.readFileSync(requirementsPath, 'utf8').includes('ifcopenshell=='),
+        'IFC parser dependency is not pinned'
+    );
+    assert(html.includes('$model.verticalDatums.baseSupportElevation'), 'ETABS does not consume base-support elevation');
+    assert(html.includes('verticalDatums.baseSupportElevation'), 'STAAD/CSI model does not consume base-support elevation');
+    assert(
+        dxf.includes('Grade / BASE') &&
+        dxf.includes('GF elevation') &&
+        dxf.includes('Floor levels') &&
+        dxf.includes('Footing bottom / top'),
+        'DXF datum disclosure is incomplete'
+    );
+    return {
+        schema: 'FutolStructure.VerticalDatums.v1',
+        consumers: ['3D', 'save/load', 'IFC', 'STAAD', 'ETABS', 'reports', 'DXF'],
+        foundationEntities: ['IfcFooting', 'IfcColumn/Pedestal', 'IfcBeam/Foundation Tie Beam'],
+        validator: path.relative(ROOT, IFC_VALIDATOR),
+        requirements: path.relative(ROOT, requirementsPath)
+    };
+}
+
+function checkSolverRoundTripSourceContract() {
+    const html = fs.readFileSync(INDEX, 'utf8');
+    const modulePath = path.join(V3, 'solver-roundtrip.js');
+    const source = fs.readFileSync(modulePath, 'utf8');
+    assert(html.includes('solver-roundtrip.js'), 'Solver round-trip module is not loaded by the app');
+    assert(html.includes('importETABSAudit') && html.includes('solverAuditInput'), 'ETABS audit import UI is missing');
+    assert(source.includes('FutolStructure.SolverRoundTrip.v1'), 'Solver round-trip contract is missing');
+    assert(
+        html.includes("roundTripContract = 'FutolStructure.SolverRoundTrip.v1'") &&
+        html.includes('verticalDatums = $model.verticalDatums') &&
+        html.includes('levels = @($model.levels)') &&
+        html.includes('provenance = $model.provenance'),
+        'ETABS audit does not expose round-trip provenance and governed levels'
+    );
+
+    const sandbox = { window: {}, console };
+    vm.runInNewContext(source, sandbox, { filename: modulePath });
+    const api = sandbox.window.FSSolverRoundTrip;
+    assert(api?.contract === 'FutolStructure.SolverRoundTrip.v1', 'Solver round-trip API is not attached');
+    const model = {
+        provenance: { projectId: 'qa-roundtrip', sourceRevisionId: 'qa-r1' },
+        verticalDatums: { groundFloorElevation: 3 },
+        levels: [
+            { id: 'BASE/FOUNDATION', name: 'BASE/FOUNDATION', elevation: 0, kind: 'foundation' },
+            { id: 'GF', name: 'GF', elevation: 3, kind: 'floor' },
+            { id: 'RF', name: 'RF', elevation: 6, kind: 'floor' }
+        ],
+        counts: { stories: 2, columns: 4, beams: 6, slabs: 4, footings: 4, pedestals: 4, tieBeams: 3 },
+        foundation: { enabled: true, footings: [{ id: 'F1' }], pedestals: [{ id: 'P1' }], tieBeams: [{ id: 'TB1' }] },
+        foundationHandoff: {
+            mode: 'plan',
+            geometryExportedToETABS: false,
+            baseSupportRestraintsExportedToETABS: true,
+            footingsInSource: 4,
+            pedestalsInSource: 4,
+            tieBeamsInSource: 3
+        }
+    };
+    const audit = {
+        roundTripContract: 'FutolStructure.SolverRoundTrip.v1',
+        stories: 2,
+        columns: 4,
+        beams: 6,
+        slabs: 4,
+        frameObjectsInETABS: 10,
+        areaObjectsInETABS: 4,
+        levels: model.levels,
+        provenance: model.provenance,
+        foundation: {
+            mode: 'plan',
+            geometryExportedToETABS: false,
+            baseSupportRestraintsExportedToETABS: true,
+            footingsInSource: 4,
+            pedestalsInSource: 4,
+            tieBeamsInSource: 3
+        },
+        analysisReturn: 0,
+        modalModes: [{ Mode: 1, SumUX: 0.8, SumUY: 0.7, SumRZ: 0.6 }]
+    };
+    const record = api.buildETABSAuditRecord(audit, model, 'qa-etabs-audit.json');
+    assert(record.comparison.status === 'MATCH', 'Matching ETABS round-trip fixture did not match', record);
+    assert(record.comparison.levels.status === 'MATCH', 'Matching ETABS level fixture did not match', record);
+    const changedAudit = { ...audit, beams: audit.beams + 1 };
+    const changed = api.buildETABSAuditRecord(changedAudit, model, 'qa-changed.json');
+    assert(changed.comparison.status === 'REVIEW' && changed.comparison.warnings.some(warning => warning.includes('beams')), 'Changed ETABS audit was not flagged for review', changed);
+    const shiftedAudit = {
+        ...audit,
+        levels: audit.levels.map(level => level.id === 'GF' ? { ...level, elevation: level.elevation + 0.1 } : level)
+    };
+    const shifted = api.buildETABSAuditRecord(shiftedAudit, model, 'qa-shifted-level.json');
+    assert(shifted.comparison.status === 'REVIEW' && shifted.comparison.levels.status === 'DIFF', 'Shifted ETABS level was not flagged for review', shifted);
+    const foreignAudit = {
+        ...audit,
+        provenance: { ...audit.provenance, projectId: 'different-project' }
+    };
+    const foreign = api.buildETABSAuditRecord(foreignAudit, model, 'qa-foreign-project.json');
+    assert(foreign.comparison.status === 'REVIEW' && foreign.comparison.warnings.some(warning => warning.includes('provenance')), 'Foreign ETABS provenance was not flagged for review', foreign);
+    return {
+        contract: api.contract,
+        matchingStatus: record.comparison.status,
+        changedStatus: changed.comparison.status,
+        shiftedLevelStatus: shifted.comparison.levels.status,
+        foreignProjectStatus: foreign.comparison.status,
+        checks: Object.keys(record.comparison.counts).length,
+        levelChecks: record.comparison.levels.items.length
+    };
+}
+
+function checkAnalysisOptimizationSourceContract() {
+    const html = fs.readFileSync(INDEX, 'utf8');
+    const modulePath = path.join(V3, 'analysis-optimization.js');
+    const source = fs.readFileSync(modulePath, 'utf8');
+    assert(html.includes('analysis-optimization.js'), 'Analysis/optimization contract is not loaded by the app');
+    assert(html.includes('data-tab-group="analysis"') && html.includes('data-tab-group="optimization"'), 'Analysis and optimization workflow groups are missing');
+    assert(html.includes('tabAnalysisWorkbench') && html.includes('tabOptimization'), 'Analysis and optimization tabs are missing');
+    assert(html.includes('panelAnalysisWorkbench') && html.includes('panelOptimization'), 'Analysis and optimization panels are missing');
+    assert(source.includes('FutolStructure.AnalysisOptimization.v1'), 'Analysis/optimization contract is missing');
+    assert(source.includes('createCanonicalRequest') && source.includes('noSilentGeometryRewrite'), 'Canonical request governance is missing');
+    assert(source.includes('pynite') && source.includes('opensees') && source.includes('qubo'), 'Required analysis engines are not registered');
+    assert(source.includes('proposal-only-engineer-approval'), 'QUBO approval policy is missing');
+
+    const api = require(modulePath);
+    assert(api.contract === 'FutolStructure.AnalysisOptimization.v1', 'Analysis/optimization API is not attached');
+    const model = {
+        schema: 'FutolStructure.CSIExportModel.v1',
+        provenance: { projectId: 'qa-analysis', sourceRevisionId: 'qa-r1' },
+        coordinateTransform: { source: 'FutolStructure X-right/Y-down' },
+        levels: [{ id: 'BASE/FOUNDATION', name: 'BASE/FOUNDATION', elevation: 0, kind: 'foundation' }, { id: 'GF', name: 'GF', elevation: 3, kind: 'floor' }],
+        counts: { stories: 1, columns: 1, beams: 1, slabs: 1, stairs: 0, stairBeams: 0, stairSlabs: 0, footings: 1, pedestals: 1, tieBeams: 0 },
+        columns: [{ id: 'GF-A1' }], beams: [{ id: 'GF-B1' }], slabs: [{ id: 'GF-S1' }],
+        foundation: { footings: [{ id: 'F1' }] },
+        memberSizeGovernance: { status: 'READY' }
+    };
+    const pynite = api.createEngineJob('pynite', model);
+    const opensees = api.createEngineJob('opensees', model);
+    const qubo = api.createOptimizationProposal(model);
+    assert(pynite.status === 'ADAPTER_PENDING' && opensees.status === 'ADAPTER_PENDING', 'Analysis jobs did not stop at the adapter boundary');
+    assert(pynite.request.geometry.columns.length === 1 && pynite.request.geometry.beams.length === 1, 'Analysis request did not retain canonical geometry');
+    assert(qubo.status === 'DRAFT' && qubo.candidates.length === 0 && qubo.applyPolicy === 'never-write-directly-to-canonical-model', 'QUBO study must not invent a candidate');
+    const blocked = api.createEngineJob('pynite', { ...model, stairTopologyValidation: { summary: { solverReady: false, blocked: 1 } } });
+    assert(blocked.status === 'BLOCKED' && !blocked.execution.runAllowed, 'Unresolved stair summary must block execution');
+    const sizesBlocked = api.createEngineJob('pynite', { ...model, memberSizeGovernance: { summary: { solverReady: false } } });
+    assert(sizesBlocked.status === 'BLOCKED', 'Member-size summary must be respected');
+    const invalidLevel = api.createEngineJob('pynite', { ...model, levels: [{ id: 'GF', elevation: null }] });
+    assert(invalidLevel.status === 'BLOCKED', 'Missing elevation must not become zero');
+    assert(pynite.request.readiness.pending.includes('Explicit analysis support assignments'), 'Missing supports must remain pending');
+    assert(Object.isFrozen(pynite.request.canonicalModel.columns[0]), 'Source snapshot must be immutable');
+    model.columns[0].id = 'changed-source';
+    assert(pynite.request.canonicalModel.columns[0].id === 'GF-A1', 'Draft must remain detached from current model');
+    assert(api.createEngineJob('pynite', model).jobId !== api.createEngineJob('pynite', model).jobId, 'Consecutive jobs need distinct IDs');
+    return {
+        contract: api.contract,
+        engines: api.listEngineDefinitions().map(engine => engine.id),
+        canonicalRequest: api.requestContract,
+        analysisStatus: [pynite.status, opensees.status],
+        optimizationStatus: qubo.status
+    };
+}
+
+function checkDesktopETABSBridge() {
+    const main = fs.readFileSync(DESKTOP_MAIN, 'utf8');
+    const preload = fs.readFileSync(DESKTOP_PRELOAD, 'utf8');
+    const index = fs.readFileSync(INDEX, 'utf8');
+    const packageJson = JSON.parse(fs.readFileSync(DESKTOP_PACKAGE, 'utf8'));
+    assert(fs.existsSync(DESKTOP_ICON), 'Windows FutolStructure icon is missing', { path: DESKTOP_ICON });
+    assert(main.includes("ipcMain.handle('run-etabs-export'"), 'Desktop ETABS IPC handler is missing');
+    assert(main.includes('WindowsPowerShell'), 'Desktop ETABS bridge does not use Windows PowerShell');
+    assert(main.includes('ETABS model created:'), 'Desktop ETABS bridge does not collect the generated EDB path');
+    assert(main.includes('FutolStructure ETABS Exports'), 'Desktop ETABS output directory is not governed');
+    assert(
+        main.includes("child.once('exit'") &&
+        main.includes('child.stdout.destroy()') &&
+        main.includes('child.stderr.destroy()'),
+        'Desktop ETABS bridge can remain pending while the open ETABS process retains inherited output pipes'
+    );
+    assert(main.includes('if (hasSingleInstanceLock) {') && main.includes('app.whenReady().then'), 'Desktop lifecycle does not guard duplicate instances');
+    assert(main.includes('pathToFileURL(indexPath)'), 'Desktop startup does not use a space-safe file URL');
+    assert(preload.includes('runEtabsBuilder'), 'Desktop preload does not expose the ETABS builder bridge');
+    assert(index.includes('desktopBridge.runEtabsBuilder'), 'ETABS UI is not connected to the desktop bridge');
+    assert(
+        main.includes('const RECENT_PROJECT_LIMIT = 10') &&
+        main.includes("'recent-projects.json'") &&
+        main.includes("ipcMain.handle('get-recent-projects'") &&
+        main.includes("ipcMain.handle('open-recent-project'") &&
+        main.includes("ipcMain.handle('remember-project'") &&
+        main.includes("label: 'Open Recent'") &&
+        main.includes('app.addRecentDocument(normalizedPath)'),
+        'Desktop recent-project persistence or native File menu integration is incomplete'
+    );
+    assert(
+        preload.includes('getRecentProjects') &&
+        preload.includes('openProjectDialog') &&
+        preload.includes('openRecentProject') &&
+        preload.includes('rememberProject'),
+        'Desktop preload does not expose the governed recent-project bridge'
+    );
+    assert(
+        index.includes('function renderDesktopRecentProjects(projects)') &&
+        index.includes('function showDesktopRecentProjectsOnStartup()') &&
+        index.includes('projects.slice(0, 10)') &&
+        index.includes('showDesktopRecentProjectsOnStartup(), 200)'),
+        'Desktop startup does not provide the ten-item Recent Projects surface'
+    );
+    assert(
+        index.includes('if (window.FutolStructureDesktop?.isDesktop)') &&
+        index.includes('awaiting an explicit FutolStructure project open'),
+        'Desktop startup can silently restore a previous project instead of waiting for an explicit .fstr open'
+    );
+    assert(
+        /function loadDesktopProject\([\s\S]*?applyLoadedProject\([\s\S]*?silent:\s*true[\s\S]*?quarantineHiddenGeometry:\s*true/.test(index),
+        'Desktop file-association loading can block behind a success alert'
+    );
+    assert(packageJson.build?.win?.icon === 'assets/futolstructure.ico', 'Windows packaging is not using the FutolStructure ICO');
+    return {
+        windowsIcon: path.relative(ROOT, DESKTOP_ICON),
+        powershellBridge: true,
+        browserFallback: true,
+        explicitProjectOpenOnStartup: true,
+        recentProjectLimit: 10,
+        nativeOpenRecentMenu: true,
+        recentProjectsStartupSurface: true,
+        nonBlockingFileAssociationLoad: true,
+        etabsBuilderSettlesOnPowerShellExit: true,
+        outputDirectory: 'Documents/FutolStructure ETABS Exports'
+    };
+}
+
+function checkVerticalDatumFixture() {
+    assert(fs.existsSync(VERTICAL_DATUM_FOUNDATION_BASELINE), 'Vertical datum fixture is missing', {
+        file: VERTICAL_DATUM_FOUNDATION_BASELINE
+    });
+    const EngineVerticalDatums = require(path.join(V3, 'engine', 'vertical-datums.js'));
+    const fixture = JSON.parse(fs.readFileSync(VERTICAL_DATUM_FOUNDATION_BASELINE, 'utf8'));
+    const resolved = EngineVerticalDatums.resolveVerticalDatums(fixture.project, fixture.floors);
+    const expected = fixture.expected;
+    const tolerance = 1e-9;
+    const close = (actual, target) => Math.abs(Number(actual) - Number(target)) <= tolerance;
+    assert(resolved.schema === expected.schema && resolved.valid, 'Vertical datum fixture did not resolve', resolved);
+    [
+        'gradeElevation',
+        'groundFloorElevation',
+        'baseSupportElevation',
+        'footingBottomElevation',
+        'footingTopElevation',
+        'belowGroundFloorColumnLength'
+    ].forEach(field => {
+        assert(close(resolved[field], expected[field]), `Vertical datum fixture ${field} changed`, {
+            actual: resolved[field],
+            expected: expected[field]
+        });
+    });
+    expected.namedLevels.forEach((id, index) => {
+        assert(resolved.namedLevels[index]?.id === id, `Governed level ${id} is missing or out of order`, {
+            actual: resolved.namedLevels
+        });
+    });
+    resolved.floorLevels.forEach(level => {
+        assert(close(level.elevation, expected.floorLevels[level.id]), `Floor elevation ${level.id} changed`, level);
+        assert(close(level.storeyHeight, expected.storeyHeights[level.id]), `Storey height ${level.id} changed`, level);
+    });
+    const serialized = EngineVerticalDatums.serializeVerticalDatums(resolved);
+    const roundTrip = EngineVerticalDatums.resolveVerticalDatums(
+        { verticalDatums: serialized },
+        fixture.floors
+    );
+    assert(
+        roundTrip.valid &&
+        close(roundTrip.groundFloorElevation, expected.groundFloorElevation) &&
+        close(roundTrip.baseSupportElevation, expected.baseSupportElevation) &&
+        close(roundTrip.footingBottomElevation, expected.footingBottomElevation),
+        'Serialized vertical datum contract did not round trip',
+        roundTrip
+    );
+    return {
+        file: path.relative(ROOT, VERTICAL_DATUM_FOUNDATION_BASELINE),
+        fixtureId: fixture.fixtureId,
+        verticalDatums: serialized,
+        floorLevels: resolved.floorLevels,
+        namedLevels: resolved.namedLevels
+    };
+}
+
 function checkNodeSyntax(relativeFile) {
     execFileSync(process.execPath, ['--check', path.join(ROOT, relativeFile)], {
         stdio: 'pipe'
@@ -278,6 +611,7 @@ function checkNodeSyntax(relativeFile) {
 }
 
 let cachedDxfPython = null;
+let cachedIfcPython = null;
 
 function resolveDxfPython() {
     if (cachedDxfPython) return cachedDxfPython;
@@ -344,28 +678,66 @@ function validateDxfWithEzdxf(dxfContent, label = 'generated') {
     }
 }
 
-function validateIfcWithIfcOpenShell(ifcContent, label = 'generated') {
+function resolveIfcPython() {
+    if (cachedIfcPython) return cachedIfcPython;
+    const candidates = [];
+    if (process.env.FS_PYTHON) candidates.push({ command: process.env.FS_PYTHON, args: [] });
+    if (process.platform === 'win32') {
+        candidates.push(
+            { command: 'py', args: ['-3.12'] },
+            { command: 'py', args: ['-3.11'] },
+            { command: 'python', args: [] }
+        );
+    } else {
+        candidates.push({ command: 'python3', args: [] }, { command: 'python', args: [] });
+    }
+    const attempts = [];
+    for (const candidate of candidates) {
+        const probe = spawnSync(
+            candidate.command,
+            [...candidate.args, '-c', 'import ifcopenshell, ifcopenshell.geom, ifcopenshell.validate'],
+            { encoding: 'utf8', windowsHide: true }
+        );
+        attempts.push({
+            command: [candidate.command, ...candidate.args].join(' '),
+            status: probe.status,
+            error: probe.error?.message || '',
+            stderr: String(probe.stderr || '').trim()
+        });
+        if (probe.status === 0) {
+            cachedIfcPython = candidate;
+            return candidate;
+        }
+    }
+    throw Object.assign(new Error('IFC acceptance requires Python with IfcOpenShell installed.'), {
+        details: attempts
+    });
+}
+
+function validateIfcWithIfcOpenShell(ifcContent, label = 'generated', options = {}) {
+    assert(fs.existsSync(IFC_VALIDATOR), 'IFC strict validator is missing', { path: IFC_VALIDATOR });
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'futolstructure-ifc-'));
     const ifcPath = path.join(tempDir, `${String(label).replace(/[^A-Za-z0-9_.-]+/g, '-')}.ifc`);
     fs.writeFileSync(ifcPath, ifcContent, 'utf8');
     try {
-        const python = resolveDxfPython();
-        const script = [
-            'import ifcopenshell, json, sys',
-            'model = ifcopenshell.open(sys.argv[1])',
-            "types = ['IfcBuildingStorey','IfcColumn','IfcBeam','IfcSlab','IfcFooting','IfcOpeningElement']",
-            'counts = {name: len(model.by_type(name)) for name in types}',
-            "print(json.dumps({'schema': model.schema, 'counts': counts, 'products': len(model.by_type('IfcProduct'))}))"
-        ].join('\n');
+        const python = resolveIfcPython();
+        const validatorArgs = [
+            ...python.args,
+            IFC_VALIDATOR,
+            ifcPath
+        ];
+        (options.expectedLevels || []).forEach(level => {
+            validatorArgs.push('--expect-level', `${level.name || level.id}=${level.elevation}`);
+        });
+        if (options.exactLevelSet) validatorArgs.push('--exact-level-set');
         const validation = spawnSync(
             python.command,
-            [...python.args, '-c', script, ifcPath],
+            validatorArgs,
             { encoding: 'utf8', windowsHide: true }
         );
-        const stdoutLines = String(validation.stdout || '').trim().split(/\r?\n/).filter(Boolean);
         let audit = null;
         try {
-            audit = JSON.parse(stdoutLines.at(-1) || '');
+            audit = JSON.parse(String(validation.stdout || '').trim());
         } catch (error) {
             throw Object.assign(new Error('IfcOpenShell validator did not return JSON.'), {
                 details: {
@@ -375,7 +747,13 @@ function validateIfcWithIfcOpenShell(ifcContent, label = 'generated') {
                 }
             });
         }
-        assert(validation.status === 0 && /^IFC2X3/i.test(audit.schema || ''), 'IFC failed IfcOpenShell schema validation', audit);
+        assert(
+            validation.status === 0 &&
+            audit.ok === true &&
+            /^IFC2X3/i.test(audit.schema || ''),
+            'IFC failed strict schema, geometry, datum, or metadata validation',
+            audit
+        );
         return audit;
     } finally {
         fs.rmSync(tempDir, { recursive: true, force: true });
@@ -707,15 +1085,19 @@ async function waitForAppReady(tab) {
     throw new Error(`App did not become ready for browser smoke check${lastError ? `: ${lastError.message}` : ''}.${diagnostic}`);
 }
 
-async function runBrowserSmoke(historicalFixture) {
+async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
     const browser = await ensureBrowser(DEFAULT_PORT);
     const tab = await openAppTab(browser.base);
     const screenshotPath = path.join(os.tmpdir(), 'futolstructure-smoke.png');
     const stair3DScreenshotPath = path.join(os.tmpdir(), 'futolstructure-stair-3d.png');
     const revisionScreenshotPath = path.join(os.tmpdir(), 'futolstructure-protected-revisions.png');
+    const verticalDatum3DScreenshotPath = path.join(os.tmpdir(), 'futolstructure-raised-gf-foundation-3d.png');
     const serializedHistoricalFixture = JSON.stringify(historicalFixture);
     const serializedRegular3FFixture = JSON.stringify(JSON.parse(fs.readFileSync(REGULAR_3F_FSTR_FIXTURE, 'utf8')));
     const serializedTerminated3FFixture = JSON.stringify(JSON.parse(fs.readFileSync(TERMINATED_3F_FSTR_FIXTURE, 'utf8')));
+    const serializedVerticalDatumFixture = JSON.stringify(
+        JSON.parse(fs.readFileSync(VERTICAL_DATUM_FOUNDATION_BASELINE, 'utf8'))
+    );
 
     try {
         const result = await tab.evaluate(`(() => {
@@ -767,6 +1149,8 @@ async function runBrowserSmoke(historicalFixture) {
                     buildBadge: document.getElementById('buildVersionBadge')?.textContent.trim() || '',
                     rebuildButton: Array.from(document.querySelectorAll('.header-actions .tool-btn')).some(btn => btn.textContent.trim() === 'Rebuild'),
                     etabsButton: Array.from(document.querySelectorAll('.header-actions .tool-btn')).some(btn => btn.textContent.trim() === 'ETABS'),
+                    solverImportButton: Array.from(document.querySelectorAll('.header-actions .tool-btn')).some(btn => btn.textContent.trim() === 'Import'),
+                    roundTripInput: !!document.getElementById('solverAuditInput'),
                     etabsQaBadge: document.querySelectorAll('.header-actions .export-validation-badge').length,
                     stairBeamHidden: !!stairBeamBtn && (stairBeamBtn.hidden || stairBeamBtn.getAttribute('aria-hidden') === 'true'),
                     aiAssistantHidden: !!aiAssistantTab && (aiAssistantTab.hidden || aiAssistantTab.style.display === 'none' || aiAssistantTab.getAttribute('aria-hidden') === 'true'),
@@ -775,6 +1159,44 @@ async function runBrowserSmoke(historicalFixture) {
                     legacyScheduleModalDisplay: scheduleModal?.style.display || '',
                     legacyScheduleModalDisabled: scheduleModal?.dataset?.legacyDisabled === 'true'
                 };
+                const roundTripModel = collectCSIExportModelData();
+                const roundTripFingerprint = () => JSON.stringify({
+                    floorIndex: state.currentFloorIndex,
+                    floors: state.floors.map(floor => ({
+                        id: floor.id,
+                        voidSlabs: floor.voidSlabs,
+                        deletedBeams: floor.deletedBeams,
+                        lockedBeams: floor.lockedBeams
+                    })),
+                    columns: state.columns.map(column => ({
+                        id: column.id,
+                        x: column.x,
+                        y: column.y,
+                        active: column.active,
+                        segmentOverrides: column.segmentOverrides
+                    })),
+                    beams: state.beams.map(beam => ({ id: beam.id, deleted: beam.deleted })),
+                    slabs: state.slabs.map(slab => ({ id: slab.id, isVoid: slab.isVoid, active: slab.active }))
+                });
+                const roundTripBefore = roundTripFingerprint();
+                const roundTripRecord = importETABSAuditData({
+                    roundTripContract: 'FutolStructure.SolverRoundTrip.v1',
+                    stories: roundTripModel.counts.stories,
+                    columns: roundTripModel.counts.columns,
+                    beams: roundTripModel.counts.beams,
+                    slabs: roundTripModel.counts.slabs,
+                    frameObjectsInETABS: roundTripModel.counts.columns + roundTripModel.counts.beams,
+                    areaObjectsInETABS: roundTripModel.counts.slabs,
+                    levels: roundTripModel.levels,
+                    verticalDatums: roundTripModel.verticalDatums,
+                    provenance: roundTripModel.provenance,
+                    foundation: roundTripModel.foundationHandoff,
+                    analysisReturn: 0,
+                    modalModes: []
+                }, 'qa-ui-etabs-audit.json');
+                audit.roundTripProbeStatus = roundTripRecord.comparison.status;
+                audit.roundTripProbeNoAutoApply = roundTripBefore === roundTripFingerprint();
+                closeSolverRoundTrip();
                 setPlanTab(previousTab);
                 return audit;
             })();
@@ -901,11 +1323,33 @@ async function runBrowserSmoke(historicalFixture) {
                     const beamWidthM = beamSize.b / 1000;
                     const beamOffset = getBeamPlanOffset(beam, beamWidthM, state.floors[state.currentFloorIndex]?.id);
                     const renderedCenterX = beam.x1 + beamOffset.offsetX;
+                    const terminationMember = id => state.beams.find(item => item.id === id);
+                    const terminationGeometry = id => {
+                        const member = terminationMember(id);
+                        return member ? getBeamPlanDrawGeometry(member, state.floors[state.currentFloorIndex]?.id) : null;
+                    };
+                    const startTermination = terminationMember(beam.terminationStartBeamId);
+                    const endTermination = terminationMember(beam.terminationEndBeamId);
+                    const startTerminationGeometry = terminationGeometry(beam.terminationStartBeamId);
+                    const endTerminationGeometry = terminationGeometry(beam.terminationEndBeamId);
+                    const startFaceY = startTerminationGeometry && startTermination
+                        ? startTerminationGeometry.cy + getBeamSizeMm(startTermination, state.floors[state.currentFloorIndex]?.id).b / 2000
+                        : null;
+                    const endFaceY = endTerminationGeometry && endTermination
+                        ? endTerminationGeometry.cy - getBeamSizeMm(endTermination, state.floors[state.currentFloorIndex]?.id).b / 2000
+                        : null;
                     return {
                         id: beam.id,
                         label: getBeamScheduleId(beam, state.floors[state.currentFloorIndex]?.id, 0),
                         span: beam.span,
                         isEdgeBeam: beam.isEdgeBeam,
+                        faceTerminated: beam.faceTerminated === true,
+                        terminationStartBeamId: beam.terminationStartBeamId || '',
+                        terminationEndBeamId: beam.terminationEndBeamId || '',
+                        startY: beam.y1,
+                        endY: beam.y2,
+                        startFaceY,
+                        endFaceY,
                         supportingBeamId: beam.supportingBeamId || '',
                         supportingMainBeamId: beam.supportingMainBeamId || '',
                         supportSize,
@@ -951,6 +1395,155 @@ async function runBrowserSmoke(historicalFixture) {
                 edgeBeamExists: !!state.beams.find(b => b.id === 'BEY-R-1-L')
             };
             const partialCantilever = { rightPatchWithEdge, rightPatchWithoutEdge };
+
+            partialCantilever.edgeSizing = (() => {
+                const edgeBeamId = 'BEY-R-1-L';
+                const originalFloorIndex = state.currentFloorIndex;
+                const originalFloorState = state.floors.map(floor => cloneSerializable(floor, {}));
+                const originalCantilevers = cloneSerializable(state.cantilevers, null);
+                const originalOverrides = cloneSerializable(state.beamSizeOverrides, {});
+                const originalGlobalWidth = state.defaultEdgeBeamB;
+                const originalGlobalDepth = state.defaultEdgeBeamH;
+                const originalUndoHistory = undoHistory.slice();
+                const originalRedoHistory = redoHistory.slice();
+                const sourceFloor = state.floors.find(floor => floor.id === '2F') || state.floors[0];
+                const targetFloor = state.floors.find(floor => floor.id === 'RF') || state.floors[1];
+                const dispatchEdgeInput = (inputId, value) => {
+                    const input = document.getElementById(inputId);
+                    input.value = String(value);
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                };
+                const readFloorEdgeSize = (floorGeometry, floor) => {
+                    const edgeBeam = floorGeometry.get(floor.id)?.beams?.find(beam => beam.id === edgeBeamId);
+                    const size = edgeBeam ? getBeamSizeMm(edgeBeam, floor.id) : null;
+                    return { widthMm: size?.b || 0, depthMm: size?.h || 0 };
+                };
+
+                try {
+                    if (!sourceFloor || !targetFloor) {
+                        return { controlsPresent: false, fixtureReady: false };
+                    }
+
+                    // Give both floors the same edge-beam location, then exercise
+                    // the actual dashboard change events instead of injecting state.
+                    state.floors.forEach(floor => {
+                        floor.typicalFromLower = false;
+                        floor.typicalSourceFloorId = '';
+                        const cantilevers = normalizeCantileverSet(
+                            floor.cantilevers || state.cantilevers,
+                            state.xSpans.length,
+                            state.ySpans.length
+                        );
+                        cantilevers.right[0] = normalizeCantileverSpec({
+                            projection: 1.2,
+                            run: 1.2,
+                            offset: 0,
+                            eb: true
+                        });
+                        floor.cantilevers = cantilevers;
+                        delete state.beamSizeOverrides[getBeamSizeKey(edgeBeamId, floor.id)];
+                    });
+                    sourceFloor.defaultEdgeBeamB = 150;
+                    sourceFloor.defaultEdgeBeamH = 300;
+                    targetFloor.defaultEdgeBeamB = 330;
+                    targetFloor.defaultEdgeBeamH = 620;
+                    state.currentFloorIndex = state.floors.indexOf(sourceFloor);
+                    state.cantilevers = cloneSerializable(sourceFloor.cantilevers, null);
+                    renderFloorTabs();
+                    calculate();
+
+                    dispatchEdgeInput('edgeBeamWidthInput', 225);
+                    dispatchEdgeInput('edgeBeamDepthInput', 475);
+                    const independentGeometry = collect3DFloorGeometry();
+                    const independentProject = buildProjectData({ revisionId: 'fs119-edge-floor-scope' });
+                    const independentSource = readFloorEdgeSize(independentGeometry, sourceFloor);
+                    const independentTarget = readFloorEdgeSize(independentGeometry, targetFloor);
+                    const savedSource = independentProject.floors.find(floor => floor.id === sourceFloor.id);
+                    const savedTarget = independentProject.floors.find(floor => floor.id === targetFloor.id);
+
+                    state.currentFloorIndex = state.floors.indexOf(targetFloor);
+                    renderFloorTabs();
+                    toggleTypicalFromLower(true);
+                    const inheritedGeometry = collect3DFloorGeometry();
+                    const inheritedTarget = readFloorEdgeSize(inheritedGeometry, targetFloor);
+                    const inheritedControlsDisabled = document.getElementById('edgeBeamWidthInput').disabled &&
+                        document.getElementById('edgeBeamDepthInput').disabled;
+
+                    toggleTypicalFromLower(false);
+                    const detachedControlsEnabled = !document.getElementById('edgeBeamWidthInput').disabled &&
+                        !document.getElementById('edgeBeamDepthInput').disabled;
+                    state.currentFloorIndex = state.floors.indexOf(sourceFloor);
+                    renderFloorTabs();
+                    dispatchEdgeInput('edgeBeamWidthInput', 250);
+                    dispatchEdgeInput('edgeBeamDepthInput', 500);
+                    const detachedGeometry = collect3DFloorGeometry();
+                    const detachedSource = readFloorEdgeSize(detachedGeometry, sourceFloor);
+                    const detachedTarget = readFloorEdgeSize(detachedGeometry, targetFloor);
+
+                    state.beamSizeOverrides[getBeamSizeKey(edgeBeamId, sourceFloor.id)] = {
+                        webW: 210,
+                        webD: 360,
+                        edgeBeamSizeSource: 'manual'
+                    };
+                    state.beamSizeOverrides[getBeamSizeKey(edgeBeamId, targetFloor.id)] = {
+                        webW: 330,
+                        webD: 620,
+                        edgeBeamSizeSource: 'manual'
+                    };
+                    const overrideGeometry = collect3DFloorGeometry();
+                    const perFloor = Object.fromEntries([sourceFloor, targetFloor].map(floor => {
+                        const size = readFloorEdgeSize(overrideGeometry, floor);
+                        const override = state.beamSizeOverrides[getBeamSizeKey(edgeBeamId, floor.id)] || null;
+                        return [floor.id, {
+                            ...size,
+                            savedWidthMm: override?.webW || 0,
+                            savedDepthMm: override?.webD || 0,
+                            source: override?.edgeBeamSizeSource || ''
+                        }];
+                    }));
+
+                    return {
+                        fixtureReady: true,
+                        controlsPresent: !!document.getElementById('edgeBeamWidthInput') && !!document.getElementById('edgeBeamDepthInput'),
+                        generatedWidthMm: independentSource.widthMm,
+                        generatedDepthMm: independentSource.depthMm,
+                        savedWidthMm: savedSource?.defaultEdgeBeamB || 0,
+                        savedDepthMm: savedSource?.defaultEdgeBeamH || 0,
+                        independent: {
+                            source: independentSource,
+                            target: independentTarget,
+                            savedSource: { widthMm: savedSource?.defaultEdgeBeamB || 0, depthMm: savedSource?.defaultEdgeBeamH || 0 },
+                            savedTarget: { widthMm: savedTarget?.defaultEdgeBeamB || 0, depthMm: savedTarget?.defaultEdgeBeamH || 0 }
+                        },
+                        inherited: {
+                            target: inheritedTarget,
+                            controlsDisabled: inheritedControlsDisabled
+                        },
+                        detached: {
+                            source: detachedSource,
+                            target: detachedTarget,
+                            controlsEnabled: detachedControlsEnabled,
+                            targetDefaults: getFloorEdgeBeamDefaults(targetFloor.id)
+                        },
+                        perFloor
+                    };
+                } finally {
+                    state.floors.forEach((floor, index) => {
+                        Object.keys(floor).forEach(key => delete floor[key]);
+                        Object.assign(floor, cloneSerializable(originalFloorState[index], {}));
+                    });
+                    state.cantilevers = originalCantilevers;
+                    state.beamSizeOverrides = originalOverrides;
+                    state.defaultEdgeBeamB = originalGlobalWidth;
+                    state.defaultEdgeBeamH = originalGlobalDepth;
+                    state.currentFloorIndex = originalFloorIndex;
+                    undoHistory.splice(0, undoHistory.length, ...originalUndoHistory);
+                    redoHistory.splice(0, redoHistory.length, ...originalRedoHistory);
+                    renderFloorTabs();
+                    calculate();
+                }
+            })();
+            applyRightPatchSpec({ projection: 1.2, run: 1.2, offset: 0, eb: false });
 
             selectedMemberType = 'slab';
             selectedMemberId = 'SC-T4';
@@ -1281,6 +1874,8 @@ async function runBrowserSmoke(historicalFixture) {
             state.measureSnapEnabled = true;
             state.measureOrtho = false;
             state.measureStart = null;
+            const originColumn = state.columns.find(column => column.id === 'A1');
+            const initialMeasureColumnPosition = getColumnPlanPosition(originColumn);
             const snappedMeasurePoint = resolveMeasurePoint({ x: 0.04, y: 0.03 });
             const snappedMeasureKind = state.measureSnapPoint?.kind || '';
             state.measureSnapEnabled = false;
@@ -1401,6 +1996,7 @@ async function runBrowserSmoke(historicalFixture) {
             const reloadColumnSnapKind = state.measureSnapPoint?.kind || '';
 
             const afterMeasureSnapOrtho = {
+                initialMeasureColumnPosition,
                 snappedMeasurePoint,
                 snappedMeasureKind,
                 orthoMeasurePoint,
@@ -1503,11 +2099,15 @@ async function runBrowserSmoke(historicalFixture) {
                 state.measureSnapEnabled = true;
                 state.measureOrtho = false;
                 state.measureStart = null;
+                // Resolve the face at a drafting zoom where it is distinct from the centroid.
+                const faceSnapScale = state.scale;
+                state.scale = 100;
                 const rotatedFaceSnap = resolveMeasurePoint({
-                    x: rectangularFootprint.right + 0.015,
+                    x: rectangularFootprint.right + 0.005,
                     y: rectangularFootprint.center.y
                 });
                 const rotatedFaceSnapKind = state.measureSnapPoint?.kind || '';
+                state.scale = faceSnapScale;
 
                 populateColumnSchedule();
                 populateBeamSchedule();
@@ -1609,7 +2209,14 @@ async function runBrowserSmoke(historicalFixture) {
                 );
                 const modelSections = Object.fromEntries(model.frameSections.map(section => [
                     section.name,
-                    { type: section.type, b: section.bMm, h: section.hMm }
+                    {
+                        type: section.type,
+                        b: section.bMm,
+                        h: section.hMm,
+                        etabsT2: section.etabsT2Mm,
+                        etabsT3: section.etabsT3Mm,
+                        axisPolicy: section.etabsSectionAxisPolicy
+                    }
                 ]));
 
                 const staadContent = generateSTAADContent(model);
@@ -1721,6 +2328,21 @@ async function runBrowserSmoke(historicalFixture) {
                             beam.sourceId === beamId && beam.floorId === floorId
                         ) || null,
                         etabsHasLocalAxesCommand: etabsContent.includes('FrameObj.SetLocalAxes'),
+                        etabsHasCanonicalNodePolicy:
+                            etabsContent.includes('Get-OrCreateAnalyticalPoint') &&
+                            etabsContent.includes('FrameObj.AddByPoint') &&
+                            etabsContent.includes('SetInsertionPoint_1'),
+                        etabsHasReflectedOrientation:
+                            etabsModel?.columns?.find(column =>
+                                column.sourceId === rectangularColumnId && column.floorId === floorId
+                            )?.etabsLocalAxisAngleDeg === -90,
+                        etabsHasExplicitSectionAxisMapping:
+                            etabsModel?.frameSections?.find(section => section.name === 'C150x400')?.etabsT2Mm === 400 &&
+                            etabsModel?.frameSections?.find(section => section.name === 'C150x400')?.etabsT3Mm === 150 &&
+                            etabsModel?.frameSections?.find(section => section.name === 'B150x175')?.etabsT2Mm === 150 &&
+                            etabsModel?.frameSections?.find(section => section.name === 'B150x175')?.etabsT3Mm === 175 &&
+                            etabsContent.includes('etabsT3Mm') &&
+                            etabsContent.includes('etabsT2Mm'),
                         ifcHasExactSections:
                             ifcContent.includes('C150x400') &&
                             ifcContent.includes('C150x150') &&
@@ -2485,9 +3107,13 @@ async function runBrowserSmoke(historicalFixture) {
         assert(!result.initial.initError && !result.initError, 'Init error shown in app', result);
         assert(result.initial.columns === 9, 'Default 2x2 model did not initialize 9 columns', result.initial);
         assert(
-            result.uiCleanupAudit.buildBadge === 'v3.16.119' &&
+            result.uiCleanupAudit.buildBadge === 'v3.16.124-rc.1' &&
             result.uiCleanupAudit.rebuildButton === true &&
             result.uiCleanupAudit.etabsButton === true &&
+            result.uiCleanupAudit.solverImportButton === true &&
+            result.uiCleanupAudit.roundTripInput === true &&
+            result.uiCleanupAudit.roundTripProbeStatus === 'MATCH' &&
+            result.uiCleanupAudit.roundTripProbeNoAutoApply === true &&
             result.uiCleanupAudit.etabsQaBadge === 1 &&
             result.uiCleanupAudit.stairBeamHidden === true &&
             result.uiCleanupAudit.aiAssistantHidden === true &&
@@ -2508,13 +3134,19 @@ async function runBrowserSmoke(historicalFixture) {
         assert(
             Math.abs(result.partialCantilever.rightPatchWithEdge.slab?.lx - 1.2) < 0.001 &&
             Math.abs(result.partialCantilever.rightPatchWithEdge.slab?.ly - 1.2) < 0.001 &&
-            Math.abs(result.partialCantilever.rightPatchWithEdge.edgeBeam?.span - 1.2) < 0.001 &&
+            result.partialCantilever.rightPatchWithEdge.edgeBeam?.span > 0.001 &&
+            result.partialCantilever.rightPatchWithEdge.edgeBeam?.span < 1.199 &&
             result.partialCantilever.rightPatchWithEdge.edgeBeam?.widthMm === 150 &&
             result.partialCantilever.rightPatchWithEdge.edgeBeam?.depthMm === 550 &&
+            result.partialCantilever.rightPatchWithEdge.edgeBeam?.faceTerminated === true &&
+            result.partialCantilever.rightPatchWithEdge.edgeBeam?.terminationStartBeamId &&
+            result.partialCantilever.rightPatchWithEdge.edgeBeam?.terminationEndBeamId &&
+            Math.abs(result.partialCantilever.rightPatchWithEdge.edgeBeam?.startY - result.partialCantilever.rightPatchWithEdge.edgeBeam?.startFaceY) < 0.001 &&
+            Math.abs(result.partialCantilever.rightPatchWithEdge.edgeBeam?.endY - result.partialCantilever.rightPatchWithEdge.edgeBeam?.endFaceY) < 0.001 &&
             result.partialCantilever.rightPatchWithEdge.edgeBeam?.supportingMainBeamId === result.partialCantilever.rightPatchWithEdge.edgeBeam?.supportingBeamId &&
             /^EB-/.test(result.partialCantilever.rightPatchWithEdge.edgeBeam?.label || '') &&
             Math.abs(result.partialCantilever.rightPatchWithEdge.edgeBeam?.renderedOuterFaceX - result.partialCantilever.rightPatchWithEdge.edgeBeam?.slabFreeEdgeX) < 0.001,
-            'Partial right cantilever patch did not generate a 1.2m x 1.2m slab with an inward 150mm free-edge beam inheriting support depth',
+            'Partial right cantilever patch did not generate a face-terminated 150x550mm free-edge beam with inherited support depth',
             result.partialCantilever
         );
         assert(
@@ -2525,6 +3157,59 @@ async function runBrowserSmoke(historicalFixture) {
             Math.abs(result.partialCantilever.rightPatchWithEdge.sideBeam?.offsetY - result.partialCantilever.rightPatchWithEdge.sideBeam?.mainOffsetY) < 0.0001,
             'Cantilever side beam did not inherit main-beam dimensions, alignment, or CB-floor-nearest-column naming',
             result.partialCantilever
+        );
+        assert(
+            result.partialCantilever.edgeSizing?.controlsPresent === true &&
+            result.partialCantilever.edgeSizing?.generatedWidthMm === 225 &&
+            result.partialCantilever.edgeSizing?.generatedDepthMm === 475 &&
+            result.partialCantilever.edgeSizing?.savedWidthMm === 225 &&
+            result.partialCantilever.edgeSizing?.savedDepthMm === 475,
+            'Edge-beam width/depth controls did not govern generated geometry and project persistence',
+            result.partialCantilever.edgeSizing
+        );
+        assert(
+            result.partialCantilever.edgeSizing?.independent?.source?.widthMm === 225 &&
+            result.partialCantilever.edgeSizing?.independent?.source?.depthMm === 475 &&
+            result.partialCantilever.edgeSizing?.independent?.target?.widthMm === 330 &&
+            result.partialCantilever.edgeSizing?.independent?.target?.depthMm === 620 &&
+            result.partialCantilever.edgeSizing?.independent?.savedSource?.widthMm === 225 &&
+            result.partialCantilever.edgeSizing?.independent?.savedSource?.depthMm === 475 &&
+            result.partialCantilever.edgeSizing?.independent?.savedTarget?.widthMm === 330 &&
+            result.partialCantilever.edgeSizing?.independent?.savedTarget?.depthMm === 620,
+            'Editing the 2F edge-beam defaults changed the independent RF defaults or failed to persist floor scope',
+            result.partialCantilever.edgeSizing
+        );
+        assert(
+            result.partialCantilever.edgeSizing?.inherited?.target?.widthMm === 225 &&
+            result.partialCantilever.edgeSizing?.inherited?.target?.depthMm === 475 &&
+            result.partialCantilever.edgeSizing?.inherited?.controlsDisabled === true,
+            'A Typical roof did not inherit the lower-floor edge-beam defaults and lock the inherited controls',
+            result.partialCantilever.edgeSizing
+        );
+        assert(
+            result.partialCantilever.edgeSizing?.detached?.source?.widthMm === 250 &&
+            result.partialCantilever.edgeSizing?.detached?.source?.depthMm === 500 &&
+            result.partialCantilever.edgeSizing?.detached?.target?.widthMm === 225 &&
+            result.partialCantilever.edgeSizing?.detached?.target?.depthMm === 475 &&
+            result.partialCantilever.edgeSizing?.detached?.targetDefaults?.b === 225 &&
+            result.partialCantilever.edgeSizing?.detached?.targetDefaults?.h === 475 &&
+            result.partialCantilever.edgeSizing?.detached?.controlsEnabled === true,
+            'Unchecking Typical did not freeze RF edge-beam defaults before a later 2F edit',
+            result.partialCantilever.edgeSizing
+        );
+        assert(
+            result.partialCantilever.edgeSizing?.perFloor?.['2F']?.widthMm === 210 &&
+            result.partialCantilever.edgeSizing?.perFloor?.['2F']?.depthMm === 360 &&
+            result.partialCantilever.edgeSizing?.perFloor?.['2F']?.savedWidthMm === 210 &&
+            result.partialCantilever.edgeSizing?.perFloor?.['2F']?.savedDepthMm === 360 &&
+            result.partialCantilever.edgeSizing?.perFloor?.['2F']?.source === 'manual' &&
+            result.partialCantilever.edgeSizing?.perFloor?.RF?.widthMm === 330 &&
+            result.partialCantilever.edgeSizing?.perFloor?.RF?.depthMm === 620 &&
+            result.partialCantilever.edgeSizing?.perFloor?.RF?.savedWidthMm === 330 &&
+            result.partialCantilever.edgeSizing?.perFloor?.RF?.savedDepthMm === 620 &&
+            result.partialCantilever.edgeSizing?.perFloor?.RF?.source === 'manual',
+            'Edge-beam override leaked between floors or was not persisted per member location',
+            result.partialCantilever.edgeSizing
         );
         assert(
             result.partialCantilever.rightPatchWithoutEdge.slab?.edgeBeamEnabled === false &&
@@ -2651,8 +3336,10 @@ async function runBrowserSmoke(historicalFixture) {
             result.afterMeasureClearUndo
         );
         assert(
-            Math.abs(result.afterMeasureSnapOrtho.snappedMeasurePoint.x) < 0.001 &&
-            Math.abs(result.afterMeasureSnapOrtho.snappedMeasurePoint.y) < 0.001 &&
+            Math.abs(result.afterMeasureSnapOrtho.snappedMeasurePoint.x -
+                (result.afterMeasureSnapOrtho.snappedMeasureKind === 'column-center' ? result.afterMeasureSnapOrtho.initialMeasureColumnPosition.x : 0)) < 0.001 &&
+            Math.abs(result.afterMeasureSnapOrtho.snappedMeasurePoint.y -
+                (result.afterMeasureSnapOrtho.snappedMeasureKind === 'column-center' ? result.afterMeasureSnapOrtho.initialMeasureColumnPosition.y : 0)) < 0.001 &&
             ['column-center', 'grid-intersection'].includes(result.afterMeasureSnapOrtho.snappedMeasureKind),
             'Measure entity snap did not acquire the nearby column/grid intersection',
             result.afterMeasureSnapOrtho
@@ -2843,16 +3530,24 @@ async function runBrowserSmoke(historicalFixture) {
         assert(
             memberAuditResult.sharedModel.rectangularColumn.section === 'C150x400' &&
             memberAuditResult.sharedModel.rectangularColumn.orientationDeg === 90 &&
+            memberAuditResult.sharedModel.rectangularColumn.etabsLocalAxisAngleDeg === -90 &&
+            memberAuditResult.sharedModel.rectangularColumn.analyticalCardinalPoint === 5 &&
             memberAuditResult.sharedModel.rectangularColumn.memberStatus === 'existing_for_assessment' &&
             memberAuditResult.sharedModel.squareColumn.section === 'C150x150' &&
             memberAuditResult.sharedModel.beam.section === 'B150x175' &&
             memberAuditResult.sharedModel.beam.memberStatus === 'proposed_new' &&
             memberAuditResult.sharedModel.sections.C150x400?.b === 150 &&
             memberAuditResult.sharedModel.sections.C150x400?.h === 400 &&
+            memberAuditResult.sharedModel.sections.C150x400?.etabsT2 === 400 &&
+            memberAuditResult.sharedModel.sections.C150x400?.etabsT3 === 150 &&
             memberAuditResult.sharedModel.sections.C150x150?.b === 150 &&
             memberAuditResult.sharedModel.sections.C150x150?.h === 150 &&
+            memberAuditResult.sharedModel.sections.C150x150?.etabsT2 === 150 &&
+            memberAuditResult.sharedModel.sections.C150x150?.etabsT3 === 150 &&
             memberAuditResult.sharedModel.sections.B150x175?.b === 150 &&
-            memberAuditResult.sharedModel.sections.B150x175?.h === 175,
+            memberAuditResult.sharedModel.sections.B150x175?.h === 175 &&
+            memberAuditResult.sharedModel.sections.B150x175?.etabsT2 === 150 &&
+            memberAuditResult.sharedModel.sections.B150x175?.etabsT3 === 175,
             'Shared solver model did not preserve exact section truth',
             memberAuditResult.sharedModel
         );
@@ -2864,6 +3559,9 @@ async function runBrowserSmoke(historicalFixture) {
             memberAuditResult.exports.etabsRectangularColumn?.orientationDeg === 90 &&
             memberAuditResult.exports.etabsBeam?.section === 'B150x175' &&
             memberAuditResult.exports.etabsHasLocalAxesCommand &&
+            memberAuditResult.exports.etabsHasCanonicalNodePolicy &&
+            memberAuditResult.exports.etabsHasExplicitSectionAxisMapping &&
+            memberAuditResult.exports.etabsHasReflectedOrientation &&
             memberAuditResult.exports.ifcHasExactSections &&
             memberAuditResult.exports.ifcHasOrientation &&
             memberAuditResult.exports.ifcHasMemberStatus &&
@@ -2925,7 +3623,7 @@ async function runBrowserSmoke(historicalFixture) {
             result.afterStairCreate.ifcAudit?.counts?.stairSlabs === 3 &&
             result.afterStairCreate.ifcAudit?.counts?.stairOpenings === 1 &&
             /^IFC2X3/i.test(result.afterStairCreate.ifcParser?.schema || '') &&
-            result.afterStairCreate.ifcParser?.counts?.IfcOpeningElement === 1 &&
+            result.afterStairCreate.ifcParser?.counts?.openings === 1 &&
             result.afterStairCreate.ifcHasStairTypes &&
             result.afterStairCreate.solverGates?.staad?.blocked &&
             /stair integration/i.test(result.afterStairCreate.solverGates.staad.message) &&
@@ -3150,7 +3848,7 @@ async function runBrowserSmoke(historicalFixture) {
             result.dxfLayerAudit.crlfOnly === true &&
             result.dxfLayerAudit.packageAudit.dxfVersion === 'AC1009' &&
             result.dxfLayerAudit.packageAudit.lineEnding === 'CRLF' &&
-            result.dxfLayerAudit.packageAudit.build === 'FS-119' &&
+            result.dxfLayerAudit.packageAudit.build === 'FS-124-RC1' &&
             result.dxfLayerAudit.packageAudit.writerBuild === 'FS-119-DXF-1',
             'DXF envelope or app/writer provenance is inconsistent',
             result.dxfLayerAudit
@@ -3484,13 +4182,13 @@ async function runBrowserSmoke(historicalFixture) {
             revisionProtection.destructive.some(item => item.includes('voids')) &&
             revisionProtection.invalidHealth.valid === false &&
             revisionProtection.rowCount >= 1 &&
-            revisionProtection.releaseVersion === '3.16.119' &&
-            revisionProtection.releaseBuildId === 'FS-119' &&
+            revisionProtection.releaseVersion === '3.16.124-rc.1' &&
+            revisionProtection.releaseBuildId === 'FS-124-RC1' &&
             revisionProtection.schemaVersion === '0.2.0' &&
             revisionProtection.normalSaveAudit.writtenBytes > 0 &&
             /^model-revision-/.test(revisionProtection.normalSaveAudit.revisionId) &&
             revisionProtection.normalSaveAudit.parentRevisionId === 'qa-protected-baseline' &&
-            revisionProtection.normalSaveAudit.releaseBuildId === 'FS-119' &&
+            revisionProtection.normalSaveAudit.releaseBuildId === 'FS-124-RC1' &&
             revisionProtection.normalSaveAudit.protectedCount >= 3 &&
             revisionProtection.normalSaveAudit.preOverwriteCount >= 2 &&
             revisionProtection.downloadAudit?.filename.endsWith('.fstr') &&
@@ -3678,7 +4376,7 @@ async function runBrowserSmoke(historicalFixture) {
                     validateProjectData({
                         ...cloneSerializable(regularFixture, {}),
                         schemaVersion: '0.2.0',
-                        compatibility: { minimumAppVersion: '3.16.120' }
+                        compatibility: { minimumAppVersion: '999.0.0' }
                     });
                     futureSchemaAudit.minimumAppRejected = false;
                     futureSchemaAudit.minimumAppMessage = '';
@@ -4071,6 +4769,318 @@ async function runBrowserSmoke(historicalFixture) {
             columnSegmentTruth.terminated
         );
 
+        const verticalDatumFoundation = await tab.evaluate(`(() => {
+            const fixture = ${serializedVerticalDatumFixture};
+            const project = fixture.project;
+            state.xSpans = [4, 4];
+            state.ySpans = [5, 5];
+            state.cantilevers = {
+                top: [0, 0],
+                bottom: [0, 0],
+                left: [0, 0],
+                right: [0, 0]
+            };
+            state.floors = fixture.floors.map(floor => createFloor(
+                floor.id,
+                floor.name,
+                state.xSpans.length,
+                state.ySpans.length,
+                {
+                    height: floor.height,
+                    storeyHeight: floor.storeyHeight,
+                    elevation: floor.elevation,
+                    elevationMode: floor.elevationMode,
+                    isRoof: floor.isRoof,
+                    dlSuper: floor.isRoof ? 1.5 : 2,
+                    liveLoad: floor.isRoof ? 1 : 2,
+                    slabThickness: floor.isRoof ? 120 : 150,
+                    wallLoad: floor.isRoof ? 0 : 6
+                }
+            ));
+            state.currentFloorIndex = 0;
+            state.gfSuspended = true;
+            state.gradeElevation = project.gradeElevation;
+            state.groundFloorElevation = project.groundFloorElevation;
+            state.baseSupportElevation = project.baseSupportElevation;
+            state.footingDepth = project.footingDepth;
+            state.nominalFootingThickness = project.nominalFootingThickness;
+            state.footingElevationMode = project.footingElevationMode;
+            state.verticalDatums = { ...project };
+            state.foundationMode = 'plan';
+            state.columns = [];
+            state.beams = [];
+            state.slabs = [];
+            state.stairs = [];
+            state.nextStairId = 1;
+            state.beamSizeOverrides = {};
+            state.beamAlignmentOverrides = {};
+            state.columnPositionOverrides = {};
+            state.foundationTieBeamAlignmentOverrides = {};
+            state.columnPositionLocked = false;
+            currentProjectId = 'qa-fs123-raised-gf';
+            currentProjectRevisionId = 'qa-fs123-raised-gf-r1';
+            calculate();
+            const beforeSave = getVerticalDatumContract();
+            const saved = buildProjectData({ revisionId: currentProjectRevisionId });
+
+            applyLoadedProject(saved, 'qa-fs123-raised-gf.fstr', {
+                silent: true,
+                skipAutosave: true,
+                quarantineHiddenGeometry: true
+            });
+            calculate();
+            const afterReload = getVerticalDatumContract();
+            if (!view3DInitialized && typeof init3D === 'function') init3D();
+            render3DFrame();
+            const threeD = cloneSerializable(window.last3DModelDiagnostics, {});
+            const gfColumnMesh = meshes3D.find(mesh =>
+                mesh?.userData?.type === 'column' && mesh.userData.floorId === 'GF'
+            );
+            const footingMesh = meshes3D.find(mesh => mesh?.userData?.type === 'footing');
+            const pedestalMesh = meshes3D.find(mesh => mesh?.userData?.type === 'pedestal');
+            const tieBeamMesh = meshes3D.find(mesh => mesh?.userData?.type === 'tieBeam');
+
+            const model = collectCSIExportModelData();
+            const staad = generateSTAADContent(model);
+            const etabs = generateETABSOAPIScript(model);
+            const marker = "FromBase64String('";
+            const encodedStart = etabs.indexOf(marker);
+            const encodedEnd = encodedStart >= 0
+                ? etabs.indexOf("')", encodedStart + marker.length)
+                : -1;
+            const encodedModel = encodedStart >= 0 && encodedEnd > encodedStart
+                ? etabs.slice(encodedStart + marker.length, encodedEnd)
+                : '';
+            const etabsModel = encodedModel
+                ? JSON.parse(new TextDecoder().decode(Uint8Array.from(
+                    atob(encodedModel),
+                    character => character.charCodeAt(0)
+                )))
+                : null;
+            const ifc = generateIFCContent(model);
+            window.__fsQaVerticalDatumIFC = ifc;
+            const ifcAudit = cloneSerializable(window.lastIFCExportAudit, {});
+            const dxf = generateDXFContent();
+
+            let reportHtml = '';
+            const originalOpen = window.open;
+            window.open = () => ({
+                document: {
+                    write: html => { reportHtml += String(html); },
+                    close: () => {}
+                },
+                print: () => {}
+            });
+            try {
+                generatePDFReport();
+            } finally {
+                window.open = originalOpen;
+            }
+
+            setView('3d');
+            return {
+                fixtureId: fixture.fixtureId,
+                beforeSave: cloneSerializable(beforeSave, {}),
+                saved: {
+                    gradeElevation: saved.gradeElevation,
+                    groundFloorElevation: saved.groundFloorElevation,
+                    baseSupportElevation: saved.baseSupportElevation,
+                    footingDepth: saved.footingDepth,
+                    verticalDatums: saved.verticalDatums,
+                    floors: saved.floors.map(floor => ({
+                        id: floor.id,
+                        elevation: floor.elevation,
+                        storeyHeight: floor.storeyHeight,
+                        elevationMode: floor.elevationMode
+                    }))
+                },
+                afterReload: cloneSerializable(afterReload, {}),
+                threeD: {
+                    diagnostics: threeD,
+                    gfColumn: cloneSerializable(gfColumnMesh?.userData?.member, null),
+                    footing: cloneSerializable(footingMesh?.userData?.member, null),
+                    pedestal: cloneSerializable(pedestalMesh?.userData?.member, null),
+                    tieBeam: cloneSerializable(tieBeamMesh?.userData?.member, null)
+                },
+                model: {
+                    levels: cloneSerializable(model.levels, []),
+                    verticalDatums: cloneSerializable(model.verticalDatums, {}),
+                    counts: cloneSerializable(model.counts, {}),
+                    firstGFColumn: cloneSerializable(
+                        model.columns.find(column => column.floorId === 'GF'),
+                        null
+                    ),
+                    firstFooting: cloneSerializable(model.foundation?.footings?.[0], null),
+                    firstPedestal: cloneSerializable(model.foundation?.pedestals?.[0], null),
+                    firstTieBeam: cloneSerializable(model.foundation?.tieBeams?.[0], null)
+                },
+                exports: {
+                    staadHasBaseJoint: staad.includes(
+                        ' ' + fixture.expected.baseSupportElevation.toFixed(6) + ' '
+                    ),
+                    etabsDecoded: !!etabsModel,
+                    etabsVerticalDatums: cloneSerializable(etabsModel?.verticalDatums, null),
+                    etabsLevels: cloneSerializable(etabsModel?.levels, []),
+                    etabsUsesGovernedBase: etabs.includes('$model.verticalDatums.baseSupportElevation'),
+                    ifcAudit,
+                    ifcHasFoundationTypes:
+                        ifc.includes('IFCFOOTING(') &&
+                        ifc.includes("'Pedestal'") &&
+                        ifc.includes("'Foundation Tie Beam'"),
+                    ifcHasObjectMetadata:
+                        ifc.includes("'FS_SupportedColumnId'") &&
+                        ifc.includes("'FS_ProjectId'") &&
+                        ifc.includes("'FS_RevisionId'") &&
+                        ifc.includes("'FS_BuildId'"),
+                    dxfHasDatums:
+                        dxf.includes(
+                            fixture.expected.gradeElevation.toFixed(3) + ' / ' +
+                            fixture.expected.baseSupportElevation.toFixed(3) + ' m'
+                        ) &&
+                        dxf.includes(fixture.expected.groundFloorElevation.toFixed(3) + ' m') &&
+                        dxf.includes('GF ' + fixture.expected.floorLevels.GF.toFixed(3)) &&
+                        dxf.includes('2F ' + fixture.expected.floorLevels['2F'].toFixed(3)) &&
+                        dxf.includes('RF ' + fixture.expected.floorLevels.RF.toFixed(3)),
+                    reportHasDatums:
+                        reportHtml.includes(fixture.expected.gradeElevation.toFixed(3) + ' m') &&
+                        reportHtml.includes(fixture.expected.baseSupportElevation.toFixed(3) + ' m') &&
+                        reportHtml.includes(fixture.expected.groundFloorElevation.toFixed(3) + ' m') &&
+                        reportHtml.includes(
+                            'GF ' + fixture.expected.floorLevels.GF.toFixed(3) +
+                            ' m; 2F ' + fixture.expected.floorLevels['2F'].toFixed(3) +
+                            ' m; RF ' + fixture.expected.floorLevels.RF.toFixed(3) + ' m'
+                        )
+                }
+            };
+        })()`);
+        await wait(250);
+        await tab.screenshot(verticalDatum3DScreenshotPath);
+        const verticalDatumIFC = await tab.evaluate('window.__fsQaVerticalDatumIFC || ""');
+        const expectedVerticalLevels = Object.entries(
+            JSON.parse(serializedVerticalDatumFixture).expected.floorLevels
+        ).map(([name, elevation]) => ({ name, elevation }));
+        expectedVerticalLevels.unshift({
+            name: 'BASE/FOUNDATION',
+            elevation: JSON.parse(serializedVerticalDatumFixture).expected.baseSupportElevation
+        });
+        const verticalDatumIfcParser = validateIfcWithIfcOpenShell(
+            verticalDatumIFC,
+            'fs123-raised-gf-foundation',
+            { expectedLevels: expectedVerticalLevels, exactLevelSet: true }
+        );
+        verticalDatumFoundation.exports.ifcParser = verticalDatumIfcParser;
+        await tab.evaluate('window.__fsQaVerticalDatumIFC = ""');
+
+        const verticalFixture = JSON.parse(serializedVerticalDatumFixture);
+        const expectedVertical = verticalFixture.expected;
+        const closeVertical = (actual, expected) =>
+            Math.abs(Number(actual) - Number(expected)) <= 1e-6;
+        assert(
+            verticalDatumFoundation.fixtureId === verticalFixture.fixtureId &&
+            verticalDatumFoundation.beforeSave.valid &&
+            verticalDatumFoundation.afterReload.valid &&
+            closeVertical(verticalDatumFoundation.afterReload.gradeElevation, expectedVertical.gradeElevation) &&
+            closeVertical(verticalDatumFoundation.afterReload.groundFloorElevation, expectedVertical.groundFloorElevation) &&
+            closeVertical(verticalDatumFoundation.afterReload.baseSupportElevation, expectedVertical.baseSupportElevation) &&
+            closeVertical(verticalDatumFoundation.afterReload.footingBottomElevation, expectedVertical.footingBottomElevation) &&
+            closeVertical(verticalDatumFoundation.afterReload.footingTopElevation, expectedVertical.footingTopElevation) &&
+            Object.entries(expectedVertical.floorLevels).every(([floorId, elevation]) =>
+                closeVertical(
+                    verticalDatumFoundation.afterReload.floorLevels.find(level => level.id === floorId)?.elevation,
+                    elevation
+                )
+            ),
+            'Raised-GF vertical datum contract did not survive save/load',
+            verticalDatumFoundation
+        );
+        assert(
+            closeVertical(verticalDatumFoundation.threeD.gfColumn?.bottomElevation, expectedVertical.baseSupportElevation) &&
+            closeVertical(verticalDatumFoundation.threeD.gfColumn?.topElevation, expectedVertical.groundFloorElevation) &&
+            closeVertical(verticalDatumFoundation.threeD.footing?.bottomElevation, expectedVertical.footingBottomElevation) &&
+            closeVertical(verticalDatumFoundation.threeD.footing?.topElevation, expectedVertical.footingTopElevation) &&
+            closeVertical(verticalDatumFoundation.threeD.pedestal?.bottomElevation, expectedVertical.footingTopElevation) &&
+            closeVertical(verticalDatumFoundation.threeD.pedestal?.topElevation, expectedVertical.baseSupportElevation) &&
+            closeVertical(verticalDatumFoundation.threeD.tieBeam?.bottomElevation, expectedVertical.footingTopElevation) &&
+            verticalDatumFoundation.threeD.diagnostics.beamSlabTopAligned === true &&
+            verticalDatumFoundation.threeD.diagnostics.foundationCenterlineMaxDeltaM < 1e-9,
+            '3D columns, slabs, footings, pedestals, or tie beams do not use the governed datums',
+            verticalDatumFoundation.threeD
+        );
+        assert(
+            Object.entries(expectedVertical.counts).every(([name, count]) =>
+                verticalDatumFoundation.model.counts[name] === count
+            ) &&
+            closeVertical(verticalDatumFoundation.model.firstGFColumn?.z1, expectedVertical.baseSupportElevation) &&
+            closeVertical(verticalDatumFoundation.model.firstGFColumn?.z2, expectedVertical.groundFloorElevation) &&
+            closeVertical(verticalDatumFoundation.model.firstFooting?.bottomElevation, expectedVertical.footingBottomElevation) &&
+            closeVertical(verticalDatumFoundation.model.firstFooting?.topElevation, expectedVertical.footingTopElevation) &&
+            closeVertical(verticalDatumFoundation.model.firstPedestal?.topElevation, expectedVertical.baseSupportElevation) &&
+            closeVertical(verticalDatumFoundation.model.firstTieBeam?.bottomElevation, expectedVertical.footingTopElevation),
+            'Shared export model or foundation counts diverged from the frozen datum fixture',
+            verticalDatumFoundation.model
+        );
+        assert(
+            verticalDatumFoundation.exports.staadHasBaseJoint &&
+            verticalDatumFoundation.exports.etabsDecoded &&
+            verticalDatumFoundation.exports.etabsUsesGovernedBase &&
+            closeVertical(
+                verticalDatumFoundation.exports.etabsVerticalDatums?.baseSupportElevation,
+                expectedVertical.baseSupportElevation
+            ) &&
+            verticalDatumFoundation.exports.ifcHasFoundationTypes &&
+            verticalDatumFoundation.exports.ifcHasObjectMetadata &&
+            verticalDatumFoundation.exports.dxfHasDatums &&
+            verticalDatumFoundation.exports.reportHasDatums &&
+            verticalDatumFoundation.exports.ifcParser.ok === true &&
+            verticalDatumFoundation.exports.ifcParser.schemaValidationStatements === 0 &&
+            Object.entries(expectedVertical.counts).every(([name, count]) =>
+                name === 'stories'
+                    ? verticalDatumFoundation.exports.ifcParser.counts.storeys === expectedVertical.counts.levels
+                    : name === 'levels'
+                        ? verticalDatumFoundation.exports.ifcParser.counts.storeys === count
+                        : ['columns', 'beams', 'slabs', 'footings', 'pedestals', 'tieBeams'].includes(name)
+                            ? verticalDatumFoundation.exports.ifcParser.counts[name] === count
+                            : true
+            ),
+            'STAAD, ETABS, IFC, DXF, or report datum parity failed',
+            verticalDatumFoundation.exports
+        );
+
+        let fs123AcceptanceArtifacts = null;
+        if (fs123OutputDir) {
+            const resolvedOutputDir = path.resolve(fs123OutputDir);
+            const dateStamp = new Date().toISOString().slice(0, 10);
+            const artifactStem = `FS123_RaisedGF_Foundation_${dateStamp}`;
+            const ifcArtifactPath = path.join(resolvedOutputDir, `${artifactStem}.ifc`);
+            const screenshotArtifactPath = path.join(resolvedOutputDir, `${artifactStem}_3D.png`);
+            const evidenceArtifactPath = path.join(resolvedOutputDir, `${artifactStem}_evidence.json`);
+            fs.mkdirSync(resolvedOutputDir, { recursive: true });
+            fs.writeFileSync(ifcArtifactPath, verticalDatumIFC, 'utf8');
+            fs.copyFileSync(verticalDatum3DScreenshotPath, screenshotArtifactPath);
+            const evidence = {
+                acceptanceId: 'FS-IFC-LEVELS-001',
+                generatedAt: new Date().toISOString(),
+                fixturePath: VERTICAL_DATUM_FOUNDATION_BASELINE,
+                fixtureSha256: sha256File(VERTICAL_DATUM_FOUNDATION_BASELINE),
+                ifcPath: ifcArtifactPath,
+                ifcSha256: sha256File(ifcArtifactPath),
+                screenshotPath: screenshotArtifactPath,
+                screenshotSha256: sha256File(screenshotArtifactPath),
+                expected: verticalFixture.expected,
+                result: verticalDatumFoundation
+            };
+            fs.writeFileSync(evidenceArtifactPath, JSON.stringify(evidence, null, 2) + '\n', 'utf8');
+            fs123AcceptanceArtifacts = {
+                outputDir: resolvedOutputDir,
+                ifcPath: ifcArtifactPath,
+                ifcSha256: evidence.ifcSha256,
+                screenshotPath: screenshotArtifactPath,
+                screenshotSha256: evidence.screenshotSha256,
+                evidencePath: evidenceArtifactPath,
+                evidenceSha256: sha256File(evidenceArtifactPath)
+            };
+        }
+
         const relevantLogs = tab.logs.filter(log => ['error', 'warning', 'exception'].includes(log.type));
         return {
             result,
@@ -4079,9 +5089,12 @@ async function runBrowserSmoke(historicalFixture) {
             afterReload,
             revisionProtection,
             columnSegmentTruth,
+            verticalDatumFoundation,
             screenshotPath,
             stair3DScreenshotPath,
             revisionScreenshotPath,
+            verticalDatum3DScreenshotPath,
+            fs123AcceptanceArtifacts,
             relevantLogs
         };
     } finally {
@@ -4146,6 +5159,8 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                 if (overrides.length !== totalColumns) return totalColumns;
                 return overrides.filter(override => {
                     if (override.activePerFloor) return override.activePerFloor[floorId] !== false;
+                    const segmentOverride = override.segmentOverrides && override.segmentOverrides[floorId];
+                    if (segmentOverride && segmentOverride.active === false) return false;
                     return override.active !== false;
                 }).length;
             })();
@@ -4168,6 +5183,7 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
             const floorSummaries = state.floors.map(floor => ({
                 id: floor.id,
                 typicalFromLower: !!floor.typicalFromLower,
+                edgeBeamDefaults: getFloorEdgeBeamDefaults(floor.id),
                 cantCounts: {
                     top: (floor.cantilevers?.top || []).length,
                     right: (floor.cantilevers?.right || []).length,
@@ -4322,25 +5338,180 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                 ? csiExportModel.columns.find(column =>
                     column.floorId === state.floors[0]?.id && column.sourceId === orientationSourceColumn.id)
                 : null;
+            const storyElevationByFloor = new Map(csiExportModel.stories.map(story => [
+                story.sourceFloorId || story.id,
+                Number(story.elevation)
+            ]));
+            const beamLevelMatchesFSTR = csiExportModel.beams.every(beam =>
+                storyElevationByFloor.has(beam.floorId) &&
+                Math.abs(Number(beam.z) - storyElevationByFloor.get(beam.floorId)) <= 0.000001 &&
+                Math.abs(Number(beam.floorElevationM) - storyElevationByFloor.get(beam.floorId)) <= 0.000001 &&
+                Math.abs(Number(beam.beamTopElevationM) - storyElevationByFloor.get(beam.floorId)) <= 0.000001 &&
+                Number(beam.analyticalCardinalPoint) === 8
+            );
+            const slabLevelMatchesFSTR = csiExportModel.slabs.every(slab =>
+                storyElevationByFloor.has(slab.floorId) &&
+                Math.abs(Number(slab.z) - storyElevationByFloor.get(slab.floorId)) <= 0.000001 &&
+                Math.abs(Number(slab.floorElevationM) - storyElevationByFloor.get(slab.floorId)) <= 0.000001 &&
+                Math.abs(Number(slab.slabReferenceElevationM) - storyElevationByFloor.get(slab.floorId)) <= 0.000001
+            );
             const csiExportAudit = {
                 counts: csiExportModel.counts,
+                verticalDatums: csiExportModel.verticalDatums,
+                levels: csiExportModel.levels,
+                levelAlignment: {
+                    policy: csiExportModel.analyticalGeometry.levelPolicy,
+                    beamPolicy: csiExportModel.analyticalGeometry.beamLevelPolicy,
+                    slabPolicy: csiExportModel.analyticalGeometry.slabLevelPolicy,
+                    storyElevationsM: Object.fromEntries(storyElevationByFloor),
+                    beamCardinalPoint: [...new Set(csiExportModel.beams.map(beam => Number(beam.analyticalCardinalPoint)))],
+                    beamsAtFSTRLevel: beamLevelMatchesFSTR,
+                    slabsAtFSTRLevel: slabLevelMatchesFSTR,
+                    beamSlabLevelsSynchronized: beamLevelMatchesFSTR && slabLevelMatchesFSTR
+                },
                 coordinateTransform: csiExportModel.coordinateTransform,
+                gridDefinition: csiExportModel.gridDefinition,
+                sectionAxisMapping: csiExportModel.frameSections.map(section => ({
+                    name: section.name,
+                    type: section.type,
+                    fsBmm: section.bMm,
+                    fsHmm: section.hMm,
+                    etabsT2Mm: section.etabsT2Mm,
+                    etabsT3Mm: section.etabsT3Mm,
+                    policy: section.etabsSectionAxisPolicy
+                })),
                 slabCountsByFloor: csiExportModel.slabs.reduce((counts, slab) => {
                     counts[slab.floorId] = (counts[slab.floorId] || 0) + 1;
                     return counts;
                 }, {}),
+                edgeBeamAnalyticalJunctions: (() => {
+                    const samePoint = (a, b) => Math.abs(Number(a?.x) - Number(b?.x)) <= 0.001 &&
+                        Math.abs(Number(a?.y) - Number(b?.y)) <= 0.001;
+                    const sideBeamsByFloor = csiExportModel.beams
+                        .filter(beam => beam.type === 'cantilever')
+                        .reduce((byFloor, beam) => {
+                            (byFloor[beam.floorId] ||= []).push(beam);
+                            return byFloor;
+                        }, {});
+                    return csiExportModel.beams
+                        .filter(beam => beam.type === 'cantilever_edge')
+                        .map(edgeBeam => {
+                            const sideBeams = sideBeamsByFloor[edgeBeam.floorId] || [];
+                            const start = { x: edgeBeam.x1, y: edgeBeam.y1 };
+                            const end = { x: edgeBeam.x2, y: edgeBeam.y2 };
+                            return {
+                                id: edgeBeam.id,
+                                startConnected: sideBeams.some(side =>
+                                    samePoint(start, { x: side.x1, y: side.y1 }) ||
+                                    samePoint(start, { x: side.x2, y: side.y2 })
+                                ),
+                                endConnected: sideBeams.some(side =>
+                                    samePoint(end, { x: side.x1, y: side.y1 }) ||
+                                    samePoint(end, { x: side.x2, y: side.y2 })
+                                ),
+                                analyticalAxisPolicy: edgeBeam.analyticalAxisPolicy,
+                                drawingAxis: edgeBeam.drawingAxis
+                            };
+                        });
+                })(),
+                hasEdgeBeams: csiExportModel.beams.some(beam => beam.type === 'cantilever_edge'),
                 orientationProbe: {
                     sourceId: orientationSourceColumn?.id || '',
                     sourceY: orientationSourcePosition?.y ?? null,
                     solverY: orientationExportColumn?.y ?? null
                 },
+                columnPlacementParity: csiExportModel.columns.map(column => {
+                    const sourceColumn = state.columns.find(item => item.id === column.sourceId);
+                    const sourcePosition = sourceColumn ? getColumnPlanPosition(sourceColumn) : null;
+                    const expected = sourcePosition ? toSolverPlanPoint(sourcePosition.x, sourcePosition.y) : null;
+                    const actual = { x: Number(column.x) || 0, y: Number(column.y) || 0 };
+                    const delta = expected
+                        ? { x: actual.x - expected.x, y: actual.y - expected.y }
+                        : { x: null, y: null };
+                    return {
+                        id: column.id,
+                        sourceId: column.sourceId,
+                        floorId: column.floorId,
+                        sourcePlan: sourcePosition,
+                        expectedSolver: expected,
+                        exportedSolver: actual,
+                        delta,
+                        orientationDeg: Number(sourceColumn?.orientationDeg) || 0,
+                        etabsLocalAxisAngleDeg: Number(column.etabsLocalAxisAngleDeg) || 0,
+                        status: expected && Math.hypot(delta.x, delta.y) <= 0.000001
+                            ? 'MATCH'
+                            : 'REVIEW'
+                    };
+                }),
                 frameSections: csiExportModel.frameSections.length,
                 slabSections: csiExportModel.slabSections.length,
                 scriptLength: etabsScript.length,
+                foundation: csiExportModel.foundation,
+                foundationHandoff: csiExportModel.foundationHandoff,
                 hasSetStories: etabsScript.includes('SetStories_2'),
                 hasSaveEdb: etabsScript.includes('Save EDB'),
                 hasNativeE2k: etabsScript.includes('Export native E2K'),
                 hasFixedSupports: etabsScript.includes('SetRestraint'),
+                hasCanonicalAnalyticalPointRegistry:
+                    etabsScript.includes('Get-OrCreateAnalyticalPoint') &&
+                    etabsScript.includes('FrameObj.AddByPoint') &&
+                    etabsScript.includes('pointByCoordinate'),
+                hasStableNativeFrameNames:
+                    etabsScript.includes('FrameObj.ChangeName') &&
+                    etabsScript.includes("$nativeName = 'C-' + [string]$column.id") &&
+                    etabsScript.includes("$nativeName = 'B-' + [string]$beam.id"),
+                hasNativeAreaReconciliation:
+                    etabsScript.includes('Get-FutolNativeAreaRecords') &&
+                    etabsScript.includes('$nativeAreasByStory') &&
+                    etabsScript.includes('$nativeAreaOrdinalByStory'),
+                hasNativeGeometryReadback:
+                    etabsScript.includes('Get-FutolNativeFrameGeometry') &&
+                    etabsScript.includes('Compare-FutolFrameGeometry') &&
+                    etabsScript.includes('$nativeGeometryAudit'),
+                hasNativeFrameParity:
+                    etabsScript.includes('Compare-FutolAngle') &&
+                    etabsScript.includes('Get-FutolAngleDelta') &&
+                    etabsScript.includes('$nativeFrameParityFailures') &&
+                    etabsScript.includes('$columnPlacementParityAudit') &&
+                    etabsScript.includes('columnPlacementParity = [ordered]@{'),
+                hasUnifiedColumnationParity:
+                    etabsScript.includes('$columnationParityAudit') &&
+                    etabsScript.includes('$columnationParityFailures') &&
+                    etabsScript.includes('columnationParity = [ordered]@{') &&
+                    etabsScript.includes('CSI rectangle T3 depth lies along local 2') &&
+                    etabsScript.includes('localAxisVectors = $axisVectorMatch'),
+                hasExplicitFrameInsertionPoints:
+                    etabsScript.includes('SetInsertionPoint_1') &&
+                    etabsScript.includes('CardinalPoint'),
+                hasBeamTopCenterCardinalPoint:
+                    etabsScript.includes("beamCardinalPoint = if ($null -ne $beam.analyticalCardinalPoint) { [int]$beam.analyticalCardinalPoint } else { 8 }") &&
+                    etabsScript.includes('Beam insertion point'),
+                hasFSTRStoryLevelContract:
+                    etabsScript.includes('Assert-FutolVerticalLevelContract') &&
+                    etabsScript.includes('$levelContractAudit') &&
+                    etabsScript.includes('FSTR vertical level contract failed before ETABS creation') &&
+                    beamLevelMatchesFSTR &&
+                    slabLevelMatchesFSTR,
+                hasNativeBeamSlabLevelAudit:
+                    etabsScript.includes('Get-FutolNativeAreaGeometry') &&
+                    etabsScript.includes('$nativeBeamLevelAudit') &&
+                    etabsScript.includes('$nativeSlabLevelAudit') &&
+                    etabsScript.includes('$nativeLevelAudit'),
+                hasColumnCentroidCardinalPoint:
+                    etabsScript.includes("columnCardinalPoint = if ($null -ne $column.analyticalCardinalPoint) { [int]$column.analyticalCardinalPoint } else { 5 }") &&
+                    etabsScript.includes('Column insertion point'),
+                hasReflectedColumnLocalAxes:
+                    etabsScript.includes('etabsLocalAxisAngleDeg') &&
+                    etabsScript.includes('Column local axes'),
+                hasExplicitSectionAxisMapping:
+                    etabsScript.includes('etabsT3Mm') &&
+                    etabsScript.includes('etabsT2Mm') &&
+                    etabsScript.includes('columnSectionAxisPolicy') &&
+                    etabsScript.includes('beamSectionAxisPolicy'),
+                hasNativeGridRoundTrip:
+                    etabsScript.includes('Set-FutolE2KGridDefinitions') &&
+                    etabsScript.includes('Grid Definitions') &&
+                    etabsScript.includes('Reopen native E2K with FutolStructure grid definition'),
                 hasRigidDiaphragm: etabsScript.includes("GetDiaphragm('D1', [ref]$d1SemiRigid)") &&
                     etabsScript.includes("SetDiaphragm('D1', $false)") &&
                     etabsScript.includes("AreaObj.SetDiaphragm($name, 'D1')"),
@@ -4354,6 +5525,14 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                     etabsScript.includes("_modal_participation.csv") &&
                     etabsScript.includes("Get-CSITable 'Mass Source Definition'") &&
                     etabsScript.includes("Get-CSITable 'Mass Summary by Diaphragm'"),
+                hasFoundationPolicy: etabsScript.includes('$foundationGeometryInETABS = $false') &&
+                    etabsScript.includes('$baseSupportRestraintsInETABS = $true') &&
+                    etabsScript.includes('geometryExportedToETABS') &&
+                    etabsScript.includes('geometryHandoff'),
+                hasRoundTripAudit: etabsScript.includes("roundTripContract = 'FutolStructure.SolverRoundTrip.v1'") &&
+                    etabsScript.includes('verticalDatums = $model.verticalDatums') &&
+                    etabsScript.includes('levels = @($model.levels)') &&
+                    etabsScript.includes('provenance = $model.provenance'),
                 wallLoadValuesByFloor: csiExportModel.beams.reduce((values, beam) => {
                     if (!(Number(beam.wallLoad) > 0)) return values;
                     if (!values[beam.floorId]) values[beam.floorId] = [];
@@ -4374,6 +5553,31 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                     exportToSAFEViaETABS.toString().includes('Story as SAFE V12 .f2k File'),
                 hasAreaLoads: etabsScript.includes('SetLoadUniform')
             };
+            const solverRoundTripRecord = importETABSAuditData({
+                roundTripContract: 'FutolStructure.SolverRoundTrip.v1',
+                stories: csiExportModel.counts.stories,
+                columns: csiExportModel.counts.columns,
+                beams: csiExportModel.counts.beams,
+                slabs: csiExportModel.counts.slabs,
+                frameObjectsInETABS: csiExportModel.counts.columns + csiExportModel.counts.beams,
+                areaObjectsInETABS: csiExportModel.counts.slabs,
+                levels: csiExportModel.levels,
+                verticalDatums: csiExportModel.verticalDatums,
+                provenance: csiExportModel.provenance,
+                foundation: csiExportModel.foundationHandoff,
+                analysisReturn: 0,
+                modalModes: []
+            }, 'qa-generated-etabs-audit.json');
+            const solverRoundTripAudit = {
+                status: solverRoundTripRecord.comparison.status,
+                warningCount: solverRoundTripRecord.comparison.warnings.length,
+                noteCount: solverRoundTripRecord.comparison.notes.length,
+                levelStatus: solverRoundTripRecord.comparison.levels.status,
+                countStatuses: Object.fromEntries(Object.entries(solverRoundTripRecord.comparison.counts)
+                    .map(([key, item]) => [key, item.status])),
+                noAutoApply: true
+            };
+            closeSolverRoundTrip();
             const staadExportAudit = {
                 ...window.lastSTAADExportAudit,
                 contentLength: staadContent.length,
@@ -4508,6 +5712,7 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                 foundationPlanRestored,
                 display3DControlAudit,
                 csiExportAudit,
+                solverRoundTripAudit,
                 staadExportAudit,
                 ifcExportAudit,
                 floors: floorSummaries,
@@ -4520,10 +5725,48 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
 
         assert(result.title === 'FutolStructure | Structural Engineering', 'Project smoke loaded the wrong app identity', result);
         assert(!result.initError, 'Project smoke showed Init error after loading project', result);
-        assert(result.grid[0] === 4 && result.grid[1] === 3, 'Olango project did not load as a 4x3 grid', result);
-        assert(result.inputs.top === 4 && result.inputs.bottom === 4 && result.inputs.left === 3 && result.inputs.right === 3, 'Olango cantilever dashboard inputs did not match the loaded grid', result);
-        assert(result.columns === 20 && result.visibleColumns === result.expectedVisibleColumns, 'Olango project visible columns do not match saved column overrides after load', result);
-        assert(result.regularSlabs === 12, 'Olango project did not generate all 12 regular slab records after load', result);
+        const expectedGrid = [
+            Array.isArray(projectData.xSpans) ? projectData.xSpans.length : 4,
+            Array.isArray(projectData.ySpans) ? projectData.ySpans.length : 3
+        ];
+        const expectedColumnCount = (expectedGrid[0] + 1) * (expectedGrid[1] + 1);
+        const expectedRegularSlabCount = expectedGrid[0] * expectedGrid[1];
+        const legacyEdgeWidth = Number(projectData.defaultEdgeBeamB) > 0
+            ? Math.max(25, Math.min(1500, Math.round(Number(projectData.defaultEdgeBeamB))))
+            : 150;
+        const legacyEdgeDepthValue = Number(projectData.defaultEdgeBeamH);
+        const legacyEdgeDepth = Number.isFinite(legacyEdgeDepthValue) && legacyEdgeDepthValue >= 0
+            ? Math.max(0, Math.min(2000, Math.round(legacyEdgeDepthValue)))
+            : 0;
+        const expectedFloorEdgeDefaults = [];
+        (projectData.floors || []).forEach((floor, index) => {
+            if (index > 0 && floor.typicalFromLower) {
+                expectedFloorEdgeDefaults.push({ ...expectedFloorEdgeDefaults[index - 1] });
+                return;
+            }
+            const widthValue = Number(floor.defaultEdgeBeamB);
+            const depthValue = Number(floor.defaultEdgeBeamH);
+            expectedFloorEdgeDefaults.push({
+                b: Number.isFinite(widthValue) && widthValue > 0
+                    ? Math.max(25, Math.min(1500, Math.round(widthValue)))
+                    : legacyEdgeWidth,
+                h: Number.isFinite(depthValue) && depthValue >= 0 && floor.defaultEdgeBeamH != null
+                    ? Math.max(0, Math.min(2000, Math.round(depthValue)))
+                    : legacyEdgeDepth
+            });
+        });
+        assert(result.grid[0] === expectedGrid[0] && result.grid[1] === expectedGrid[1], 'Project smoke did not load the saved grid', { expectedGrid, result });
+        assert(result.inputs.top === expectedGrid[0] && result.inputs.bottom === expectedGrid[0] && result.inputs.left === expectedGrid[1] && result.inputs.right === expectedGrid[1], 'Project cantilever dashboard inputs did not match the loaded grid', { expectedGrid, result });
+        assert(result.columns === expectedColumnCount && result.visibleColumns === result.expectedVisibleColumns, 'Project visible columns do not match saved column overrides after load', { expectedColumnCount, result });
+        assert(result.regularSlabs === expectedRegularSlabCount, 'Project did not generate all regular slab records after load', { expectedRegularSlabCount, result });
+        assert(
+            result.floors.every((floor, index) =>
+                floor.edgeBeamDefaults?.b === expectedFloorEdgeDefaults[index]?.b &&
+                floor.edgeBeamDefaults?.h === expectedFloorEdgeDefaults[index]?.h
+            ),
+            'Project edge-beam defaults did not preserve per-floor values or migrate the legacy project default',
+            { expectedFloorEdgeDefaults, floors: result.floors }
+        );
         assert(
             result.csiExportAudit.counts.stories === projectData.floors.length &&
             result.csiExportAudit.counts.columns > 0 &&
@@ -4539,13 +5782,62 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
             result.csiExportAudit.hasRigidDiaphragm &&
             result.csiExportAudit.hasGovernedMassSource &&
             result.csiExportAudit.hasAutomatedModalAudit &&
+            result.csiExportAudit.hasFoundationPolicy &&
+            result.csiExportAudit.hasRoundTripAudit &&
+            result.csiExportAudit.hasNativeGridRoundTrip &&
+            result.csiExportAudit.hasStableNativeFrameNames &&
+            result.csiExportAudit.hasNativeAreaReconciliation &&
+            result.csiExportAudit.hasNativeGeometryReadback &&
+            result.csiExportAudit.hasNativeFrameParity &&
+            result.csiExportAudit.hasUnifiedColumnationParity &&
+            result.csiExportAudit.hasBeamTopCenterCardinalPoint &&
+            result.csiExportAudit.hasFSTRStoryLevelContract &&
+            result.csiExportAudit.hasNativeBeamSlabLevelAudit &&
+            result.csiExportAudit.levelAlignment?.beamsAtFSTRLevel &&
+            result.csiExportAudit.levelAlignment?.slabsAtFSTRLevel &&
+            result.csiExportAudit.levelAlignment?.beamSlabLevelsSynchronized &&
+            result.csiExportAudit.gridDefinition?.xLines?.length === expectedGrid[0] + 1 &&
+            result.csiExportAudit.gridDefinition?.yLines?.length === expectedGrid[1] + 1 &&
+            result.csiExportAudit.sectionAxisMapping?.some(section =>
+                section.type === 'column' &&
+                section.fsBmm === section.etabsT3Mm &&
+                section.fsHmm === section.etabsT2Mm
+            ) &&
+            result.csiExportAudit.sectionAxisMapping?.some(section =>
+                section.type === 'beam' &&
+                section.fsHmm === section.etabsT3Mm &&
+                section.fsBmm === section.etabsT2Mm
+            ) &&
+            (!result.csiExportAudit.hasEdgeBeams ||
+                result.csiExportAudit.edgeBeamAnalyticalJunctions?.length > 0) &&
+            result.csiExportAudit.edgeBeamAnalyticalJunctions.every(junction =>
+                junction.startConnected &&
+                junction.endConnected &&
+                junction.analyticalAxisPolicy === 'cantilever-side-beam-centerline-joints; top-center cardinal at FSTR floor elevation; drawingAxis face-terminated'
+            ) &&
+            result.csiExportAudit.columnPlacementParity?.length === result.csiExportAudit.counts.columns &&
+            result.csiExportAudit.columnPlacementParity.every(item => item.status === 'MATCH') &&
+            result.csiExportAudit.foundationHandoff?.geometryExportedToETABS === false &&
+            result.csiExportAudit.foundationHandoff?.baseSupportRestraintsExportedToETABS === true &&
+            result.csiExportAudit.foundationHandoff?.geometryHandoff === 'IFC / SAFE / STAAD Foundation' &&
             result.csiExportAudit.beamInsertion.offsetCount > 0 &&
             result.csiExportAudit.beamInsertion.validTopAlignment &&
-            JSON.stringify(result.csiExportAudit.beamInsertion.policies) === JSON.stringify(['support-centerline-at-slab-midplane']) &&
+            result.csiExportAudit.beamInsertion.policies.includes('support-centerline-joints; top-center cardinal at FSTR floor elevation') &&
+            (!result.csiExportAudit.hasEdgeBeams ||
+                result.csiExportAudit.beamInsertion.policies.includes('cantilever-side-beam-centerline-joints; top-center cardinal at FSTR floor elevation; drawingAxis face-terminated')) &&
             result.csiExportAudit.hasSafeHandoff &&
             result.csiExportAudit.hasAreaLoads,
             'ETABS OAPI export payload is incomplete',
             result.csiExportAudit
+        );
+        assert(
+            result.solverRoundTripAudit?.status === 'MATCH' &&
+            result.solverRoundTripAudit.warningCount === 0 &&
+            result.solverRoundTripAudit.levelStatus === 'MATCH' &&
+            result.solverRoundTripAudit.noAutoApply === true &&
+            Object.values(result.solverRoundTripAudit.countStatuses || {}).every(status => status === 'MATCH'),
+            'ETABS read-only round-trip comparison did not match the exported FS model',
+            result.solverRoundTripAudit
         );
         Object.entries(result.csiExportAudit.wallLoadValuesByFloor).forEach(([floorId, values]) => {
             const sourceFloor = projectData.floors.find(floor => floor.id === floorId);
@@ -4566,7 +5858,8 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
             result.staadExportAudit.counts.columns === result.csiExportAudit.counts.columns &&
             result.staadExportAudit.counts.beams === result.csiExportAudit.counts.beams &&
             result.staadExportAudit.counts.slabs === result.csiExportAudit.counts.slabs &&
-            result.staadExportAudit.counts.rigidLinkedPlateNodes > 0 &&
+            Number.isInteger(result.staadExportAudit.counts.rigidLinkedPlateNodes) &&
+            result.staadExportAudit.counts.rigidLinkedPlateNodes >= 0 &&
             result.staadExportAudit.counts.upwardPlateNormals === result.csiExportAudit.counts.slabs &&
             result.staadExportAudit.plateNormalsUp &&
             result.staadExportAudit.coordinateTransform?.xSignFromSourceX === -1 &&
@@ -4649,7 +5942,13 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
             result.ifcExportAudit.counts.products === (
                 result.csiExportAudit.counts.columns +
                 result.csiExportAudit.counts.beams +
-                result.csiExportAudit.counts.slabs
+                result.csiExportAudit.counts.slabs +
+                result.csiExportAudit.counts.stairBeams +
+                result.csiExportAudit.counts.stairSlabs +
+                result.csiExportAudit.counts.stairOpenings +
+                result.csiExportAudit.counts.footings +
+                result.csiExportAudit.counts.pedestals +
+                result.csiExportAudit.counts.tieBeams
             ) &&
             result.ifcExportAudit.hasCoordinationView &&
             result.ifcExportAudit.hasBRepGeometry &&
@@ -4737,6 +6036,23 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
             fs.mkdirSync(path.dirname(resolvedIFCPath), { recursive: true });
             fs.writeFileSync(resolvedIFCPath, ifcContent, 'utf8');
             result.ifcExportAudit.writtenPath = resolvedIFCPath;
+            result.ifcExportAudit.parser = validateIfcWithIfcOpenShell(
+                ifcContent,
+                path.basename(resolvedIFCPath, path.extname(resolvedIFCPath)),
+                {
+                    expectedLevels: result.csiExportAudit.levels.map(level => ({
+                        name: level.name,
+                        elevation: level.elevation
+                    })),
+                    exactLevelSet: true
+                }
+            );
+            assert(
+                result.ifcExportAudit.parser.ok === true &&
+                result.ifcExportAudit.parser.schemaValidationStatements === 0,
+                'Written project IFC did not pass strict schema, level, and foundation validation',
+                result.ifcExportAudit.parser
+            );
         }
         if (dxfPath) {
             const dxfContent = await tab.evaluate('generateDXFContent()');
@@ -5506,17 +6822,31 @@ async function main() {
         columnSegmentSourceContract: checkColumnSegmentSourceContract(),
         dxfSourceContract: checkDxfSourceContract(),
         stairSourceContract: checkStairSourceContract(),
-        stairStructuralFixture: checkStairStructuralFixture()
+        stairStructuralFixture: checkStairStructuralFixture(),
+        verticalDatumSourceContract: checkVerticalDatumSourceContract(),
+        verticalDatumFixture: checkVerticalDatumFixture(),
+        solverRoundTripSourceContract: checkSolverRoundTripSourceContract(),
+        analysisOptimizationSourceContract: checkAnalysisOptimizationSourceContract(),
+        desktopETABSBridge: checkDesktopETABSBridge()
     };
     const projectPath = getArgValue('--project');
     const etabsScriptPath = getArgValue('--write-etabs-script');
     const staadPath = getArgValue('--write-staad');
     const ifcPath = getArgValue('--write-ifc');
     const dxfPath = getArgValue('--write-dxf');
+    const fs123OutputDir = getArgValue('--fs123-output-dir');
+    const projectOnly = process.argv.includes('--project-only');
     const p0C1AReleaseGate = process.argv.includes('--p0-c1a-release-gate');
     const p0C1AOutputDir = getArgValue('--p0-c1a-output-dir');
 
-    ['v3/engine/loads.js', 'v3/engine/tributary.js', 'v3/engine/stairs.js', 'v3/persistence/project-revisions.js'].forEach(file => {
+    [
+        'v3/engine/loads.js',
+        'v3/engine/tributary.js',
+        'v3/engine/stairs.js',
+        'v3/engine/vertical-datums.js',
+        'v3/persistence/project-revisions.js',
+        'v3/solver-roundtrip.js'
+    ].forEach(file => {
         checkNodeSyntax(file);
         summary.engines.push(file);
     });
@@ -5528,8 +6858,9 @@ async function main() {
         return;
     }
 
+    assert(!projectOnly || projectPath, 'Project-only smoke requires --project <project.fstr>');
     const historicalFixture = JSON.parse(fs.readFileSync(HISTORICAL_FSTR_FIXTURE, 'utf8'));
-    const browser = await runBrowserSmoke(historicalFixture);
+    const browser = projectOnly ? null : await runBrowserSmoke(historicalFixture, fs123OutputDir);
     const project = projectPath ? await runProjectSmoke(projectPath, etabsScriptPath, staadPath, ifcPath, dxfPath) : null;
     assert(!p0C1AReleaseGate || projectPath, 'P0-C1A release gate requires --project <Olango safety copy>');
     assert(!p0C1AReleaseGate || p0C1AOutputDir, 'P0-C1A release gate requires --p0-c1a-output-dir <acceptance directory>');

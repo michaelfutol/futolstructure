@@ -85,6 +85,20 @@ python -m http.server 4173
 
 Open `http://127.0.0.1:4173/v3/index.html`.
 
+## Windows Desktop Installer
+
+The same FutolStructure `v3` application can be packaged as a Windows desktop app. The Electron shell adds a desktop shortcut, `.fstr` file association, native windowing, and a controlled update channel without changing the structural model engine.
+
+```powershell
+cd desktop
+npm ci
+npm run dist:installer
+```
+
+The installer and portable executable are written to `output/desktop/`. The installed app checks the configured GitHub Releases channel from its **FutolStructure > Check for Updates** menu. A future release must increment `desktop/package.json` version, pass the regression gates, and publish the generated installer metadata; it does not overwrite user `.fstr` files.
+
+Desktop packaging details and the release procedure are in [desktop/README.md](desktop/README.md).
+
 ## Validation
 
 Run the syntax and engine smoke check:

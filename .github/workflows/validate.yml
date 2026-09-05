@@ -35,12 +35,16 @@ jobs:
       - name: Install DXF acceptance dependency
         run: python -m pip install -r v3/tools/requirements-dxf.txt
 
+      - name: Install IFC acceptance dependency
+        run: python -m pip install -r v3/tools/requirements-ifc.txt
+
       - name: Validate application source and engine
         run: node v3/tools/check-fs.js --no-browser
 
       - name: Validate browser workflow and DXF round trip
         env:
           FS_HEADLESS: '1'
+          FS_CDP_TIMEOUT_MS: '120000'
         run: node v3/tools/check-fs.js
 
       - name: Validate deployment configuration

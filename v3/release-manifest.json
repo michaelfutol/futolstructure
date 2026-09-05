@@ -1,11 +1,11 @@
 {
-  "appVersion": "3.16.119",
-  "buildId": "FS-119",
-  "releaseName": "Canonical Column Segment Truth",
+  "appVersion": "3.16.124-rc.1",
+  "buildId": "FS-124-RC1",
+  "releaseName": "Desktop Workspaces Candidate",
   "fstrSchemaVersion": "0.2.0",
-  "releaseChannel": "release",
-  "gitCommit": "9f062f44013872a2e4799af0771c2b850a2a47cb",
-  "buildDate": "2026-07-23",
+  "releaseChannel": "development",
+  "gitCommit": "",
+  "buildDate": "2026-09-05",
   "validatedFixtures": [
     "legacy-v2.8-2floor",
     "regular-v2.8-3floor-pre-p0c",
