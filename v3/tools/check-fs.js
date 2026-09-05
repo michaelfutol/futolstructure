@@ -532,10 +532,19 @@ function checkRoofFrameSourceContract() {
     assert(html.includes('engine/roof-frame.js') && html.includes('tabRoofFrame') && html.includes('panelRoofFrame'), 'Steel roof-frame workspace is not wired');
     assert(html.includes('roofFrameCanvas') && html.includes('setRoofFrameSupportType') && html.includes('renderRoofFrameViewport'), 'Roof-frame viewport or support controls are missing');
     assert(source.includes('FutolStructure.RoofFrameModel.v1') && source.includes('solverMembers'), 'Roof-frame analytical contract is missing');
+    assert(source.includes('deriveSupportAssignments') && source.includes('supportPlan'), 'Roof-frame automatic support-assignment policy is missing');
     const api = require(modulePath);
-    const frame = api.build({ floors: [{ id: 'RF', isRoof: true }], roofFrame: { enabled: true, members: [{ id: 'R1', type: 'rafter', start: { x: 0, y: 0, z: 6 }, end: { x: 4, y: 0, z: 6.8 } }] } });
+    const frame = api.build({
+        floors: [{ id: 'RF', isRoof: true }],
+        columns: [{ id: 'C1', x: 0, y: 0, z: 6 }, { id: 'C2', x: 4, y: 0, z: 6 }],
+        roofFrame: { enabled: true, members: [{ id: 'R1', type: 'rafter', start: { x: 0, y: 0, z: 6 }, end: { x: 4, y: 0, z: 6.8 } }] }
+    });
     assert(frame.contract === 'FutolStructure.RoofFrameModel.v1' && frame.members.length === 1 && frame.solverMembers.length === 1, 'Roof-frame fixture did not normalize');
-    return { contract: api.contract, members: frame.members.length, solverMembers: frame.solverMembers.length };
+    assert(frame.supportPolicy === 'auto' && frame.supportPlan.assignments.length === 2, 'Roof-frame AUTO support plan did not derive support nodes');
+    assert(frame.supportPlan.assignments.some(item => item.supportType === 'hinge') && frame.supportPlan.assignments.some(item => item.supportType === 'roller'), 'Roof-frame AUTO support plan must include hinge and roller');
+    const fixed = api.build({ columns: [{ id: 'C1', x: 0, y: 0 }, { id: 'C2', x: 4, y: 0 }], roofFrame: { supportType: 'fixed' } });
+    assert(fixed.supportPlan.assignments.every(item => item.supportType === 'fixed'), 'Explicit fixed support override was not applied');
+    return { contract: api.contract, members: frame.members.length, solverMembers: frame.solverMembers.length, supportAssignments: frame.supportPlan.assignments.length, autoSupportTypes: frame.supportPlan.assignments.map(item => item.supportType) };
 }
 
 function checkDesktopETABSBridge() {

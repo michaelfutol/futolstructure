@@ -36,6 +36,12 @@ The first wall-modeling slice is now present in `v3/engine/walls.js` as `FutolSt
 The Stair Builder now has a linked 2D plan and elevation workspace beside the existing 3D preview. The plan view draws the governed stair footprint, landing/flight shells, actual flight centerlines derived from structural-model vertices, and green centerline node markers. The elevation view draws lower, landing, and upper governed elevations from the stair coordinate primer. Existing create/integrate behavior, 3D preview, save/load, schedules, IFC, and ETABS/STAAD payload paths remain the source of truth; this slice is a view and inspection layer, not a second stair geometry engine.
 
 The local browser gate paints both canvases and reports no page errors at 1440, 768, and 390 pixel viewports. Editable node dragging/snapping, automatic projection into floor layouts, and native solver connectivity/load acceptance remain the next STAIR-01 gates.
+
+### Roof Support Assignment - ROOF-01
+
+The roof-frame contract now exposes an explainable support plan instead of treating hinge, roller, and fixed as an unexplained global label. The default `AUTO` policy orders the supplied support nodes along the dominant roof-member axis, applies a primary hinge, applies one expansion roller at the opposite end when possible, and keeps remaining supports hinged. It never guesses fixed supports. A global hinge, fixed, or roller choice remains available as an explicit override, and fixed produces a moment-transfer warning.
+
+The Roof Frame workspace renders each node with its assigned symbol and lists the mode and reason for every assignment. Browser acceptance confirms the support plan is generated, both hinge and roller are present in the fixture, the canvas is painted, and there are no page errors. The rule is a preliminary modeling convention; the engineer must confirm expansion direction, diaphragm action, column continuity, and foundation moment capacity before native solver acceptance.
 - Invalid topology/member-size summaries block requests. Missing common load cases, combinations, mass source, and support assignments are explicit pending definitions.
 - Planned adapters use neutral pending states. Null elevations are not converted to zero.
 - Downloads collect fresh source state. QUBO studies contain zero candidates until an optimizer exists.
@@ -68,7 +74,7 @@ The ETABS audit action accepts the existing audit JSON workflow. It is not an im
 
 ## Verification Evidence
 
-- `node v3/tools/check-workspaces.cjs`: passed at widths 1440, 768, and 390; real navigation, JSON download, objective retention, rapid-switch behavior, no page exceptions, and unchanged canonical geometry.
+- `node v3/tools/check-workspaces.cjs`: passed at widths 1440, 768, and 390; real navigation, stair 2D painted views, roof AUTO support assignments, JSON download, objective retention, rapid-switch behavior, no page exceptions, and unchanged canonical geometry.
 - Screenshot/download evidence: `output/playwright/workspaces/`, including `stair-builder-2d-desktop.png`.
 - `git diff --check`: passed, with Git line-ending conversion warnings only.
 - Full regression: passed (`ok: true`) with a 120-second browser evaluation timeout after exceeding the default 15-second CDP limit. Evidence: `output/playwright/workspaces/full-regression.log`. This includes source/fixture contracts and the general browser smoke; optional real-project and P0-C1A release-gate runs were not requested by this test invocation.

@@ -4267,7 +4267,7 @@
 
             <div id="panelRoofFrame" class="schedule-panel" style="display:none;">
                 <div class="schedule-header"><h3>Steel Roof Frame</h3></div>
-                <div style="padding:12px;"><p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Dedicated roof-plan modeling space. Steel members are shown over the roof support grid; where no roof beams exist, column supports remain visible with the selected analytical support convention.</p><label style="font-size:0.75rem;">Default roof support <select id="roofFrameSupportType" onchange="setRoofFrameSupportType(this.value)" style="margin-left:6px;"><option value="hinge">Hinge</option><option value="fixed">Fixed</option><option value="roller">Roller</option></select></label><button type="button" onclick="renderRoofFrameViewport()" style="margin-left:10px;">Refresh View</button><div id="roofFrameSummary" style="font-size:0.8rem;margin:10px 0;">Roof frame draft: no members defined.</div><canvas id="roofFrameCanvas" width="1100" height="560" style="width:100%;height:560px;background:#101827;border:1px solid #334155;display:block;"></canvas><table class="schedule-table" style="width:100%;margin-top:12px;"><thead><tr><th>ID</th><th>Type</th><th>Section</th><th>Material</th><th>Solver</th></tr></thead><tbody id="roofFrameBody"><tr><td colspan="5">No steel roof members defined.</td></tr></tbody></table></div>
+                <div style="padding:12px;"><p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Dedicated roof-plan modeling space. AUTO assigns a primary hinge and an expansion roller; fixed supports are never guessed. Review the support plan before native solver acceptance.</p><label style="font-size:0.75rem;">Support assignment <select id="roofFrameSupportType" onchange="setRoofFrameSupportType(this.value)" style="margin-left:6px;"><option value="auto">AUTO - Hinge + Roller (recommended)</option><option value="hinge">All Hinge</option><option value="fixed">All Fixed</option><option value="roller">All Roller</option></select></label><button type="button" onclick="renderRoofFrameViewport()" style="margin-left:10px;">Refresh View</button><div id="roofFrameSummary" style="font-size:0.8rem;margin:10px 0;">Roof frame draft: no members defined.</div><div id="roofFrameSupportAdvice" style="font-size:0.75rem;color:var(--text-muted);margin:8px 0;"></div><canvas id="roofFrameCanvas" width="1100" height="560" style="width:100%;height:560px;background:#101827;border:1px solid #334155;display:block;"></canvas><table class="schedule-table" style="width:100%;margin-top:12px;"><thead><tr><th>Support ID</th><th>Type</th><th>Mode</th><th>Reason</th></tr></thead><tbody id="roofFrameSupportBody"><tr><td colspan="4">No support assignments yet.</td></tr></tbody></table><table class="schedule-table" style="width:100%;margin-top:12px;"><thead><tr><th>ID</th><th>Type</th><th>Section</th><th>Material</th><th>Solver</th></tr></thead><tbody id="roofFrameBody"><tr><td colspan="5">No steel roof members defined.</td></tr></tbody></table></div>
             </div>
             <div style="padding:16px 20px;">
                 <div id="solverRoundTripStatus" style="padding:10px 12px; border-radius:5px; font:700 0.82rem Arial,sans-serif; margin-bottom:12px;"></div>
@@ -5176,7 +5176,7 @@
             ],
             stairs: [],             // FS-113: inter-storey stair objects
             nextStairId: 1,
-            roofFrame: { enabled: false, members: [], framingSystem: 'steel_rafters_and_purlins', supportType: 'hinge' },
+            roofFrame: { enabled: false, members: [], framingSystem: 'steel_rafters_and_purlins', supportType: 'auto' },
             currentFloorIndex: 0,    // Which floor is selected
 
             // Generated data
@@ -21967,9 +21967,23 @@ function calculateWaterTank() {
             const body = document.getElementById('roofFrameBody');
             const summary = document.getElementById('roofFrameSummary');
             if (!body || !globalThis.FSRoofFrame) return;
-            const frame = globalThis.FSRoofFrame.build({ floors: state.floors, roofFrame: state.roofFrame });
+            const frame = globalThis.FSRoofFrame.build({ floors: state.floors, columns: state.columns, roofFrame: state.roofFrame });
             const supportSelect = document.getElementById('roofFrameSupportType');
-            if (supportSelect) supportSelect.value = frame.supportType;
+            if (supportSelect) supportSelect.value = frame.supportPolicy || frame.supportType;
+            const advice = document.getElementById('roofFrameSupportAdvice');
+            if (advice) {
+                advice.textContent = (frame.supportPlan?.recommendation || 'Support convention pending') +
+                    (frame.supportPlan?.warnings?.length ? ' | ' + frame.supportPlan.warnings[0] : '');
+            }
+            const supportBody = document.getElementById('roofFrameSupportBody');
+            if (supportBody) {
+                supportBody.innerHTML = (frame.supportPlan?.assignments || []).map(item =>
+                    '<tr><td>' + escapeInfoText(item.id) + '</td><td>' +
+                    escapeInfoText(String(item.supportType || '').toUpperCase()) + '</td><td>' +
+                    escapeInfoText(item.mode || '-') + '</td><td>' +
+                    escapeInfoText(item.reason || '-') + '</td></tr>'
+                ).join('') || '<tr><td colspan="4">No support assignments yet.</td></tr>';
+            }
             if (summary) summary.textContent = `${frame.framingSystem} | ${frame.members.length} member(s) | ${frame.solverMembers.length} solver-enabled`;
             body.innerHTML = frame.members.map(item => `<tr><td>${item.id}</td><td>${item.type}</td><td>${item.section}</td><td>${item.material} ${item.grade}</td><td>${item.exportToSolvers ? 'ON' : 'OFF'}</td></tr>`).join('') || '<tr><td colspan="5">No steel roof members defined.</td></tr>';
             renderRoofFrameViewport(frame);
@@ -21977,7 +21991,8 @@ function calculateWaterTank() {
 
         function setRoofFrameSupportType(value) {
             if (!state.roofFrame) state.roofFrame = { enabled: false, members: [] };
-            state.roofFrame.supportType = ['hinge', 'fixed', 'roller'].includes(value) ? value : 'hinge';
+            saveStateSnapshot();
+            state.roofFrame.supportType = ['auto', 'hinge', 'fixed', 'roller'].includes(value) ? value : 'auto';
             renderRoofFrameViewport();
         }
 
@@ -21985,7 +22000,7 @@ function calculateWaterTank() {
             const canvas = document.getElementById('roofFrameCanvas');
             if (!canvas || !globalThis.FSRoofFrame) return;
             const context = canvas.getContext('2d');
-            const model = frame || globalThis.FSRoofFrame.build({ floors: state.floors, roofFrame: state.roofFrame });
+            const model = frame || globalThis.FSRoofFrame.build({ floors: state.floors, columns: state.columns, roofFrame: state.roofFrame });
             const roofIndex = Math.max(0, (state.floors || []).findIndex(floor => floor.isRoof));
             const roofColumns = (state.columns || []).filter(column => column.floorIndex == null || column.floorIndex <= roofIndex);
             const xGrid = [0]; let xTotal = 0; (state.xSpans || []).forEach(span => { xTotal += Number(span) || 0; xGrid.push(xTotal); });
@@ -22001,15 +22016,21 @@ function calculateWaterTank() {
             context.strokeStyle = '#f59e0b'; context.lineWidth = 4;
             (model.members || []).forEach(item => { context.beginPath(); context.moveTo(sx(item.start.x), sy(item.start.y)); context.lineTo(sx(item.end.x), sy(item.end.y)); context.stroke(); });
             context.fillStyle = '#cbd5e1'; context.font = '13px Arial';
-            const supportType = model.supportType || 'hinge';
+            const supportPlan = model.supportPlan || { assignments: [] };
+            const fallbackSupportType = model.supportType === 'auto' ? 'hinge' : (model.supportType || 'hinge');
             roofColumns.forEach(column => {
+                const assignment = (supportPlan.assignments || []).find(item =>
+                    Math.hypot(Number(item.x) - Number(column.x), Number(item.y) - Number(column.y)) < 0.001
+                );
+                const supportType = assignment?.supportType || fallbackSupportType;
                 const x = sx(column.x), y = sy(column.y); context.beginPath();
                 if (supportType === 'fixed') { context.rect(x - 7, y - 7, 14, 14); context.fillStyle = '#ef4444'; }
                 else if (supportType === 'roller') { context.arc(x, y, 7, 0, Math.PI * 2); context.fillStyle = '#38bdf8'; }
                 else { context.moveTo(x, y - 8); context.lineTo(x - 8, y + 7); context.lineTo(x + 8, y + 7); context.closePath(); context.fillStyle = '#a78bfa'; }
-                context.fill(); context.fillStyle = '#cbd5e1'; context.fillText(column.id || 'SUP', x + 10, y - 10);
+                context.fill(); context.fillStyle = '#cbd5e1'; context.fillText((column.id || 'SUP') + ' ' + supportType.toUpperCase(), x + 10, y - 10);
             });
-            context.fillStyle = '#f8fafc'; context.fillText(`Roof plan | supports: ${supportType} | members: ${(model.members || []).length}`, 18, 24);
+            context.fillStyle = '#f8fafc';
+            context.fillText('Roof plan | ' + (supportPlan.recommendation || ('supports: ' + fallbackSupportType)) + ' | members: ' + (model.members || []).length, 18, 24);
         }
 
         function calculateBlockwalls() {
@@ -24143,7 +24164,7 @@ function populateBOM() {
                 model.wallInventory = globalThis.FSWalls.build({ floors: state.floors });
                 model.wallElevations = model.wallInventory.elevations;
             }
-            if (globalThis.FSRoofFrame?.build) model.roofFrame = globalThis.FSRoofFrame.build({ floors: state.floors, roofFrame: state.roofFrame });
+            if (globalThis.FSRoofFrame?.build) model.roofFrame = globalThis.FSRoofFrame.build({ floors: state.floors, columns: state.columns, roofFrame: state.roofFrame });
             if (globalThis.FSAnalysisInputs?.build) {
                 const analyticalInputs = globalThis.FSAnalysisInputs.build(model);
                 model.analyticalInputs = analyticalInputs;

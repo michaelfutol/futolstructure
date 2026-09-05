@@ -69,9 +69,33 @@ async function main() {
         assert.ok(stairViews.plan.width > 0 && stairViews.plan.height > 0 && stairViews.plan.painted > 100, JSON.stringify(stairViews));
         assert.ok(stairViews.elevation.width > 0 && stairViews.elevation.height > 0 && stairViews.elevation.painted > 100, JSON.stringify(stairViews));
         await page.screenshot({ path: path.join(output, 'stair-builder-2d-desktop.png'), fullPage: true });
+        await page.locator('#tabRoofFrame').click();
+        await page.locator('#panelRoofFrame').waitFor({ state: 'visible' });
+        const roofSupportAudit = await page.evaluate(() => {
+            const model = globalThis.FSRoofFrame.build({ floors: state.floors, columns: state.columns, roofFrame: state.roofFrame });
+            const canvas = document.getElementById('roofFrameCanvas');
+            const pixels = canvas?.getContext('2d')?.getImageData(0, 0, canvas.width, canvas.height).data || [];
+            let painted = 0;
+            for (let index = 0; index < pixels.length; index += 4) {
+                if (pixels[index] + pixels[index + 1] + pixels[index + 2] > 30) painted += 1;
+            }
+            return {
+                policy: model.supportPolicy,
+                assignments: model.supportPlan.assignments,
+                painted,
+                advice: document.getElementById('roofFrameSupportAdvice')?.innerText || ''
+            };
+        });
+        assert.ok(roofSupportAudit.assignments.length > 0, JSON.stringify(roofSupportAudit));
+        assert.ok(roofSupportAudit.assignments.some(item => item.supportType === 'hinge'), JSON.stringify(roofSupportAudit));
+        assert.ok(roofSupportAudit.assignments.some(item => item.supportType === 'roller'), JSON.stringify(roofSupportAudit));
+        assert.ok(roofSupportAudit.painted > 100, JSON.stringify(roofSupportAudit));
+        assert.match(roofSupportAudit.advice, /HINGE \+ ROLLER/i);
+        await page.screenshot({ path: path.join(output, 'roof-frame-support-auto-desktop.png'), fullPage: true });
         await page.locator('[data-tab-group="analysis"].plan-tab-group-btn').click();
         await page.locator('#panelAnalysisWorkbench').waitFor({ state: 'visible' });
         await page.locator('[data-tab-group="model"].plan-tab-group-btn').click();
+        await page.locator('#tabStaircase').click();
         await page.locator('#panelStaircase').waitFor({ state: 'visible' });
         await page.evaluate(() => { setPlanTab('beamSchedule'); setPlanTab('analysisWorkbench'); });
         await page.locator('#panelAnalysisWorkbench').waitFor({ state: 'visible' });
