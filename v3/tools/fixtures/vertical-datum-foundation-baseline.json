@@ -1,0 +1,70 @@
+{
+  "fixtureId": "vertical-datum-foundation-v1",
+  "project": {
+    "gradeElevation": 100,
+    "groundFloorElevation": 101.2,
+    "baseSupportElevation": 99.5,
+    "footingDepth": 1.5,
+    "nominalFootingThickness": 0.3,
+    "footingElevationMode": "derived"
+  },
+  "floors": [
+    {
+      "id": "GF",
+      "name": "Ground Floor",
+      "height": 1.7,
+      "storeyHeight": 1.7,
+      "elevationMode": "derived"
+    },
+    {
+      "id": "2F",
+      "name": "Second Floor",
+      "height": 3.2,
+      "storeyHeight": 3.2,
+      "elevationMode": "derived"
+    },
+    {
+      "id": "RF",
+      "name": "Roof",
+      "height": 3.1,
+      "storeyHeight": 3.1,
+      "elevationMode": "derived",
+      "isRoof": true
+    }
+  ],
+  "expected": {
+    "schema": "FutolStructure.VerticalDatums.v1",
+    "gradeElevation": 100,
+    "groundFloorElevation": 101.2,
+    "baseSupportElevation": 99.5,
+    "footingBottomElevation": 98.5,
+    "footingTopElevation": 98.8,
+    "belowGroundFloorColumnLength": 1.7,
+    "floorLevels": {
+      "GF": 101.2,
+      "2F": 104.4,
+      "RF": 107.5
+    },
+    "storeyHeights": {
+      "GF": 1.7,
+      "2F": 3.2,
+      "RF": 3.1
+    },
+    "namedLevels": [
+      "BASE/FOUNDATION",
+      "GF",
+      "2F",
+      "RF"
+    ],
+    "counts": {
+      "stories": 3,
+      "levels": 4,
+      "columns": 27,
+      "beams": 36,
+      "slabs": 12,
+      "footings": 9,
+      "pedestals": 9,
+      "tieBeams": 12
+    }
+  }
+}

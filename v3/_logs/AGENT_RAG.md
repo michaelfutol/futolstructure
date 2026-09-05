@@ -1,6 +1,15 @@
 # FutolStructure Agent RAG
 
-Last updated: 2026-04-26
+Last updated: 2026-09-05
+
+## Active Continuation: 2026-09-05
+
+- Active worktree: `D:\projects\futolStructure 04-14-26\futolstructure-fs123-vertical-datum-foundation`.
+- Active branch: `release/fs-124-desktop-workspaces-rc1`, source checkpoint `db13836`; preserve any subsequent work.
+- Read `docs/FS_DELIVERY_ROADMAP_2026-09-05.md` for current local UI/analysis-contract work, Drive roadmap, acceptance evidence, and pending delivery sequence.
+- Analysis/Optimization workspaces prepare immutable draft snapshots only. PyNite/OpenSees execution, QUBO results, and native multi-solver import are not implemented by these controls.
+- Windows candidate `3.16.124-rc.1 / FS-124-RC1` is installed and desktop-smoke verified. Use `docs/ROADMAP.md` for current repository/release status. Production remains separate.
+- Branch/path statements below are historical context and must not override this active entry.
 
 This file is the repo-local retrieval source for Codex/agents working on FutolStructure.
 Read this before continuing refactor, debugging, report work, export work, or demo preparation.

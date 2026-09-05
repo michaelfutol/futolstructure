@@ -14,7 +14,7 @@ FutolStructure is a browser-based structural engineering workbench for reinforce
   <a href="SECURITY.md">Security</a>
 </p>
 
-[![Build](https://img.shields.io/badge/build-v3.16.118-2563eb)](https://futolstructure.vercel.app)
+[![Build](https://img.shields.io/badge/build-v3.16.119-2563eb)](https://futolstructure.vercel.app)
 [![Validation](https://github.com/michaelfutol/futolstructure/actions/workflows/validate.yml/badge.svg)](https://github.com/michaelfutol/futolstructure/actions/workflows/validate.yml)
 ![Platform](https://img.shields.io/badge/platform-browser-0f766e)
 ![Maturity](https://img.shields.io/badge/maturity-technical%20preview-f59e0b)
@@ -54,6 +54,7 @@ flowchart LR
 - Plan drafting aids including coordinated member tags, grid bubbles, dimensions, ortho measurement, snapping, and lock indicators.
 - 3D review with display schemes, member colors and opacity controls, foundation geometry, slab transparency, and stair geometry.
 - `.fstr` project save/load with guarded autosave, immutable pre-overwrite revisions, destructive-change review, recovery diagnostics, floor deletion warnings, and persisted member locks.
+- Canonical per-storey column-segment intent with persistent termination/removal choices, dependency previews, legacy migration, topology warnings, and analytical export gates.
 - Stair Builder geometry with destination slab openings, DXF footprint output, and 3D review.
 - Reports and schedules for columns, beams, slabs, footings/base reactions, and preliminary design summaries.
 - Coordinated multi-floor DXF drawing packages, IFC2x3, STAAD.Pro, ETABS 22 OAPI, and ETABS-to-SAFE handoff paths.
@@ -84,6 +85,22 @@ python -m http.server 4173
 
 Open `http://127.0.0.1:4173/v3/index.html`.
 
+## Windows Desktop Installer
+
+Track implemented features, acceptance evidence, and pending work in [the delivery roadmap](docs/ROADMAP.md).
+
+The same FutolStructure `v3` application can be packaged as a Windows desktop app. The Electron shell adds a desktop shortcut, `.fstr` file association, native windowing, and a controlled update channel without changing the structural model engine.
+
+```powershell
+cd desktop
+npm ci
+npm run dist:installer
+```
+
+The installer and portable executable are written to `output/desktop/`. The installed app checks the configured GitHub Releases channel from its **FutolStructure > Check for Updates** menu. A future release must increment `desktop/package.json` version, pass the regression gates, and publish the generated installer metadata; it does not overwrite user `.fstr` files.
+
+Desktop packaging details and the release procedure are in [desktop/README.md](desktop/README.md).
+
 ## Validation
 
 Run the syntax and engine smoke check:
@@ -99,7 +116,7 @@ python -m pip install -r v3/tools/requirements-dxf.txt
 node v3/tools/check-fs.js
 ```
 
-The browser smoke covers initialization, plan geometry, slab ownership, cantilever behavior, persistence and recovery guards, protected-revision restore/download, the 50-revision retention limit, historical `.fstr` migration, member locking, measurement tools, stair persistence, 3D rendering, coordinated DXF completeness, strict DXF open/audit/save/reopen validation, and export payload parity.
+The browser smoke covers initialization, plan geometry, slab ownership, cantilever behavior, persistence and recovery guards, protected-revision restore/download, the 50-revision retention limit, historical `.fstr` migration, canonical column-segment truth and topology gates, member locking, measurement tools, stair persistence, 3D rendering, coordinated DXF completeness, strict DXF open/audit/save/reopen validation, and export payload parity.
 
 Where AutoCAD 2025 is installed, run the native read gate against a generated package without modifying it:
 

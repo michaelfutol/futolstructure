@@ -30,28 +30,108 @@ const EngineLoads = (function () {
     }
 
     /**
-     * Check if a column is active on a specific floor.
-     * Handles planted columns, per-floor toggles, and legacy active flag.
-     * @param {object} col - Column object
-     * @param {string} floorId - Floor to check
-     * @param {Array} floors - The floors array (for isFloorAtOrAbove)
-     * @returns {boolean}
+     * Resolve one physical column segment without mutating compatibility state.
+     * C1A segmentOverrides are authoritative. Older visibility fields remain
+     * readable only so legacy .fstr files can migrate without reactivating
+     * intentionally hidden or removed segments.
+     * @param {object} col - Column line/runtime object
+     * @param {string} floorId - Storey segment identifier
+     * @param {Array} floors - Ordered floors (low to high)
+     * @returns {object} Canonical segment state
      */
+    function resolveColumnSegmentState(col, floorId, floors) {
+        const orderedFloors = Array.isArray(floors) ? floors : [];
+        const floor = orderedFloors.find(item => item?.id === floorId);
+        const segmentId = `${String(col?.id || 'COLUMN')}::${String(floorId || 'UNKNOWN')}`;
+        if (!col || !floorId || !floor) {
+            return {
+                segmentId,
+                columnId: col?.id || '',
+                floorId: floorId || '',
+                active: false,
+                intent: 'invalid_reference',
+                source: 'validation'
+            };
+        }
+
+        const startFloorId = col.startFloor || null;
+        if (startFloorId && !isFloorAtOrAbove(orderedFloors, floorId, startFloorId)) {
+            return {
+                segmentId,
+                columnId: col.id,
+                floorId,
+                active: false,
+                intent: 'below_start_level',
+                source: 'startFloor',
+                startFloorId
+            };
+        }
+
+        const override = col.segmentOverrides && typeof col.segmentOverrides === 'object'
+            ? col.segmentOverrides[floorId]
+            : null;
+        if (override && typeof override === 'object' && typeof override.active === 'boolean') {
+            return {
+                segmentId: override.segmentId || segmentId,
+                columnId: col.id,
+                floorId,
+                active: override.active,
+                intent: override.intent || (override.active ? 'explicit_active' : 'remove_segment'),
+                source: 'segmentOverrides',
+                startFloorId,
+                updatedAt: override.updatedAt || ''
+            };
+        }
+
+        // A false compatibility flag wins. This conservatively resolves old
+        // files that contain conflicting activePerFloor and floorActive maps.
+        const compatibilityFlags = [];
+        if (col.activePerFloor && Object.prototype.hasOwnProperty.call(col.activePerFloor, floorId)) {
+            compatibilityFlags.push({ source: 'activePerFloor', active: col.activePerFloor[floorId] !== false });
+        }
+        if (col.floorActive && Object.prototype.hasOwnProperty.call(col.floorActive, floorId)) {
+            compatibilityFlags.push({ source: 'floorActive', active: col.floorActive[floorId] !== false });
+        }
+        if (Array.isArray(floor.deletedColumns) && floor.deletedColumns.includes(col.id)) {
+            compatibilityFlags.push({ source: 'floor.deletedColumns', active: false });
+        }
+        const inactiveCompatibility = compatibilityFlags.find(item => item.active === false);
+        if (inactiveCompatibility) {
+            return {
+                segmentId,
+                columnId: col.id,
+                floorId,
+                active: false,
+                intent: 'legacy_inactive',
+                source: inactiveCompatibility.source,
+                startFloorId
+            };
+        }
+        if (compatibilityFlags.length) {
+            return {
+                segmentId,
+                columnId: col.id,
+                floorId,
+                active: true,
+                intent: 'legacy_active',
+                source: compatibilityFlags[0].source,
+                startFloorId
+            };
+        }
+
+        return {
+            segmentId,
+            columnId: col.id,
+            floorId,
+            active: col.active !== false,
+            intent: col.active === false ? 'legacy_line_inactive' : 'continuous',
+            source: 'active',
+            startFloorId
+        };
+    }
+
     function isColumnActiveOnFloor(col, floorId, floors) {
-        if (!col) return false;
-
-        // Planted columns are inactive on floors BELOW their startFloor
-        if (col.startFloor || col.isPlanted) {
-            const startFloorId = col.startFloor;
-            if (startFloorId && !isFloorAtOrAbove(floors, floorId, startFloorId)) {
-                return false;
-            }
-        }
-
-        if (col.activePerFloor) {
-            return col.activePerFloor[floorId] !== false;
-        }
-        return col.active !== false;
+        return resolveColumnSegmentState(col, floorId, floors).active;
     }
 
     // ========================
@@ -79,11 +159,16 @@ const EngineLoads = (function () {
 
         let b, h;
         let isOverride = false;
+        const geometryMinimumMm = Number(params.geometryMinimumMm) > 0
+            ? Number(params.geometryMinimumMm)
+            : 25;
 
         // Check for user override (rectangular columns)
         if (params.defaultColumnB > 0) {
-            b = params.defaultColumnB;
-            h = params.defaultColumnH > 0 ? params.defaultColumnH : b;
+            b = Math.max(geometryMinimumMm, Number(params.defaultColumnB));
+            h = params.defaultColumnH > 0
+                ? Math.max(geometryMinimumMm, Number(params.defaultColumnH))
+                : b;
             isOverride = true;
         } else {
             // Required gross area (mm²) per NSCP 410.3.5.2
@@ -138,10 +223,15 @@ const EngineLoads = (function () {
      */
     function sizeBeam(span_m, isCantilever, params) {
         let b, h;
+        const geometryMinimumMm = Number(params.geometryMinimumMm) > 0
+            ? Number(params.geometryMinimumMm)
+            : 25;
 
         if (params.defaultBeamH > 0) {
-            h = params.defaultBeamH;
-            b = params.defaultBeamB || 250;
+            h = Math.max(geometryMinimumMm, Number(params.defaultBeamH));
+            b = params.defaultBeamB > 0
+                ? Math.max(geometryMinimumMm, Number(params.defaultBeamB))
+                : 250;
         } else {
             const L = span_m * 1000;
             const minDepthRatio = isCantilever ? 8 : 16;
@@ -149,7 +239,7 @@ const EngineLoads = (function () {
             h = Math.max(h, 300);
 
             b = params.defaultBeamB > 0
-                ? params.defaultBeamB
+                ? Math.max(geometryMinimumMm, Number(params.defaultBeamB))
                 : Math.max(200, Math.ceil((h * 0.4) / 50) * 50);
         }
 
@@ -174,7 +264,10 @@ const EngineLoads = (function () {
     function sizeMembers(columns, beams, params) {
         const positiveNumber = value => {
             const n = Number(value);
-            return Number.isFinite(n) && n > 0 ? n : null;
+            const geometryMinimumMm = Number(params.geometryMinimumMm) > 0
+                ? Number(params.geometryMinimumMm)
+                : 25;
+            return Number.isFinite(n) && n > 0 ? Math.max(geometryMinimumMm, n) : null;
         };
 
         let totalColumnSelfWeight = 0;
@@ -513,6 +606,7 @@ const EngineLoads = (function () {
 
     return {
         isFloorAtOrAbove: isFloorAtOrAbove,
+        resolveColumnSegmentState: resolveColumnSegmentState,
         isColumnActiveOnFloor: isColumnActiveOnFloor,
         sizeColumn: sizeColumn,
         sizeBeam: sizeBeam,
