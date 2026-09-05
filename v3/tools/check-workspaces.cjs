@@ -52,6 +52,23 @@ async function main() {
         await page.locator('[data-tab-group="model"].plan-tab-group-btn').click();
         await page.locator('#tabStaircase').click();
         await page.locator('#panelStaircase').waitFor({ state: 'visible' });
+        const stairViews = await page.evaluate(() => {
+            const readCanvas = id => {
+                const canvas = document.getElementById(id);
+                if (!canvas) return { width: 0, height: 0, painted: 0 };
+                const context = canvas.getContext('2d');
+                const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+                let painted = 0;
+                for (let index = 0; index < pixels.length; index += 4) {
+                    if (pixels[index] + pixels[index + 1] + pixels[index + 2] > 30) painted += 1;
+                }
+                return { width: canvas.width, height: canvas.height, painted };
+            };
+            return { plan: readCanvas('stairPlan2DCanvas'), elevation: readCanvas('stairElevation2DCanvas') };
+        });
+        assert.ok(stairViews.plan.width > 0 && stairViews.plan.height > 0 && stairViews.plan.painted > 100, JSON.stringify(stairViews));
+        assert.ok(stairViews.elevation.width > 0 && stairViews.elevation.height > 0 && stairViews.elevation.painted > 100, JSON.stringify(stairViews));
+        await page.screenshot({ path: path.join(output, 'stair-builder-2d-desktop.png'), fullPage: true });
         await page.locator('[data-tab-group="analysis"].plan-tab-group-btn').click();
         await page.locator('#panelAnalysisWorkbench').waitFor({ state: 'visible' });
         await page.locator('[data-tab-group="model"].plan-tab-group-btn').click();

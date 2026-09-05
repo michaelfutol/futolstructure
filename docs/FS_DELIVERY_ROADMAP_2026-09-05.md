@@ -30,6 +30,12 @@ Model editing tools are hidden in non-model views. Duplicate tab-name mappings a
 ### Masonry and Wall Inventory - WALL-01
 
 The first wall-modeling slice is now present in `v3/engine/walls.js` as `FutolStructure.WallInventory.v1`. It preserves the existing legacy floor wall-load path while adding a separate inventory for explicit line geometry, CHB thickness, wall height, inside/outside plaster thickness, openings, lintel metadata, net wall area, and derived line load. Solver participation is opt-in per wall (`exportToSolvers: true`); unresolved lines remain coordination-only with warnings. The source fixture gate passes for wall, opening, lintel, and line-load derivation. Plan drawing, hover editing, persistence UI, and native solver acceptance remain next.
+
+### Stair Builder 2D Workspace - STAIR-01
+
+The Stair Builder now has a linked 2D plan and elevation workspace beside the existing 3D preview. The plan view draws the governed stair footprint, landing/flight shells, actual flight centerlines derived from structural-model vertices, and green centerline node markers. The elevation view draws lower, landing, and upper governed elevations from the stair coordinate primer. Existing create/integrate behavior, 3D preview, save/load, schedules, IFC, and ETABS/STAAD payload paths remain the source of truth; this slice is a view and inspection layer, not a second stair geometry engine.
+
+The local browser gate paints both canvases and reports no page errors at 1440, 768, and 390 pixel viewports. Editable node dragging/snapping, automatic projection into floor layouts, and native solver connectivity/load acceptance remain the next STAIR-01 gates.
 - Invalid topology/member-size summaries block requests. Missing common load cases, combinations, mass source, and support assignments are explicit pending definitions.
 - Planned adapters use neutral pending states. Null elevations are not converted to zero.
 - Downloads collect fresh source state. QUBO studies contain zero candidates until an optimizer exists.
@@ -63,7 +69,7 @@ The ETABS audit action accepts the existing audit JSON workflow. It is not an im
 ## Verification Evidence
 
 - `node v3/tools/check-workspaces.cjs`: passed at widths 1440, 768, and 390; real navigation, JSON download, objective retention, rapid-switch behavior, no page exceptions, and unchanged canonical geometry.
-- Screenshot/download evidence: `output/playwright/workspaces/`.
+- Screenshot/download evidence: `output/playwright/workspaces/`, including `stair-builder-2d-desktop.png`.
 - `git diff --check`: passed, with Git line-ending conversion warnings only.
 - Full regression: passed (`ok: true`) with a 120-second browser evaluation timeout after exceeding the default 15-second CDP limit. Evidence: `output/playwright/workspaces/full-regression.log`. This includes source/fixture contracts and the general browser smoke; optional real-project and P0-C1A release-gate runs were not requested by this test invocation.
 - No Revit, ETABS, STAAD, or Tekla native acceptance was performed for this UI/contract slice.

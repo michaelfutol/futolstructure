@@ -10,12 +10,12 @@ Locally Verified does not imply a published installer or a production deployment
 
 | ID | Milestone | Status | Evidence / Next Gate |
 | --- | --- | --- | --- |
-| UI-01 | Contextual workspaces, Stair Builder under Model, responsive draft panels | Locally Verified | check-workspaces.cjs; desktop/tablet/phone navigation and unchanged model geometry |
+| UI-01 | Contextual workspaces, Stair Builder under Model, responsive draft panels | Locally Verified | check-workspaces.cjs; desktop/tablet/phone navigation, painted stair plan/elevation views, and unchanged model geometry |
 | MODEL-01 | Independent floor edge defaults and manual member sizes | Locally Verified | check-fs.js partialCantilever.edgeSizing; independent, inherited and detached floors; native Bacacay readback still required |
 | MODEL-02 | Persistent column segments, exact columnation and vertical datums | Native Acceptance Pending | Legacy/regular/terminated fixtures and vertical-datum baseline; compare current candidate in ETABS/STAAD/Revit |
 | ROOF-01 | Steel roof-frame modeler and solver handoff | In Progress | `FutolStructure.RoofFrameModel.v1` and Roof Frame workspace; next gate is interactive member placement, roof loads, save/load, and native solver acceptance |
 | SAVE-01 | Protected revisions, explicit project opening and last ten files | Locally Verified | Browser persistence; installed candidate bridge and isolated recent-project startup passed |
-| STAIR-01 | Canonical stair frames/shells and load handoff | Native Acceptance Pending | Stair structural fixture and IFC parser; validate actual support connectivity and loads in solver |
+| STAIR-01 | Canonical stair frames/shells and load handoff | In Progress | 2D stair plan/elevation workspace now linked to the existing structural model and 3D preview; native support connectivity, solver load handoff, and editable node snapping remain pending |
 | FND-01 | IFC footings, pedestals and tie beams | Native Acceptance Pending | Vertical datum/foundation fixtures and parser; native Revit acceptance pending |
 | WALL-01 | Walls, openings, lintels and attached-element loads | In Progress | `v3/engine/walls.js` canonical inventory plus Wall Elevations workspace govern line IDs, CHB/plaster, openings, lintels, elevations, and solver opt-in; next gate is plan drawing/hover editor plus save/load regression |
 | ANALYSIS-01 | Immutable shared analysis request and QUBO study drafts | Locally Verified | AnalysisOptimization source contract; execution disabled, zero fabricated candidates |
@@ -37,7 +37,8 @@ Locally Verified does not imply a published installer or a production deployment
 1. Review [PR #11](https://github.com/michaelfutol/futolstructure/pull/11) and complete native acceptance before production promotion.
 2. Record MODEL-01 regression evidence, then validate a dated Bacacay export against source coordinates and member sizes.
 3. Attach the PyNite adapter to the verified ANALYSIS-02 contract; do not duplicate load or support assembly.
-4. Build the WALL-01 plan line editor and hover properties, then connect its explicit inventory to DXF/IFC and opt-in ETABS/STAAD export.
+4. Complete the STAIR-01 editable centerline-node and floor-plan projection slice, then validate explicit stair frames/shells or equivalent reactions in native solvers.
+5. Build the WALL-01 plan line editor and hover properties, then connect its explicit inventory to DXF/IFC and opt-in ETABS/STAAD export.
 
 ## Release Evidence
 

@@ -193,6 +193,7 @@ function checkStairSourceContract() {
     assert(engine.includes('export_shells_and_frames_or_reactions_never_both'), 'Stair load double-count policy is missing');
     assert(html.includes("assertSolverStairTopologyReady('STAAD'"), 'STAAD stair integration gate is missing');
     assert(html.includes("assertSolverStairTopologyReady('ETABS'"), 'ETABS stair integration gate is missing');
+    assert(html.includes('stairPlan2DCanvas') && html.includes('stairElevation2DCanvas') && html.includes('renderStairBuilder2DViews'), '2D stair plan/elevation workspace is missing');
     assert(html.includes("'FS_STAIR_DL pattern'") && html.includes("'FS_STAIR_LL pattern'"), 'ETABS stair load patterns are missing');
     assert(html.includes('$createdStairBeams') && html.includes('$createdStairSlabs'), 'ETABS stair frame and shell creation path is missing');
     assert(html.includes('FS_AUDIT_STAIR_COMPONENTS') && html.includes('stairLoadPolicy'), 'STAAD stair export audit path is missing');

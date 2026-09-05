@@ -3299,6 +3299,10 @@
                         <div id="stair3DPreview" class="stair-preview-shell">
                             <div class="stair-preview-label">Stair 3D / transparent main-frame context</div>
                         </div>
+                        <div class="stair-2d-view-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0;">
+                            <div class="stair-preview-shell"><div class="stair-preview-label">Plan / centerline nodes</div><canvas id="stairPlan2DCanvas" width="540" height="300" style="width:100%;height:300px;display:block;background:#101827;"></canvas></div>
+                            <div class="stair-preview-shell"><div class="stair-preview-label">Elevation / governed levels</div><canvas id="stairElevation2DCanvas" width="540" height="300" style="width:100%;height:300px;display:block;background:#101827;"></canvas></div>
+                        </div>
                         <div class="schedule-table-wrapper" style="max-height:52vh;">
                             <table class="schedule-table">
                                 <thead>
@@ -21609,6 +21613,7 @@ function refreshStairBuilderPreview() {
         ? preview.structuralModel.integration.status.replace(/_/g, ' ')
         : '-');
     renderStairBuilder3DPreview(preview);
+    renderStairBuilder2DViews(preview);
     renderStairBuilderTable();
     return preview;
 }
@@ -23628,6 +23633,93 @@ function populateBOM() {
                 pedestals,
                 tieBeams
             };
+        }
+
+        function renderStairBuilder2DViews(preview) {
+            const model = preview?.structuralModel;
+            const plan = document.getElementById('stairPlan2DCanvas');
+            const elevation = document.getElementById('stairElevation2DCanvas');
+            if (!model || !plan || !elevation) return;
+            const primer = model.coordinatePrimer;
+            const bounds = preview.bounds;
+            const drawFrame = (canvas, title) => {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#101827'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#cbd5e1'; ctx.font = 'bold 12px Arial'; ctx.fillText(title, 14, 20);
+                return ctx;
+            };
+            const planCtx = drawFrame(plan, 'PLAN / CENTERLINE NODES');
+            const px = value => 30 + ((value - bounds.x1) / Math.max(0.01, bounds.x2 - bounds.x1)) * (plan.width - 60);
+            const py = value => plan.height - 28 - ((value - bounds.y1) / Math.max(0.01, bounds.y2 - bounds.y1)) * (plan.height - 60);
+            planCtx.strokeStyle = '#64748b'; planCtx.strokeRect(px(bounds.x1), py(bounds.y2), px(bounds.x2) - px(bounds.x1), py(bounds.y1) - py(bounds.y2));
+            (model.flightSlabs || []).concat(model.landingSlabs || []).forEach(slab => {
+                const vertices = slab.topVertices || [];
+                if (vertices.length < 3) return;
+                planCtx.beginPath();
+                vertices.forEach((point, index) => {
+                    const x = px(Number(point.x));
+                    const y = py(Number(point.y));
+                    if (index === 0) planCtx.moveTo(x, y);
+                    else planCtx.lineTo(x, y);
+                });
+                planCtx.closePath();
+                planCtx.fillStyle = slab.memberType === 'landing_slab' ? 'rgba(56,189,248,0.28)' : 'rgba(45,212,191,0.20)';
+                planCtx.fill();
+                planCtx.strokeStyle = slab.memberType === 'landing_slab' ? '#38bdf8' : '#2dd4bf';
+                planCtx.lineWidth = 1.5;
+                planCtx.stroke();
+            });
+            const centerX = (bounds.x1 + bounds.x2) / 2, centerY = (bounds.y1 + bounds.y2) / 2;
+            const flightLines = (model.flightSlabs || []).map(slab => {
+                const vertices = slab.topVertices || [];
+                if (vertices.length < 4) return null;
+                const start = {
+                    x: (Number(vertices[0].x) + Number(vertices[3].x)) / 2,
+                    y: (Number(vertices[0].y) + Number(vertices[3].y)) / 2
+                };
+                const end = {
+                    x: (Number(vertices[1].x) + Number(vertices[2].x)) / 2,
+                    y: (Number(vertices[1].y) + Number(vertices[2].y)) / 2
+                };
+                return { start, end };
+            }).filter(Boolean);
+            planCtx.strokeStyle = '#f59e0b';
+            planCtx.lineWidth = 3;
+            if (flightLines.length) {
+                flightLines.forEach(line => {
+                    planCtx.beginPath();
+                    planCtx.moveTo(px(line.start.x), py(line.start.y));
+                    planCtx.lineTo(px(line.end.x), py(line.end.y));
+                    planCtx.stroke();
+                });
+            } else {
+                planCtx.beginPath();
+                if (preview.axis === 'X') { planCtx.moveTo(px(bounds.x1), py(centerY)); planCtx.lineTo(px(bounds.x2), py(centerY)); }
+                else { planCtx.moveTo(px(centerX), py(bounds.y1)); planCtx.lineTo(px(centerX), py(bounds.y2)); }
+                planCtx.stroke();
+            }
+            const nodePoints = [];
+            flightLines.forEach(line => [line.start, line.end].forEach(point => {
+                if (!nodePoints.some(existing => Math.hypot(existing.x - point.x, existing.y - point.y) < 0.01)) nodePoints.push(point);
+            }));
+            if (!nodePoints.length) nodePoints.push({ x: bounds.x1, y: centerY }, { x: centerX, y: centerY }, { x: bounds.x2, y: centerY });
+            nodePoints.forEach((point, index) => {
+                planCtx.fillStyle = '#22c55e';
+                planCtx.beginPath();
+                planCtx.arc(px(point.x), py(point.y), 5, 0, Math.PI * 2);
+                planCtx.fill();
+                planCtx.fillStyle = '#e2e8f0';
+                planCtx.font = '11px Arial';
+                planCtx.fillText('N' + (index + 1), px(point.x) + 8, py(point.y) - 8);
+            });
+            const elevationCtx = drawFrame(elevation, 'ELEVATION / GOVERNED LEVELS');
+            const lower = Number(primer.lowerElevation || 0), upper = Number(primer.upperElevation || lower + 3), landing = Number(primer.landingElevations?.[0] || (lower + upper) / 2);
+            const minZ = Math.min(lower, landing) - 0.25, maxZ = Math.max(upper, landing) + 0.25;
+            const ez = value => elevation.height - 32 - ((value - minZ) / Math.max(0.01, maxZ - minZ)) * (elevation.height - 70);
+            elevationCtx.strokeStyle = '#475569'; elevationCtx.lineWidth = 2; elevationCtx.beginPath(); elevationCtx.moveTo(45, ez(lower)); elevationCtx.lineTo(elevation.width - 35, ez(lower)); elevationCtx.moveTo(45, ez(upper)); elevationCtx.lineTo(elevation.width - 35, ez(upper)); elevationCtx.stroke();
+            elevationCtx.strokeStyle = '#f59e0b'; elevationCtx.lineWidth = 4; elevationCtx.beginPath(); elevationCtx.moveTo(90, ez(lower)); elevationCtx.lineTo(270, ez(landing)); elevationCtx.lineTo(450, ez(upper)); elevationCtx.stroke();
+            [[90, lower, 'LOWER'], [270, landing, 'LANDING'], [450, upper, 'UPPER']].forEach(([x, z, label]) => { elevationCtx.fillStyle = '#22c55e'; elevationCtx.beginPath(); elevationCtx.arc(x, ez(z), 5, 0, Math.PI * 2); elevationCtx.fill(); elevationCtx.fillStyle = '#e2e8f0'; elevationCtx.fillText(`${label} ${z.toFixed(2)}m`, x - 30, ez(z) - 12); });
         }
 
         function collectCSIExportModelData() {
