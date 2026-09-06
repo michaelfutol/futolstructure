@@ -5565,6 +5565,7 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                     etabsScript.includes('$nativeGeometryAudit'),
                 hasNativeFrameParity:
                     etabsScript.includes('Compare-FutolAngle') &&
+                    etabsScript.includes('Compare-FutolJointOffset') &&
                     etabsScript.includes('Get-FutolAngleDelta') &&
                     etabsScript.includes('$nativeFrameParityFailures') &&
                     etabsScript.includes('$columnPlacementParityAudit') &&
@@ -5581,6 +5582,16 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                 hasBeamTopCenterCardinalPoint:
                     etabsScript.includes("beamCardinalPoint = if ($null -ne $beam.analyticalCardinalPoint) { [int]$beam.analyticalCardinalPoint } else { 8 }") &&
                     etabsScript.includes('Beam insertion point'),
+                hasExplicitBeamJointOffsets:
+                    etabsScript.includes('beamJointOffsetStart') &&
+                    etabsScript.includes('beamJointOffsetEnd') &&
+                    etabsScript.includes('sharedSolverPlan.start') &&
+                    csiExportModel.beams.some(beam =>
+                        Math.abs(Number(beam.jointOffsets?.sharedSolverPlan?.start?.dx) || 0) > 1e-9 ||
+                        Math.abs(Number(beam.jointOffsets?.sharedSolverPlan?.start?.dy) || 0) > 1e-9 ||
+                        Math.abs(Number(beam.jointOffsets?.sharedSolverPlan?.end?.dx) || 0) > 1e-9 ||
+                        Math.abs(Number(beam.jointOffsets?.sharedSolverPlan?.end?.dy) || 0) > 1e-9
+                    ),
                 hasFSTRStoryLevelContract:
                     etabsScript.includes('Assert-FutolVerticalLevelContract') &&
                     etabsScript.includes('$levelContractAudit') &&
@@ -5638,6 +5649,20 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                     policies: [...new Set(csiExportModel.beams.map(beam => beam.analyticalAxisPolicy))],
                     offsetCount: csiExportModel.beams.filter(beam => Math.abs(Number(beam.verticalInsertionOffsetM)) > 1e-9).length,
                     offsetsM: csiExportModel.beams.map(beam => Number(beam.verticalInsertionOffsetM) || 0),
+                    jointOffsetCount: csiExportModel.beams.filter(beam =>
+                        beam.jointOffsets?.sharedSolverPlan?.start &&
+                        beam.jointOffsets?.sharedSolverPlan?.end &&
+                        ['start', 'end'].some(end => {
+                            const offset = beam.jointOffsets.sharedSolverPlan[end];
+                            return Math.abs(Number(offset.dx) || 0) > 1e-9 || Math.abs(Number(offset.dy) || 0) > 1e-9;
+                        })
+                    ).length,
+                    physicalAnalyticalParity: csiExportModel.beams.every(beam =>
+                        beam.physicalPlanAxis &&
+                        beam.analyticalPlanAxis &&
+                        beam.jointOffsets?.sourcePlan &&
+                        beam.jointOffsets?.sharedSolverPlan
+                    ),
                     validTopAlignment: csiExportModel.beams.every(beam => {
                         const section = csiExportModel.frameSections.find(item => item.name === beam.section);
                         const expected = -Math.max(0, (Number(section?.hMm) - Number(beam.slabThicknessMm)) / 2000);
@@ -5683,7 +5708,10 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                 hasConcreteDesignUnits: staadContent.includes('\\nLOAD LIST 3 4\\nUNIT MMS NEWTON\\nSTART CONCRETE DESIGN\\n'),
                 hasJointDisplacements: staadContent.includes('\\nPRINT JOINT DISPLACEMENTS\\n'),
                 hasMemberOffsets: staadContent.includes('\\nMEMBER OFFSET\\n') &&
-                    staadContent.includes('START 0 -') && staadContent.includes('END 0 -')
+                    staadContent.includes(' START ') && staadContent.includes(' END '),
+                hasCentroidToPhysicalMemberOffsets:
+                    Number(window.lastSTAADExportAudit?.beamInsertion?.jointOffsetMembers || 0) ===
+                    Number(csiExportAudit?.beamInsertion?.jointOffsetCount || 0)
             };
             const ifcExportAudit = {
                 ...window.lastIFCExportAudit,
@@ -5886,6 +5914,7 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
             result.csiExportAudit.hasNativeFrameParity &&
             result.csiExportAudit.hasUnifiedColumnationParity &&
             result.csiExportAudit.hasBeamTopCenterCardinalPoint &&
+            result.csiExportAudit.hasExplicitBeamJointOffsets &&
             result.csiExportAudit.hasFSTRStoryLevelContract &&
             result.csiExportAudit.hasNativeBeamSlabLevelAudit &&
             result.csiExportAudit.levelAlignment?.beamsAtFSTRLevel &&
@@ -5916,6 +5945,8 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
             result.csiExportAudit.foundationHandoff?.baseSupportRestraintsExportedToETABS === true &&
             result.csiExportAudit.foundationHandoff?.geometryHandoff === 'IFC / SAFE / STAAD Foundation' &&
             result.csiExportAudit.beamInsertion.offsetCount > 0 &&
+            result.csiExportAudit.beamInsertion.jointOffsetCount > 0 &&
+            result.csiExportAudit.beamInsertion.physicalAnalyticalParity &&
             result.csiExportAudit.beamInsertion.validTopAlignment &&
             result.csiExportAudit.beamInsertion.policies.includes('support-centerline-joints; top-center cardinal at FSTR floor elevation') &&
             (!result.csiExportAudit.hasEdgeBeams ||
@@ -5973,6 +6004,8 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
             result.staadExportAudit.hasConcreteDesignUnits &&
             result.staadExportAudit.hasJointDisplacements &&
             result.staadExportAudit.hasMemberOffsets &&
+            result.staadExportAudit.hasCentroidToPhysicalMemberOffsets &&
+            result.staadExportAudit.counts.jointOffsetBeams === result.csiExportAudit.beamInsertion.jointOffsetCount &&
             result.staadExportAudit.counts.verticallyOffsetBeams === result.csiExportAudit.beamInsertion.offsetCount &&
             result.staadExportAudit.concreteDesign?.units === 'N-mm' &&
             JSON.stringify(result.staadExportAudit.concreteDesign?.loadList) === JSON.stringify([3, 4]) &&

@@ -15684,45 +15684,89 @@
             return getColumnHalfAlongBeam(col, direction);
         }
 
-        function getRenderedBeamSegment(beam, startCol, endCol, floorId = null) {
-            const x1 = Number(beam.x1) || 0;
-            const y1 = Number(beam.y1) || 0;
-            const x2 = Number(beam.x2) || 0;
-            const y2 = Number(beam.y2) || 0;
+        // Keep the two geometric views explicit. Solver members use analytical
+        // joints at the column centroids; drafting/3D members use the physical
+        // face-terminated axis. The offset between them is the rigid joint
+        // offset consumed by ETABS and STAAD.
+        function getBeamAnalyticalPhysicalGeometry(beam, floorId = null, beamSize = null) {
+            const raw = {
+                x1: Number(beam?.x1) || 0,
+                y1: Number(beam?.y1) || 0,
+                x2: Number(beam?.x2) || 0,
+                y2: Number(beam?.y2) || 0
+            };
+            const startCol = state.columns.find(col => col.id === beam?.startCol);
+            const endCol = state.columns.find(col => col.id === beam?.endCol);
+            const segment = getRenderedBeamPlanSegment(beam, startCol, endCol);
+            const physicalGeometry = getBeamPlanDrawGeometry(beam, floorId, {
+                trimToColumnFaces: true
+            });
+            const physical = {
+                x1: Number(physicalGeometry?.x1 ?? raw.x1) || 0,
+                y1: Number(physicalGeometry?.y1 ?? raw.y1) || 0,
+                x2: Number(physicalGeometry?.x2 ?? raw.x2) || 0,
+                y2: Number(physicalGeometry?.y2 ?? raw.y2) || 0
+            };
+
+            let analytical;
             if (beam?.isEdgeBeam) {
-                const endpoints = getEdgeBeamFaceTerminatedEndpoints(beam, floorId, { x1, y1, x2, y2 });
-                const length = Math.max(0.1, Math.hypot(endpoints.x2 - endpoints.x1, endpoints.y2 - endpoints.y1));
-                return {
-                    length,
-                    midX: (endpoints.x1 + endpoints.x2) / 2,
-                    midY: (endpoints.y1 + endpoints.y2) / 2
+                analytical = getEdgeBeamAnalyticalEndpoints(beam, floorId, {
+                    x1: segment.x1,
+                    y1: segment.y1,
+                    x2: segment.x2,
+                    y2: segment.y2
+                });
+            } else {
+                const supportedStart = startCol
+                    ? getColumnPlanPosition(startCol)
+                    : { x: segment.x1, y: segment.y1 };
+                const supportedEnd = endCol
+                    ? getColumnPlanPosition(endCol)
+                    : { x: segment.x2, y: segment.y2 };
+                if (startCol && !endCol) {
+                    if (beam.direction === 'X') supportedEnd.y = supportedStart.y;
+                    if (beam.direction === 'Y') supportedEnd.x = supportedStart.x;
+                } else if (!startCol && endCol) {
+                    if (beam.direction === 'X') supportedStart.y = supportedEnd.y;
+                    if (beam.direction === 'Y') supportedStart.x = supportedEnd.x;
+                }
+                analytical = {
+                    x1: Number(supportedStart.x) || 0,
+                    y1: Number(supportedStart.y) || 0,
+                    x2: Number(supportedEnd.x) || 0,
+                    y2: Number(supportedEnd.y) || 0
                 };
             }
-            const startPos = startCol ? getColumnPlanPosition(startCol) : { x: x1, y: y1 };
-            const endPos = endCol ? getColumnPlanPosition(endCol) : { x: x2, y: y2 };
-            const rawLength = Math.hypot(endPos.x - startPos.x, endPos.y - startPos.y);
-            if (rawLength <= 0) {
-                return { length: 0.1, midX: startPos.x, midY: startPos.y };
-            }
 
-            const ux = (endPos.x - startPos.x) / rawLength;
-            const uy = (endPos.y - startPos.y) / rawLength;
-            const startTrim = startCol && (!floorId || isColumnActiveOnFloor(startCol, floorId))
-                ? getColumnTrimAlongBeam(startCol, beam.direction)
-                : 0;
-            const endTrim = endCol && (!floorId || isColumnActiveOnFloor(endCol, floorId))
-                ? getColumnTrimAlongBeam(endCol, beam.direction)
-                : 0;
-            const sx = startPos.x + ux * startTrim;
-            const sy = startPos.y + uy * startTrim;
-            const ex = endPos.x - ux * endTrim;
-            const ey = endPos.y - uy * endTrim;
-            const length = Math.max(0.1, Math.hypot(ex - sx, ey - sy));
-
+            const dx = (a, b) => (Number(a) || 0) - (Number(b) || 0);
+            const length = Math.max(0.1, Math.hypot(physical.x2 - physical.x1, physical.y2 - physical.y1));
             return {
+                beamSize: beamSize || getBeamSizeMm(beam, floorId),
+                startCol,
+                endCol,
+                physical,
+                analytical,
                 length,
-                midX: (sx + ex) / 2,
-                midY: (sy + ey) / 2
+                midpoint: {
+                    x: (physical.x1 + physical.x2) / 2,
+                    y: (physical.y1 + physical.y2) / 2
+                },
+                jointOffsets: {
+                    start: { dx: dx(physical.x1, analytical.x1), dy: dx(physical.y1, analytical.y1) },
+                    end: { dx: dx(physical.x2, analytical.x2), dy: dx(physical.y2, analytical.y2) }
+                }
+            };
+        }
+
+        function getRenderedBeamSegment(beam, startCol, endCol, floorId = null) {
+            const geometry = getBeamAnalyticalPhysicalGeometry(beam, floorId);
+            return {
+                length: geometry.length,
+                midX: geometry.midpoint.x,
+                midY: geometry.midpoint.y,
+                physical: geometry.physical,
+                analytical: geometry.analytical,
+                jointOffsets: geometry.jointOffsets
             };
         }
 
@@ -16472,19 +16516,11 @@
                         (startCol && !isColumnActiveOnFloor(startCol, floor.id)) ||
                         (endCol && !isColumnActiveOnFloor(endCol, floor.id));
 
-                    const renderedSegment = getRenderedBeamSegment(beam, startCol, endCol, floor.id);
-                    const length = renderedSegment.length;
-
                     // v3.9: Use actual beam sizes from state (mm to meters)
                     const beamSize = getBeamSizeMm(beam, floor.id);
                     const beamWidth = beamSize.b / 1000;
                     const beamDepth = beamSize.h / 1000;
-                    const beamPlanOffset = getBeamPlanOffset(beam, beamWidth);
-
-                    // Create beam geometry with correct length and actual sizes
-                    const geo = beam.direction === 'X'
-                        ? new THREE.BoxGeometry(length, beamDepth, beamWidth)
-                        : new THREE.BoxGeometry(beamWidth, beamDepth, length);
+                    const beamGeometry = getBeamAnalyticalPhysicalGeometry(beam, floor.id, beamSize);
 
                     const beamCategory = (beam.isEdgeBeam || beam.isCantilever) ? 'cantilevers' : 'beams';
                     const beamColor = get3DDisplayColor(beamCategory);
@@ -16493,24 +16529,43 @@
                         roughness: 0.68,
                         metalness: 0.03
                     }));
-                    const mesh = new THREE.Mesh(geo, mat);
-
-                    // Position at midpoint
-                    const mx = (beam.direction === 'Y'
-                        ? beam.x1 + beamPlanOffset.offsetX
-                        : renderedSegment.midX) + offsetX;
-                    const mz = (beam.direction === 'X'
-                        ? beam.y1 + beamPlanOffset.offsetY
-                        : renderedSegment.midY) + offsetZ;
-                    mesh.position.set(mx, topY - beamDepth / 2, mz);
+                    const mesh = create3DFrameMesh({
+                        start: {
+                            x: beamGeometry.physical.x1,
+                            y: beamGeometry.physical.y1,
+                            z: topY
+                        },
+                        end: {
+                            x: beamGeometry.physical.x2,
+                            y: beamGeometry.physical.y2,
+                            z: topY
+                        },
+                        widthMm: beamSize.b,
+                        depthMm: beamSize.h
+                    }, mat, offsetX, offsetZ);
+                    if (!mesh) continue;
                     mesh.renderOrder = 2;
+
+                    // The mesh is physical; the attached analytical axis is the
+                    // solver line through column centroids. Keep both available
+                    // for inspection and downstream round-trip QA.
+                    const mx = mesh.position.x;
+                    const mz = mesh.position.z;
 
                     // v3.0: Store data for click detection
                     mesh.userData = {
                         type: 'beam',
                         id: beam.id,
                         floorId: floor.id,
-                        member: { ...beam, length, webW: beamSize.b, webD: beamSize.h }
+                        member: {
+                            ...beam,
+                            length: beamGeometry.length,
+                            webW: beamSize.b,
+                            webD: beamSize.h,
+                            physicalAxis: beamGeometry.physical,
+                            analyticalAxis: beamGeometry.analytical,
+                            jointOffsets: beamGeometry.jointOffsets
+                        }
                     };
 
                     scene3D.add(mesh);
@@ -22693,7 +22748,22 @@ function populateBOM() {
                     section: beam.section,
                     type: 'beam',
                     sourceId: beam.id,
-                    verticalInsertionOffsetM: Number(beam.verticalInsertionOffsetM) || 0
+                    verticalInsertionOffsetM: Number(beam.verticalInsertionOffsetM) || 0,
+                    // Shared solver X/Y are mapped to STAAD global X/Z. The
+                    // analytical nodes remain at column centroids; these
+                    // offsets move each member face to the physical axis.
+                    jointOffsets: {
+                        start: {
+                            x: -Number(beam.jointOffsets?.sharedSolverPlan?.start?.dx || 0),
+                            y: Number(beam.verticalInsertionOffsetM) || 0,
+                            z: Number(beam.jointOffsets?.sharedSolverPlan?.start?.dy || 0)
+                        },
+                        end: {
+                            x: -Number(beam.jointOffsets?.sharedSolverPlan?.end?.dx || 0),
+                            y: Number(beam.verticalInsertionOffsetM) || 0,
+                            z: Number(beam.jointOffsets?.sharedSolverPlan?.end?.dy || 0)
+                        }
+                    }
                 });
                 beamMembers.push(id);
                 addSectionMember(beam.section, id);
@@ -22879,13 +22949,23 @@ function populateBOM() {
             const verticallyOffsetBeams = members.filter(member =>
                 member.type === 'beam' && Math.abs(member.verticalInsertionOffsetM) > 1e-9
             );
-            if (verticallyOffsetBeams.length) {
-                std += '\n* Beam analytical nodes stay on the slab/story plane; member offsets align physical tops.\n';
+            const jointOffsetBeams = members.filter(member =>
+                member.type === 'beam' &&
+                ['start', 'end'].some(end => {
+                    const offset = member.jointOffsets?.[end] || {};
+                    return Math.abs(Number(offset.x) || 0) > 1e-9 ||
+                        Math.abs(Number(offset.y) || 0) > 1e-9 ||
+                        Math.abs(Number(offset.z) || 0) > 1e-9;
+                })
+            );
+            if (jointOffsetBeams.length) {
+                std += '\n* Analytical beam nodes remain at column centroids; global member offsets align physical faces and top edges.\n';
                 std += 'MEMBER OFFSET\n';
-                verticallyOffsetBeams.forEach(member => {
-                    const offset = member.verticalInsertionOffsetM.toFixed(6);
-                    std += `${member.id} START 0 ${offset} 0\n`;
-                    std += `${member.id} END 0 ${offset} 0\n`;
+                jointOffsetBeams.forEach(member => {
+                    const start = member.jointOffsets.start;
+                    const end = member.jointOffsets.end;
+                    std += `${member.id} START ${(Number(start.x) || 0).toFixed(6)} ${(Number(start.y) || 0).toFixed(6)} ${(Number(start.z) || 0).toFixed(6)}\n`;
+                    std += `${member.id} END ${(Number(end.x) || 0).toFixed(6)} ${(Number(end.y) || 0).toFixed(6)} ${(Number(end.z) || 0).toFixed(6)}\n`;
                 });
             }
 
@@ -22967,10 +23047,11 @@ function populateBOM() {
                     beams: mainBeamMemberCount,
                 slabs: mainPlateCount,
                 stairBeams: stairBeamMemberIds.length,
-                stairSlabs: stairPlateIds.length,
-                nodes: nodes.length,
-                frameMembers: members.length,
+                    stairSlabs: stairPlateIds.length,
+                    nodes: nodes.length,
+                    frameMembers: members.length,
                     verticallyOffsetBeams: verticallyOffsetBeams.length,
+                    jointOffsetBeams: jointOffsetBeams.length,
                     rigidLinkedPlateNodes: rigidLinkedPlateNodeCount,
                     upwardPlateNormals: plateNormalYValues.filter(value => value > 1e-9).length
                 },
@@ -22991,7 +23072,14 @@ function populateBOM() {
                 },
                 beamInsertion: {
                     policy: 'slab-midplane-nodes-with-top-aligned-beams',
-                    offsetsM: verticallyOffsetBeams.map(member => member.verticalInsertionOffsetM)
+                    offsetsM: verticallyOffsetBeams.map(member => member.verticalInsertionOffsetM),
+                    jointOffsetPolicy: 'analytical-column-centroid-nodes-with-physical-face-member-offsets',
+                    jointOffsetMembers: jointOffsetBeams.length,
+                    jointOffsetsM: jointOffsetBeams.map(member => ({
+                        id: member.sourceId,
+                        start: member.jointOffsets.start,
+                        end: member.jointOffsets.end
+                    }))
                 },
                 stairLoadPolicy: {
                     surfaceLoads: 'FS_STAIR_DL and FS_STAIR_LL on explicit stair shell plates',
@@ -23890,45 +23978,29 @@ function populateBOM() {
                         const solverWallLoad = Number(beam.wallLoad) > 0
                             ? rawFloorWallLoad
                             : 0;
-                        const startCol = (state.columns || []).find(col => col.id === beam.startCol);
-                        const endCol = (state.columns || []).find(col => col.id === beam.endCol);
-                        const segment = getRenderedBeamPlanSegment(beam, startCol, endCol);
-                        const planOffset = getBeamPlanOffset(beam, size.b / 1000, floorId);
-                        const rawDrawingAxis = {
-                            x1: segment.x1 + (Number(planOffset.offsetX) || 0),
-                            y1: segment.y1 + (Number(planOffset.offsetY) || 0),
-                            x2: segment.x2 + (Number(planOffset.offsetX) || 0),
-                            y2: segment.y2 + (Number(planOffset.offsetY) || 0)
-                        };
-                        const drawingAxis = getEdgeBeamFaceTerminatedEndpoints(beam, floorId, rawDrawingAxis);
-                        const analyticalAxis = getEdgeBeamAnalyticalEndpoints(beam, floorId, {
-                            x1: segment.x1,
-                            y1: segment.y1,
-                            x2: segment.x2,
-                            y2: segment.y2
-                        });
+                        const beamGeometry = getBeamAnalyticalPhysicalGeometry(beam, floorId, size);
+                        const drawingAxis = beamGeometry.physical;
+                        const analyticalAxis = beamGeometry.analytical;
                         const x1 = drawingAxis.x1;
                         const y1 = drawingAxis.y1;
                         const x2 = drawingAxis.x2;
                         const y2 = drawingAxis.y2;
                         if (Math.hypot(x2 - x1, y2 - y1) <= 0.01) return;
-                        const supportedStart = beam.isEdgeBeam
-                            ? { x: analyticalAxis.x1, y: analyticalAxis.y1 }
-                            : (startCol ? getColumnPlanPosition(startCol) : { x: segment.x1, y: segment.y1 });
-                        const supportedEnd = beam.isEdgeBeam
-                            ? { x: analyticalAxis.x2, y: analyticalAxis.y2 }
-                            : (endCol ? getColumnPlanPosition(endCol) : { x: segment.x2, y: segment.y2 });
-                        if (startCol && !endCol) {
-                            if (beam.direction === 'X') supportedEnd.y = supportedStart.y;
-                            if (beam.direction === 'Y') supportedEnd.x = supportedStart.x;
-                        } else if (!startCol && endCol) {
-                            if (beam.direction === 'X') supportedStart.y = supportedEnd.y;
-                            if (beam.direction === 'Y') supportedStart.x = supportedEnd.x;
-                        }
-                        const solverStart = toSolverPlanPoint(supportedStart.x, supportedStart.y);
-                        const solverEnd = toSolverPlanPoint(supportedEnd.x, supportedEnd.y);
+                        const solverStart = toSolverPlanPoint(analyticalAxis.x1, analyticalAxis.y1);
+                        const solverEnd = toSolverPlanPoint(analyticalAxis.x2, analyticalAxis.y2);
                         const solverDrawingStart = toSolverPlanPoint(x1, y1);
                         const solverDrawingEnd = toSolverPlanPoint(x2, y2);
+                        const sourceOffset = beamGeometry.jointOffsets;
+                        const solverOffset = {
+                            start: {
+                                dx: solverDrawingStart.x - solverStart.x,
+                                dy: solverDrawingStart.y - solverStart.y
+                            },
+                            end: {
+                                dx: solverDrawingEnd.x - solverEnd.x,
+                                dy: solverDrawingEnd.y - solverEnd.y
+                            }
+                        };
                         beams.push({
                             id: sanitizeCSIName(`${floorId}-${beam.id}`, `B-${beams.length + 1}`),
                             sourceId: beam.id,
@@ -23947,6 +24019,13 @@ function populateBOM() {
                                 y1: solverDrawingStart.y,
                                 x2: solverDrawingEnd.x,
                                 y2: solverDrawingEnd.y
+                            },
+                            physicalPlanAxis: { ...drawingAxis },
+                            analyticalPlanAxis: { ...analyticalAxis },
+                            jointOffsets: {
+                                policy: 'physical-face-axis-from-centroid-joints',
+                                sourcePlan: sourceOffset,
+                                sharedSolverPlan: solverOffset
                             },
                             analyticalAxisPolicy: beam.isEdgeBeam
                                 ? 'cantilever-side-beam-centerline-joints; top-center cardinal at FSTR floor elevation; drawingAxis face-terminated'
@@ -24134,6 +24213,10 @@ function populateBOM() {
                     levelPolicy: 'FSTR governed absolute floor elevations and cumulative storey heights; no hardcoded story levels',
                     beamLevelPolicy: 'beam analytical joints and top-center cardinal point 8 are placed at the FSTR floor elevation',
                     slabLevelPolicy: 'slab reference plane is placed at the same FSTR floor elevation as its host beam level',
+                    physicalGeometryPolicy: '3D and drafting beams use face-terminated physical axes; solver frames retain centroid joints',
+                    jointOffsetPolicy: 'shared solver-plan offsets from analytical column-centroid joints to physical beam faces; ETABS global insertion offsets and STAAD global MEMBER OFFSET',
+                    physicalAxisFields: ['physicalPlanAxis', 'drawingAxis'],
+                    analyticalAxisFields: ['analyticalPlanAxis', 'x1', 'y1', 'x2', 'y2'],
                     columnLocalAxisPolicy: 'ETABS angle = negative source plan angle after Y reflection',
                     columnSectionAxisPolicy: 'vertical column: ETABS T3 depth along local 2=FS B/X; T2 width along local 3=FS H/Y',
                     beamSectionAxisPolicy: 'horizontal frame: ETABS T3 depth along local 2=FS H/vertical; T2 width along local 3=FS B/transverse'
@@ -24436,9 +24519,23 @@ try {
         $pointByCoordinate[$key] = $pointName
         return [string]$pointName
     }
-    function Set-FutolFrameInsertionPoint([string]$Name, [int]$CardinalPoint, [string]$Step) {
+    function Set-FutolFrameInsertionPoint([string]$Name, [int]$CardinalPoint, [string]$Step, [object]$JointOffset1 = $null, [object]$JointOffset2 = $null) {
         $offset1 = [double[]]@(0.0, 0.0, 0.0)
         $offset2 = [double[]]@(0.0, 0.0, 0.0)
+        if ($null -ne $JointOffset1) {
+            $offset1 = [double[]]@(
+                [double]$JointOffset1.dx,
+                [double]$JointOffset1.dy,
+                0.0
+            )
+        }
+        if ($null -ne $JointOffset2) {
+            $offset2 = [double[]]@(
+                [double]$JointOffset2.dx,
+                [double]$JointOffset2.dy,
+                0.0
+            )
+        }
         Assert-CSI ($sap.FrameObj.SetInsertionPoint_1(
             $Name,
             $CardinalPoint,
@@ -24492,6 +24589,16 @@ try {
                 [Math]::Round($transformation[2], 6),
                 [Math]::Round($transformation[5], 6),
                 [Math]::Round($transformation[8], 6)
+            )
+            jointOffset1Global = @(
+                [Math]::Round($offset1[0], 6),
+                [Math]::Round($offset1[1], 6),
+                [Math]::Round($offset1[2], 6)
+            )
+            jointOffset2Global = @(
+                [Math]::Round($offset2[0], 6),
+                [Math]::Round($offset2[1], 6),
+                [Math]::Round($offset2[2], 6)
             )
             mirror2 = $mirror2
             mirror3 = $mirror3
@@ -24773,7 +24880,9 @@ try {
         $name = $nativeName
         $createdBeams += $name
         $beamCardinalPoint = if ($null -ne $beam.analyticalCardinalPoint) { [int]$beam.analyticalCardinalPoint } else { 8 }
-        Set-FutolFrameInsertionPoint $name $beamCardinalPoint ('Beam insertion point ' + $beam.id)
+        $beamJointOffsetStart = if ($null -ne $beam.jointOffsets) { $beam.jointOffsets.sharedSolverPlan.start } else { $null }
+        $beamJointOffsetEnd = if ($null -ne $beam.jointOffsets) { $beam.jointOffsets.sharedSolverPlan.end } else { $null }
+        Set-FutolFrameInsertionPoint $name $beamCardinalPoint ('Beam insertion point ' + $beam.id) $beamJointOffsetStart $beamJointOffsetEnd
         if ([double]$beam.wallLoad -gt 0) {
             Assert-CSI ($sap.FrameObj.SetLoadDistributed($name, 'FS_WALL', 1, 10, 0.0, 1.0, [double]$beam.wallLoad, [double]$beam.wallLoad, 'Global', $true, $true, [ETABSv1.eItemType]::Objects)) ('Wall load ' + $beam.id)
         }
@@ -25030,6 +25139,21 @@ try {
     function Compare-FutolAngle([double]$Actual, [double]$Expected) {
         return (Get-FutolAngleDelta $Actual $Expected) -le 0.001
     }
+    function Compare-FutolJointOffset([object]$Actual, [object]$Expected) {
+        $actualValues = @(
+            if ($null -ne $Actual) { [double]$Actual[0] } else { 0.0 },
+            if ($null -ne $Actual) { [double]$Actual[1] } else { 0.0 },
+            if ($null -ne $Actual) { [double]$Actual[2] } else { 0.0 }
+        )
+        $expectedValues = @(
+            if ($null -ne $Expected) { [double]$Expected.dx } else { 0.0 },
+            if ($null -ne $Expected) { [double]$Expected.dy } else { 0.0 },
+            0.0
+        )
+        return (0..2 | ForEach-Object {
+            [Math]::Abs($actualValues[$_] - $expectedValues[$_]) -le 0.001
+        }) -notcontains $false
+    }
     $nativeFrameParityFailures = @()
     foreach ($column in $model.columns) {
         $expectedName = 'C-' + [string]$column.id
@@ -25062,10 +25186,14 @@ try {
         $actual = $nativeBeamFrames | Where-Object { [string]$_.name -eq $expectedName } | Select-Object -First 1
         $section = $model.frameSections | Where-Object { [string]$_.name -eq [string]$beam.section } | Select-Object -First 1
         $expectedCardinal = if ($null -ne $beam.analyticalCardinalPoint) { [int]$beam.analyticalCardinalPoint } else { 8 }
+        $expectedOffset1 = if ($null -ne $beam.jointOffsets) { $beam.jointOffsets.sharedSolverPlan.start } else { $null }
+        $expectedOffset2 = if ($null -ne $beam.jointOffsets) { $beam.jointOffsets.sharedSolverPlan.end } else { $null }
         $valid = $null -ne $actual -and $null -ne $section -and
             [Math]::Abs([double]$actual.t2Mm - [double]$section.etabsT2Mm) -le 0.001 -and
             [Math]::Abs([double]$actual.t3Mm - [double]$section.etabsT3Mm) -le 0.001 -and
-            [int]$actual.cardinalPoint -eq $expectedCardinal
+            [int]$actual.cardinalPoint -eq $expectedCardinal -and
+            (Compare-FutolJointOffset $actual.jointOffset1Global $expectedOffset1) -and
+            (Compare-FutolJointOffset $actual.jointOffset2Global $expectedOffset2)
         if (-not $valid) {
             $nativeFrameParityFailures += [pscustomobject][ordered]@{
                 type = 'beam'
@@ -25075,6 +25203,8 @@ try {
                     t2Mm = if ($null -ne $section) { [double]$section.etabsT2Mm } else { $null }
                     t3Mm = if ($null -ne $section) { [double]$section.etabsT3Mm } else { $null }
                     cardinalPoint = $expectedCardinal
+                    jointOffset1Global = $expectedOffset1
+                    jointOffset2Global = $expectedOffset2
                 }
                 actual = $actual
             }
