@@ -68,6 +68,45 @@ async function main() {
         });
         assert.ok(stairViews.plan.width > 0 && stairViews.plan.height > 0 && stairViews.plan.painted > 100, JSON.stringify(stairViews));
         assert.ok(stairViews.elevation.width > 0 && stairViews.elevation.height > 0 && stairViews.elevation.painted > 100, JSON.stringify(stairViews));
+        const stairPlacement = await page.evaluate(() => {
+            const before = calculateStairBuilderPreview();
+            if (!before?.baseBounds) return { ready: false, reason: 'preview-not-ready' };
+            setStairPlacementOffsets(0.15, -0.1, 'free', '');
+            const manual = calculateStairBuilderPreview();
+            const canvas = document.getElementById('stairPlan2DCanvas');
+            const rect = canvas.getBoundingClientRect();
+            canvas.dispatchEvent(new MouseEvent('click', {
+                bubbles: true,
+                clientX: rect.left + rect.width * 0.18,
+                clientY: rect.top + rect.height * 0.22
+            }));
+            const clicked = calculateStairBuilderPreview();
+            const normalized = EngineStairs.normalizeStair({
+                id: 'ST-QA-PLACEMENT',
+                fromFloorId: before.fromFloorId,
+                toFloorId: before.toFloorId,
+                bayX: before.bayX,
+                bayY: before.bayY,
+                bounds: clicked.bounds,
+                placement: clicked.placement
+            });
+            const audit = {
+                ready: true,
+                bound: canvas.dataset.placementBound === 'true',
+                manualDeltaX: manual.bounds.x1 - before.bounds.x1,
+                manualDeltaY: manual.bounds.y1 - before.bounds.y1,
+                clickedPlacement: clicked.placement,
+                normalizedPlacement: normalized?.placement || null
+            };
+            resetStairPlacement();
+            return audit;
+        });
+        assert.equal(stairPlacement.ready, true, JSON.stringify(stairPlacement));
+        assert.equal(stairPlacement.bound, true, JSON.stringify(stairPlacement));
+        assert.ok(Math.abs(stairPlacement.manualDeltaX - 0.15) < 0.001, JSON.stringify(stairPlacement));
+        assert.ok(Math.abs(stairPlacement.manualDeltaY + 0.1) < 0.001, JSON.stringify(stairPlacement));
+        assert.ok(['grid', 'column', 'free'].includes(stairPlacement.clickedPlacement.snapMode), JSON.stringify(stairPlacement));
+        assert.deepEqual(stairPlacement.normalizedPlacement, stairPlacement.clickedPlacement, JSON.stringify(stairPlacement));
         await page.screenshot({ path: path.join(output, 'stair-builder-2d-desktop.png'), fullPage: true });
         await page.locator('#tabRoofFrame').click();
         await page.locator('#panelRoofFrame').waitFor({ state: 'visible' });
@@ -121,7 +160,7 @@ async function main() {
             await page.screenshot({ path: path.join(output, `analysis-${width}.png`), fullPage: true });
         }
         assert.deepEqual(errors, []);
-        console.log(JSON.stringify({ ok: true, evidence: output, viewports: [1440, 768, 390], draft: path.basename(filename), geometryPreserved: true, pageErrors: errors }));
+        console.log(JSON.stringify({ ok: true, evidence: output, viewports: [1440, 768, 390], draft: path.basename(filename), stairPlacement, geometryPreserved: true, pageErrors: errors }));
     } finally {
         await browser.close();
     }

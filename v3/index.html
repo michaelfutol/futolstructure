@@ -1732,6 +1732,30 @@
             padding-top: 4px;
         }
 
+        .stair-placement-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .stair-builder-secondary {
+            height: 30px;
+            padding: 0 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font-size: 0.68rem;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .stair-builder-secondary:hover {
+            border-color: #2563eb;
+            color: #1d4ed8;
+        }
+
         .stair-builder-primary {
             height: 34px;
             padding: 0 14px;
@@ -1762,6 +1786,15 @@
             border-left-color: #059669;
             background: #ecfdf5;
             color: #065f46;
+        }
+
+        .stair-placement-status {
+            grid-column: 1 / -1;
+            padding: 7px 9px;
+            border-left: 3px solid #0d9488;
+            background: rgba(13, 148, 136, 0.08);
+            color: var(--text-secondary);
+            font: 600 0.66rem/1.35 var(--font-main);
         }
 
         .stair-builder-summary {
@@ -3236,6 +3269,16 @@
                                 <option value="stair_centerline">Stair centerline</option>
                             </select>
                         </label>
+                        <label class="stair-builder-field">Plan offset X (m)
+                            <input type="number" id="stairOffsetX" value="0" min="-20" max="20" step="0.05" oninput="setStairPlacementMeta('free', ''); refreshStairBuilderPreview()">
+                        </label>
+                        <label class="stair-builder-field">Plan offset Y (m)
+                            <input type="number" id="stairOffsetY" value="0" min="-20" max="20" step="0.05" oninput="setStairPlacementMeta('free', ''); refreshStairBuilderPreview()">
+                        </label>
+                        <div class="stair-placement-actions">
+                            <button type="button" class="stair-builder-secondary" onclick="snapStairBuilderToNearestGrid()">Snap center</button>
+                            <button type="button" class="stair-builder-secondary" onclick="resetStairPlacement()">Reset bay</button>
+                        </div>
                         <label class="stair-builder-field">Clear width (mm)
                             <input type="number" id="stairWidth" value="1000" min="750" max="2500" step="50" oninput="refreshStairBuilderPreview()">
                         </label>
@@ -3285,6 +3328,7 @@
                         <div class="stair-builder-actions">
                             <button type="button" class="stair-builder-primary" onclick="createStairFromBuilder()">Create &amp; Integrate</button>
                         </div>
+                        <div id="stairPlacementStatus" class="stair-placement-status">Click the plan view to place the stair center. Grid and column points are snap targets.</div>
                         <div id="stairBuilderStatus" class="stair-builder-status"></div>
                     </div>
                     <div>
@@ -21379,6 +21423,11 @@ function calculateStairBuilderPreview() {
         if (rotationDeg === 90) y1 = y[bayY];
         if (rotationDeg === 270) y1 = y[bayY + 1] - footprintY;
     }
+    const baseBounds = { x1, y1, x2: x1 + footprintX, y2: y1 + footprintY };
+    const offsetXM = Number(document.getElementById('stairOffsetX')?.value) || 0;
+    const offsetYM = Number(document.getElementById('stairOffsetY')?.value) || 0;
+    x1 += offsetXM;
+    y1 += offsetYM;
     const x2 = x1 + footprintX;
     const y2 = y1 + footprintY;
     const fits = x1 >= x[bayX] - 0.001 && y1 >= y[bayY] - 0.001 &&
@@ -21416,6 +21465,12 @@ function calculateStairBuilderPreview() {
         flightRunM,
         bounds: { x1, y1, x2, y2 },
         opening: { slabId: targetSlabId, x1, y1, x2, y2 },
+        placement: {
+            offsetXM,
+            offsetYM,
+            snapMode: stairBuilderPlacementMeta.snapMode,
+            snapTargetId: stairBuilderPlacementMeta.snapTargetId
+        },
         material: 'Concrete',
         sections,
         loads,
@@ -21479,6 +21534,13 @@ function calculateStairBuilderPreview() {
         floorHeightM,
         footprintX,
         footprintY,
+        baseBounds,
+        placement: {
+            offsetXM,
+            offsetYM,
+            snapMode: stairBuilderPlacementMeta.snapMode,
+            snapTargetId: stairBuilderPlacementMeta.snapTargetId
+        },
         factoredLoad,
         targetSlabId,
         bounds: { x1, y1, x2, y2 },
@@ -21490,8 +21552,114 @@ function calculateStairBuilderPreview() {
     };
 }
 
+let stairBuilderPlacementMeta = { snapMode: 'free', snapTargetId: '' };
+let stairBuilderCurrentPreview = null;
 let stairBuilder3D = null;
 let stairBuilderPreviewMeshes = [];
+
+function setStairPlacementMeta(snapMode = 'free', snapTargetId = '') {
+    stairBuilderPlacementMeta = {
+        snapMode: ['grid', 'column', 'free'].includes(snapMode) ? snapMode : 'free',
+        snapTargetId: String(snapTargetId || '')
+    };
+}
+
+function setStairPlacementOffsets(offsetXM, offsetYM, snapMode = 'free', snapTargetId = '') {
+    const xInput = document.getElementById('stairOffsetX');
+    const yInput = document.getElementById('stairOffsetY');
+    if (xInput) xInput.value = Number(offsetXM || 0).toFixed(3);
+    if (yInput) yInput.value = Number(offsetYM || 0).toFixed(3);
+    setStairPlacementMeta(snapMode, snapTargetId);
+    return refreshStairBuilderPreview();
+}
+
+function getStairPlacementSnapTargets(preview) {
+    if (!preview) return [];
+    const coordinates = getStairGridCoordinates();
+    const targets = [];
+    coordinates.x.forEach((xValue, xIndex) => coordinates.y.forEach((yValue, yIndex) => {
+        targets.push({
+            x: xValue,
+            y: yValue,
+            kind: 'grid',
+            id: `GRID-${String.fromCharCode(65 + xIndex)}${yIndex + 1}`
+        });
+    }));
+    const seenColumns = new Set();
+    (state.columns || []).forEach(column => {
+        if (seenColumns.has(column.id)) return;
+        if (!isColumnActiveOnFloor(column, preview.fromFloorId) && !isColumnActiveOnFloor(column, preview.toFloorId)) return;
+        const position = getColumnPlanPosition(column);
+        if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return;
+        seenColumns.add(column.id);
+        targets.push({ x: position.x, y: position.y, kind: 'column', id: `COLUMN-${column.id}` });
+    });
+    return targets;
+}
+
+function findNearestStairPlacementTarget(preview, xValue, yValue) {
+    const targets = getStairPlacementSnapTargets(preview);
+    let nearest = null;
+    targets.forEach(target => {
+        const distance = Math.hypot(target.x - xValue, target.y - yValue);
+        if (!nearest || distance < nearest.distance) nearest = { ...target, distance };
+    });
+    return nearest;
+}
+
+function snapStairBuilderToNearestGrid() {
+    const preview = stairBuilderCurrentPreview || calculateStairBuilderPreview();
+    if (!preview?.baseBounds) return preview;
+    const centerX = (preview.bounds.x1 + preview.bounds.x2) / 2;
+    const centerY = (preview.bounds.y1 + preview.bounds.y2) / 2;
+    const nearest = findNearestStairPlacementTarget(preview, centerX, centerY);
+    if (!nearest) return preview;
+    const baseCenterX = (preview.baseBounds.x1 + preview.baseBounds.x2) / 2;
+    const baseCenterY = (preview.baseBounds.y1 + preview.baseBounds.y2) / 2;
+    return setStairPlacementOffsets(
+        nearest.x - baseCenterX,
+        nearest.y - baseCenterY,
+        nearest.kind,
+        nearest.id
+    );
+}
+
+function resetStairPlacement() {
+    return setStairPlacementOffsets(0, 0, 'free', '');
+}
+
+function bindStairPlanPlacementInteraction() {
+    const canvas = document.getElementById('stairPlan2DCanvas');
+    if (!canvas || canvas.dataset.placementBound === 'true') return;
+    canvas.dataset.placementBound = 'true';
+    canvas.style.cursor = 'crosshair';
+    canvas.title = 'Click a plan location to place the stair center. Grid and column points snap automatically.';
+    canvas.addEventListener('click', event => {
+        const preview = stairBuilderCurrentPreview;
+        if (!preview?.baseBounds) return;
+        const rect = canvas.getBoundingClientRect();
+        const px = (event.clientX - rect.left) * canvas.width / Math.max(1, rect.width);
+        const py = (event.clientY - rect.top) * canvas.height / Math.max(1, rect.height);
+        const bay = getStairBayBounds(preview);
+        const xValue = bay.x1 + ((px - 30) / Math.max(1, canvas.width - 60)) * (bay.x2 - bay.x1);
+        const yValue = bay.y2 - ((py - 28) / Math.max(1, canvas.height - 60)) * (bay.y2 - bay.y1);
+        const clampedX = Math.min(bay.x2, Math.max(bay.x1, xValue));
+        const clampedY = Math.min(bay.y2, Math.max(bay.y1, yValue));
+        const nearest = findNearestStairPlacementTarget(preview, clampedX, clampedY);
+        const snapTolerance = Math.max(0.25, Math.min(bay.x2 - bay.x1, bay.y2 - bay.y1) * 0.18);
+        const target = nearest && nearest.distance <= snapTolerance
+            ? nearest
+            : { x: clampedX, y: clampedY, kind: 'free', id: '' };
+        const baseCenterX = (preview.baseBounds.x1 + preview.baseBounds.x2) / 2;
+        const baseCenterY = (preview.baseBounds.y1 + preview.baseBounds.y2) / 2;
+        setStairPlacementOffsets(
+            target.x - baseCenterX,
+            target.y - baseCenterY,
+            target.kind,
+            target.id
+        );
+    });
+}
 
 function clearStairBuilder3DPreview() {
     if (!stairBuilder3D?.scene) return;
@@ -21664,6 +21832,7 @@ function renderStairBuilder3DPreview(preview) {
 
 function refreshStairBuilderPreview() {
     const preview = calculateStairBuilderPreview();
+    stairBuilderCurrentPreview = preview;
     const status = document.getElementById('stairBuilderStatus');
     if (status) {
         status.textContent = preview.message || '';
@@ -21693,8 +21862,15 @@ function refreshStairBuilderPreview() {
     setText('stairMetricIntegration', preview.structuralModel
         ? preview.structuralModel.integration.status.replace(/_/g, ' ')
         : '-');
+    const placementStatus = document.getElementById('stairPlacementStatus');
+    if (placementStatus) {
+        const mode = preview.placement?.snapMode || 'free';
+        const target = preview.placement?.snapTargetId ? ` (${preview.placement.snapTargetId})` : '';
+        placementStatus.textContent = `Placement: ${mode}${target}. Click the plan view to move the stair center; use Snap center for the nearest grid/column point.`;
+    }
     renderStairBuilder3DPreview(preview);
     renderStairBuilder2DViews(preview);
+    bindStairPlanPlacementInteraction();
     renderStairBuilderTable();
     return preview;
 }
@@ -21757,6 +21933,7 @@ function createStairFromBuilder() {
         risers: preview.risers,
         flightRunM: preview.flightRunM,
         bounds: preview.bounds,
+        placement: cloneSerializable(preview.placement, {}),
         opening: {
             slabId: preview.targetSlabId,
             ...preview.bounds
@@ -23777,6 +23954,7 @@ function populateBOM() {
             if (!model || !plan || !elevation) return;
             const primer = model.coordinatePrimer;
             const bounds = preview.bounds;
+            const bay = getStairBayBounds(preview);
             const drawFrame = (canvas, title) => {
                 const ctx = canvas.getContext('2d');
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -23785,9 +23963,23 @@ function populateBOM() {
                 return ctx;
             };
             const planCtx = drawFrame(plan, 'PLAN / CENTERLINE NODES');
-            const px = value => 30 + ((value - bounds.x1) / Math.max(0.01, bounds.x2 - bounds.x1)) * (plan.width - 60);
-            const py = value => plan.height - 28 - ((value - bounds.y1) / Math.max(0.01, bounds.y2 - bounds.y1)) * (plan.height - 60);
-            planCtx.strokeStyle = '#64748b'; planCtx.strokeRect(px(bounds.x1), py(bounds.y2), px(bounds.x2) - px(bounds.x1), py(bounds.y1) - py(bounds.y2));
+            const px = value => 30 + ((value - bay.x1) / Math.max(0.01, bay.x2 - bay.x1)) * (plan.width - 60);
+            const py = value => plan.height - 28 - ((value - bay.y1) / Math.max(0.01, bay.y2 - bay.y1)) * (plan.height - 60);
+            planCtx.save();
+            planCtx.setLineDash([6, 4]);
+            planCtx.strokeStyle = '#94a3b8';
+            planCtx.lineWidth = 1.5;
+            planCtx.strokeRect(px(bay.x1), py(bay.y2), px(bay.x2) - px(bay.x1), py(bay.y1) - py(bay.y2));
+            planCtx.restore();
+            planCtx.strokeStyle = '#64748b';
+            planCtx.lineWidth = 2;
+            planCtx.strokeRect(px(bounds.x1), py(bounds.y2), px(bounds.x2) - px(bounds.x1), py(bounds.y1) - py(bounds.y2));
+            getStairPlacementSnapTargets(preview).forEach(target => {
+                planCtx.fillStyle = target.kind === 'column' ? '#a78bfa' : '#64748b';
+                planCtx.beginPath();
+                planCtx.arc(px(target.x), py(target.y), target.kind === 'column' ? 4 : 2.5, 0, Math.PI * 2);
+                planCtx.fill();
+            });
             (model.flightSlabs || []).concat(model.landingSlabs || []).forEach(slab => {
                 const vertices = slab.topVertices || [];
                 if (vertices.length < 3) return;
@@ -23848,6 +24040,9 @@ function populateBOM() {
                 planCtx.font = '11px Arial';
                 planCtx.fillText('N' + (index + 1), px(point.x) + 8, py(point.y) - 8);
             });
+            planCtx.fillStyle = '#cbd5e1';
+            planCtx.font = '10px Arial';
+            planCtx.fillText('Click to place / snap center', 14, plan.height - 10);
             const elevationCtx = drawFrame(elevation, 'ELEVATION / GOVERNED LEVELS');
             const lower = Number(primer.lowerElevation || 0), upper = Number(primer.upperElevation || lower + 3), landing = Number(primer.landingElevations?.[0] || (lower + upper) / 2);
             const minZ = Math.min(lower, landing) - 0.25, maxZ = Math.max(upper, landing) + 0.25;

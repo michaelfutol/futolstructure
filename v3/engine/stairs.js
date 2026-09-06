@@ -74,6 +74,7 @@
         const sections = source.sections || {};
         const loads = source.loads || {};
         const integration = source.integration || {};
+        const placement = source.placement || {};
         const normalized = {
             id: String(source.id || `ST-${index + 1}`).trim() || `ST-${index + 1}`,
             type: source.type === 'straight' ? 'straight' : 'dogleg',
@@ -100,6 +101,14 @@
             flightRunM: positive(source.flightRunM, 2.2, 0.5),
             bounds,
             opening: source.opening ? clone(source.opening, null) : null,
+            placement: {
+                offsetXM: finite(placement.offsetXM, 0),
+                offsetYM: finite(placement.offsetYM, 0),
+                snapMode: ['grid', 'column', 'free'].includes(placement.snapMode)
+                    ? placement.snapMode
+                    : 'free',
+                snapTargetId: String(placement.snapTargetId || '')
+            },
             material: String(source.material || 'Concrete'),
             sections: {
                 stairBeam: normalizeSection(sections.stairBeam, DEFAULT_SECTIONS.stairBeam),
