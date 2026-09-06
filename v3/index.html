@@ -25141,13 +25141,13 @@ try {
     }
     function Compare-FutolJointOffset([object]$Actual, [object]$Expected) {
         $actualValues = @(
-            if ($null -ne $Actual) { [double]$Actual[0] } else { 0.0 },
-            if ($null -ne $Actual) { [double]$Actual[1] } else { 0.0 },
+            if ($null -ne $Actual) { [double]$Actual[0] } else { 0.0 }
+            if ($null -ne $Actual) { [double]$Actual[1] } else { 0.0 }
             if ($null -ne $Actual) { [double]$Actual[2] } else { 0.0 }
         )
         $expectedValues = @(
-            if ($null -ne $Expected) { [double]$Expected.dx } else { 0.0 },
-            if ($null -ne $Expected) { [double]$Expected.dy } else { 0.0 },
+            if ($null -ne $Expected) { [double]$Expected.dx } else { 0.0 }
+            if ($null -ne $Expected) { [double]$Expected.dy } else { 0.0 }
             0.0
         )
         return (0..2 | ForEach-Object {

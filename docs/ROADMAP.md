@@ -12,7 +12,7 @@ Locally Verified does not imply a published installer or a production deployment
 | --- | --- | --- | --- |
 | UI-01 | Contextual workspaces, Stair Builder under Model, responsive draft panels | Locally Verified | check-workspaces.cjs; desktop/tablet/phone navigation, painted stair plan/elevation views, and unchanged model geometry |
 | MODEL-01 | Independent floor edge defaults and manual member sizes | Locally Verified | check-fs.js partialCantilever.edgeSizing; independent, inherited and detached floors; native Bacacay readback still required |
-| MODEL-02 | Persistent column segments, exact columnation and vertical datums | Native Acceptance Pending | [Bacacay geometry acceptance](BACACAY_GEOMETRY_ACCEPTANCE_2026-09-06.md) passes source/model parity, 34 ETABS/STAAD centroid-to-physical offsets, and zero cantilever diagnostics; native ETABS/STAAD/Revit readback remains |
+| MODEL-02 | Persistent column segments, exact columnation and vertical datums | Native Acceptance Pending | [Bacacay geometry acceptance](BACACAY_GEOMETRY_ACCEPTANCE_2026-09-06.md) passes source/model parity and native ETABS 22.6 parity (52 frames, 12 areas, 34 beam offsets, 6 modal rows); STAAD native readback and Revit inspection remain |
 | ROOF-01 | Steel roof-frame modeler and solver handoff | In Progress | `FutolStructure.RoofFrameModel.v1` now has explainable AUTO hinge/roller assignments and explicit fixed override; next gate is interactive member placement, roof loads, save/load, and native solver acceptance |
 | SAVE-01 | Protected revisions, explicit project opening and last ten files | Locally Verified | Browser persistence; installed candidate bridge and isolated recent-project startup passed |
 | STAIR-01 | Canonical stair frames/shells and load handoff | In Progress | 2D stair plan/elevation workspace now linked to the existing structural model and 3D preview; native support connectivity, solver load handoff, and editable node snapping remain pending |
@@ -35,7 +35,7 @@ Locally Verified does not imply a published installer or a production deployment
 ## Immediate Sequence
 
 1. Review [PR #11](https://github.com/michaelfutol/futolstructure/pull/11) and complete native acceptance before production promotion.
-2. ~~Record MODEL-01 regression evidence, then validate a dated Bacacay export against source coordinates, member sizes, analytical centroid joints, and physical member offsets.~~ **Locally verified 2026-09-06; native solver readback remains the gate.**
+2. ~~Record MODEL-01 regression evidence, then validate a dated Bacacay export against source coordinates, member sizes, analytical centroid joints, and physical member offsets.~~ **Source/model parity and native ETABS 22.6 acceptance verified 2026-09-06; STAAD native readback and Revit inspection remain the gate.**
 3. Compare the pinned PyNite baseline against an accepted ETABS/STAAD fixture, then add controlled cancellation/logging and a dated acceptance artifact; do not duplicate load or support assembly.
 4. Complete the STAIR-01 editable centerline-node and floor-plan projection slice, then validate explicit stair frames/shells or equivalent reactions in native solvers.
 5. Build the WALL-01 plan line editor and hover properties, then connect its explicit inventory to DXF/IFC and opt-in ETABS/STAAD export.
@@ -49,3 +49,4 @@ Locally Verified does not imply a published installer or a production deployment
 - Full release regression: passed; output/playwright/workspaces/fs124-full-regression.log. Independent edge defaults: 2F 225x475 mm, RF 330x620 mm. After detaching typical framing, changing 2F to 250x500 leaves RF 225x475. Manual overrides: 2F 210x360, RF 330x620.
 - GitHub review: [draft PR #11](https://github.com/michaelfutol/futolstructure/pull/11), branch release/fs-124-desktop-workspaces-rc1. Source and release metadata pushed; production main has not been changed.
 - ANALYSIS-02 source gate passed with `node v3/tools/check-fs.js --no-browser`; the browser run reached the new assertions but stopped at the existing strict-DXF gate because this machine has no Python interpreter with `ezdxf` installed. Native solver acceptance remains separate.
+- Bacacay shared analytical/physical geometry evidence: [BACACAY_GEOMETRY_ACCEPTANCE_2026-09-06.md](BACACAY_GEOMETRY_ACCEPTANCE_2026-09-06.md). Native ETABS acceptance passed with analysis return `0`; STAAD engine invocation remains unresolved because no native readback artifact was produced.

@@ -42,12 +42,11 @@ D:\projects\futolStructure 04-14-26\futolstructure-fs123-vertical-datum-foundati
 
 The installed copy was not overwritten because Windows still reports FutolStructure processes running. No process was terminated.
 
-## Remaining acceptance
+## Acceptance update
 
-1. Build the desktop candidate from this source.
-2. Open a fresh Bacacay `.fstr` and export ETABS and STAAD.
-3. In ETABS, inspect column orientation, cardinal points, beam insertion offsets, and analytical connectivity.
-4. In STAAD.Pro, inspect `MEMBER INCIDENCES` and `MEMBER OFFSET`, then run the model read/analysis gate.
-5. Compare the solver views with the FutolStructure physical 3D view before release.
+1. A dated Bacacay `.fstr` was loaded and exported to ETABS and STAAD from the shared geometry contract.
+2. ETABS 22.6 native readback passed: column placement, columnation/local-axis mapping, FSTR levels, native frame geometry, cardinal policies, and 34 beam offsets all matched the audit; analysis return was `0` with six modal rows.
+3. The installed STAAD.Pro 2024 engine was invoked with the documented batch syntax, but no native readback artifact was produced. STAAD native inspection remains pending.
+4. Revit/IFC visual acceptance and final solver-view comparison remain separate gates.
 
-No commit or push is authorized by this evidence note.
+This evidence note records a feature-branch acceptance checkpoint; it does not authorize production promotion or claim permit-ready design output.
