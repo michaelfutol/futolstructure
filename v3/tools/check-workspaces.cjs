@@ -108,6 +108,40 @@ async function main() {
         assert.ok(['grid', 'column', 'free'].includes(stairPlacement.clickedPlacement.snapMode), JSON.stringify(stairPlacement));
         assert.deepEqual(stairPlacement.normalizedPlacement, stairPlacement.clickedPlacement, JSON.stringify(stairPlacement));
         await page.screenshot({ path: path.join(output, 'stair-builder-2d-desktop.png'), fullPage: true });
+        await page.locator('#tabWallElevations').click();
+        await page.locator('#panelWallElevations').waitFor({ state: 'visible' });
+        const wallEditor = await page.evaluate(() => {
+            const floor = state.floors[0];
+            const before = globalThis.FSWalls.build({ floors: state.floors });
+            wallEditorDraft = {
+                start: { x: 0, y: 0, snap: { mode: 'grid', targetId: 'GRID-A1', toleranceM: 0.45 } },
+                end: { x: Math.min(2, state.xSpans[0] || 2), y: 0, snap: { mode: 'grid', targetId: 'GRID-B1', toleranceM: 0.45 } }
+            };
+            document.getElementById('wallEditorFloor').value = floor.id;
+            document.getElementById('wallEditorSolver').checked = false;
+            document.getElementById('wallEditorThickness').value = '150';
+            document.getElementById('wallEditorHeight').value = '3';
+            addWallFromPlan();
+            const after = globalThis.FSWalls.build({ floors: state.floors });
+            const created = after.walls.find(item => item.source === 'manual-wall-line');
+            const audit = {
+                beforeCount: before.walls.length,
+                afterCount: after.walls.length,
+                createdId: created?.id || '',
+                lengthM: created?.lengthM || 0,
+                snapStart: created?.endpoints?.start?.snap?.mode || '',
+                solverExport: created?.exportToSolvers === true,
+                canvasBound: document.getElementById('wallPlanCanvas')?.dataset.bound === 'true'
+            };
+            if (created) removeWallFromPlan(created.floorId, created.id);
+            return audit;
+        });
+        assert.equal(wallEditor.afterCount, wallEditor.beforeCount + 1, JSON.stringify(wallEditor));
+        assert.match(wallEditor.createdId, /^WL-/);
+        assert.ok(wallEditor.lengthM > 0.05, JSON.stringify(wallEditor));
+        assert.equal(wallEditor.snapStart, 'grid', JSON.stringify(wallEditor));
+        assert.equal(wallEditor.solverExport, false, JSON.stringify(wallEditor));
+        assert.equal(wallEditor.canvasBound, true, JSON.stringify(wallEditor));
         await page.locator('#tabRoofFrame').click();
         await page.locator('#panelRoofFrame').waitFor({ state: 'visible' });
         const roofSupportAudit = await page.evaluate(() => {
@@ -160,7 +194,7 @@ async function main() {
             await page.screenshot({ path: path.join(output, `analysis-${width}.png`), fullPage: true });
         }
         assert.deepEqual(errors, []);
-        console.log(JSON.stringify({ ok: true, evidence: output, viewports: [1440, 768, 390], draft: path.basename(filename), stairPlacement, geometryPreserved: true, pageErrors: errors }));
+        console.log(JSON.stringify({ ok: true, evidence: output, viewports: [1440, 768, 390], draft: path.basename(filename), stairPlacement, wallEditor, geometryPreserved: true, pageErrors: errors }));
     } finally {
         await browser.close();
     }

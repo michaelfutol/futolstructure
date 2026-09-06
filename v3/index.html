@@ -1850,6 +1850,86 @@
             pointer-events: none;
         }
 
+        .wall-editor-controls {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(120px, 1fr));
+            gap: 8px;
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid var(--border);
+            background: var(--panel-bg);
+        }
+
+        .wall-editor-controls label {
+            display: grid;
+            gap: 4px;
+            color: var(--text-secondary);
+            font: 700 0.66rem var(--font-main);
+        }
+
+        .wall-editor-controls input,
+        .wall-editor-controls select {
+            min-width: 0;
+            height: 30px;
+            padding: 4px 7px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font: 600 0.72rem var(--font-mono);
+        }
+
+        .wall-editor-check {
+            display: flex !important;
+            grid-template-columns: auto 1fr;
+            align-items: center;
+            gap: 6px;
+            padding-top: 18px;
+        }
+
+        .wall-editor-check input {
+            width: 15px;
+            accent-color: #2563eb;
+        }
+
+        .wall-editor-actions {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 8px 0;
+            color: var(--text-muted);
+            font: 600 0.68rem var(--font-main);
+        }
+
+        .wall-editor-button {
+            height: 30px;
+            padding: 0 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font-size: 0.68rem;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .wall-editor-primary {
+            border-color: #1d4ed8;
+            background: #2563eb;
+            color: #fff;
+        }
+
+        #wallPlanCanvas {
+            display: block;
+            width: 100%;
+            height: 420px;
+            margin: 8px 0 14px;
+            border: 1px solid var(--border);
+            background: #101827;
+            cursor: crosshair;
+        }
+
         @media (max-width: 900px) {
             .stair-builder-layout {
                 grid-template-columns: 1fr;
@@ -1864,6 +1944,10 @@
 
             .stair-builder-summary {
                 grid-template-columns: repeat(2, minmax(90px, 1fr));
+            }
+
+            .wall-editor-controls {
+                grid-template-columns: repeat(2, minmax(120px, 1fr));
             }
         }
 
@@ -4303,10 +4387,22 @@
             <div id="panelWallElevations" class="schedule-panel" style="display:none;">
                 <div class="schedule-header"><h3>Wall Elevations</h3></div>
                 <div style="padding:12px;">
-                    <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Review wall heights, opening heads, lintels, and solver opt-in status by floor. Plan drawing and programmable snapping are governed by the wall inventory.</p>
+                    <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Draw a wall line in plan, snap its endpoints to governed grid or member targets, then assign wall height, CHB, plaster, and solver opt-in properties. Openings and lintels remain explicit inventory data.</p>
+                    <div class="wall-editor-controls">
+                        <label>Floor <select id="wallEditorFloor" onchange="renderWallPlanEditor()"></select></label>
+                        <label>Snap <select id="wallEditorSnapMode"><option value="grid">Grid</option><option value="column">Column</option><option value="beam">Beam</option><option value="free">Free</option></select></label>
+                        <label>Height (m) <input id="wallEditorHeight" type="number" value="3" min="0.1" max="20" step="0.1"></label>
+                        <label>CHB (mm) <input id="wallEditorThickness" type="number" value="150" min="75" max="300" step="25"></label>
+                        <label>Plaster inside (mm) <input id="wallEditorPlasterInside" type="number" value="15" min="0" max="50" step="1"></label>
+                        <label>Plaster outside (mm) <input id="wallEditorPlasterOutside" type="number" value="15" min="0" max="50" step="1"></label>
+                        <label>Type <select id="wallEditorType"><option value="external">External</option><option value="internal">Internal</option><option value="partition">Partition</option><option value="parapet">Parapet</option></select></label>
+                        <label class="wall-editor-check"><input id="wallEditorSolver" type="checkbox"> Export to ETABS/STAAD</label>
+                    </div>
+                    <div class="wall-editor-actions"><button type="button" class="wall-editor-button" onclick="clearWallEditorDraft()">Clear points</button><button type="button" class="wall-editor-button wall-editor-primary" onclick="addWallFromPlan()">Add wall line</button><span id="wallEditorStatus">Click two plan points to define a wall line.</span></div>
+                    <canvas id="wallPlanCanvas" width="1100" height="420" aria-label="Wall plan line editor"></canvas>
                     <table class="schedule-table" style="width:100%;">
-                        <thead><tr><th>Wall</th><th>Floor</th><th>Base</th><th>Top</th><th>Openings</th><th>Lintel</th><th>Solver</th></tr></thead>
-                        <tbody id="wallElevationsBody"><tr><td colspan="7">No wall lines defined.</td></tr></tbody>
+                        <thead><tr><th>Wall</th><th>Floor</th><th>Base</th><th>Top</th><th>Properties</th><th>Openings</th><th>Lintel</th><th>Solver</th><th>Action</th></tr></thead>
+                        <tbody id="wallElevationsBody"><tr><td colspan="9">No wall lines defined.</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -22207,18 +22303,195 @@ function calculateWaterTank() {
 // ========== v3.11: NEW TAB FUNCTIONS ==========
 
 // --- BLOCKWALL DESIGN ---
+        let wallEditorDraft = { start: null, end: null };
+
+        function getWallEditorFloor() {
+            const select = document.getElementById('wallEditorFloor');
+            const selected = select?.value;
+            return state.floors.find(floor => floor.id === selected) || state.floors[state.currentFloorIndex] || null;
+        }
+
+        function getWallEditorCoordinates() {
+            const x = [0];
+            const y = [0];
+            (state.xSpans || []).forEach(span => x.push(x[x.length - 1] + Number(span || 0)));
+            (state.ySpans || []).forEach(span => y.push(y[y.length - 1] + Number(span || 0)));
+            return { x, y };
+        }
+
+        function getWallEditorSnapTargets(floorId) {
+            const coordinates = getWallEditorCoordinates();
+            const targets = [];
+            coordinates.x.forEach((xValue, xIndex) => coordinates.y.forEach((yValue, yIndex) => {
+                targets.push({ x: xValue, y: yValue, kind: 'grid', id: `GRID-${String.fromCharCode(65 + xIndex)}${yIndex + 1}` });
+            }));
+            (state.columns || []).forEach(column => {
+                if (!isColumnActiveOnFloor(column, floorId)) return;
+                const position = getColumnPlanPosition(column);
+                targets.push({ x: position.x, y: position.y, kind: 'column', id: `COLUMN-${column.id}` });
+            });
+            (state.beams || []).filter(beam => !beam.floorId || beam.floorId === floorId).forEach(beam => {
+                const start = beam.start || { x: beam.x1, y: beam.y1 };
+                const end = beam.end || { x: beam.x2, y: beam.y2 };
+                [start, end].forEach((point, index) => {
+                    if (!Number.isFinite(Number(point?.x)) || !Number.isFinite(Number(point?.y))) return;
+                    targets.push({ x: Number(point.x), y: Number(point.y), kind: 'beam', id: `BEAM-${beam.id}-${index ? 'END' : 'START'}` });
+                });
+            });
+            return targets;
+        }
+
+        function renderWallPlanEditor() {
+            const canvas = document.getElementById('wallPlanCanvas');
+            const floorSelect = document.getElementById('wallEditorFloor');
+            if (!canvas || !floorSelect) return;
+            const previousFloor = floorSelect.value;
+            floorSelect.innerHTML = (state.floors || []).map(floor => `<option value="${escapeInfoText(floor.id)}">${escapeInfoText(floor.id)} - ${escapeInfoText(floor.name || '')}</option>`).join('');
+            if ((state.floors || []).some(floor => floor.id === previousFloor)) floorSelect.value = previousFloor;
+            else floorSelect.value = state.floors[state.currentFloorIndex]?.id || state.floors[0]?.id || '';
+            const floor = getWallEditorFloor();
+            const context = canvas.getContext('2d');
+            if (!floor || !context) return;
+            const coordinates = getWallEditorCoordinates();
+            const maxX = Math.max(1, coordinates.x[coordinates.x.length - 1]);
+            const maxY = Math.max(1, coordinates.y[coordinates.y.length - 1]);
+            const pad = 48;
+            const sx = value => pad + Number(value || 0) / maxX * (canvas.width - pad * 2);
+            const sy = value => canvas.height - pad - Number(value || 0) / maxY * (canvas.height - pad * 2);
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            context.fillStyle = '#101827'; context.fillRect(0, 0, canvas.width, canvas.height);
+            context.strokeStyle = '#334155'; context.lineWidth = 1;
+            coordinates.x.forEach(value => { context.beginPath(); context.moveTo(sx(value), pad); context.lineTo(sx(value), canvas.height - pad); context.stroke(); });
+            coordinates.y.forEach(value => { context.beginPath(); context.moveTo(pad, sy(value)); context.lineTo(canvas.width - pad, sy(value)); context.stroke(); });
+            (state.columns || []).filter(column => isColumnActiveOnFloor(column, floor.id)).forEach(column => {
+                const position = getColumnPlanPosition(column);
+                context.fillStyle = '#a78bfa'; context.fillRect(sx(position.x) - 5, sy(position.y) - 5, 10, 10);
+                context.fillStyle = '#cbd5e1'; context.font = '11px Arial'; context.fillText(column.id || 'C', sx(position.x) + 7, sy(position.y) - 7);
+            });
+            const inventory = globalThis.FSWalls?.build?.({ floors: state.floors }) || { walls: [] };
+            (inventory.walls || []).filter(wall => wall.floorId === floor.id && [wall.x1, wall.y1, wall.x2, wall.y2].every(Number.isFinite)).forEach(wall => {
+                context.strokeStyle = wall.exportToSolvers ? '#f59e0b' : '#38bdf8'; context.lineWidth = 5;
+                context.beginPath(); context.moveTo(sx(wall.x1), sy(wall.y1)); context.lineTo(sx(wall.x2), sy(wall.y2)); context.stroke();
+                context.fillStyle = '#f8fafc'; context.font = '11px Arial'; context.fillText(wall.id, (sx(wall.x1) + sx(wall.x2)) / 2 + 6, (sy(wall.y1) + sy(wall.y2)) / 2 - 6);
+            });
+            const draftPoint = (point, label) => {
+                if (!point) return;
+                context.fillStyle = '#22c55e'; context.beginPath(); context.arc(sx(point.x), sy(point.y), 7, 0, Math.PI * 2); context.fill();
+                context.fillStyle = '#f8fafc'; context.font = '12px Arial'; context.fillText(label, sx(point.x) + 9, sy(point.y) - 9);
+            };
+            draftPoint(wallEditorDraft.start, 'START');
+            draftPoint(wallEditorDraft.end, 'END');
+            if (wallEditorDraft.start && wallEditorDraft.end) {
+                context.strokeStyle = '#22c55e'; context.lineWidth = 4; context.beginPath(); context.moveTo(sx(wallEditorDraft.start.x), sy(wallEditorDraft.start.y)); context.lineTo(sx(wallEditorDraft.end.x), sy(wallEditorDraft.end.y)); context.stroke();
+            }
+            context.fillStyle = '#f8fafc'; context.font = '13px Arial'; context.fillText(`Wall plan | ${floor.id} | click two endpoints | snap: ${document.getElementById('wallEditorSnapMode')?.value || 'grid'}`, 16, 24);
+            if (canvas.dataset.bound !== 'true') {
+                canvas.dataset.bound = 'true';
+                canvas.addEventListener('click', event => {
+                    const activeFloor = getWallEditorFloor();
+                    if (!activeFloor) return;
+                    const rect = canvas.getBoundingClientRect();
+                    const px = (event.clientX - rect.left) * canvas.width / Math.max(1, rect.width);
+                    const py = (event.clientY - rect.top) * canvas.height / Math.max(1, rect.height);
+                    const raw = {
+                        x: Math.min(maxX, Math.max(0, ((px - pad) / Math.max(1, canvas.width - pad * 2)) * maxX)),
+                        y: Math.min(maxY, Math.max(0, ((canvas.height - pad - py) / Math.max(1, canvas.height - pad * 2)) * maxY))
+                    };
+                    const mode = document.getElementById('wallEditorSnapMode')?.value || 'grid';
+                    const target = getWallEditorSnapTargets(activeFloor.id).filter(item => item.kind === mode).reduce((nearest, item) => {
+                        const distance = Math.hypot(item.x - raw.x, item.y - raw.y);
+                        return !nearest || distance < nearest.distance ? { ...item, distance } : nearest;
+                    }, null);
+                    const point = target && target.distance <= 0.45 ? { x: target.x, y: target.y, snap: { mode: target.kind, targetId: target.id, toleranceM: 0.45 } } : { ...raw, snap: { mode: 'free', targetId: '', toleranceM: 0.45 } };
+                    if (!wallEditorDraft.start || wallEditorDraft.end) wallEditorDraft = { start: point, end: null };
+                    else wallEditorDraft.end = point;
+                    renderWallPlanEditor();
+                    const status = document.getElementById('wallEditorStatus');
+                    if (status) status.textContent = wallEditorDraft.end ? 'Wall line ready. Review properties, then select Add wall line.' : 'Start point selected. Click the second endpoint.';
+                });
+            }
+        }
+
+        function clearWallEditorDraft() {
+            wallEditorDraft = { start: null, end: null };
+            renderWallPlanEditor();
+            const status = document.getElementById('wallEditorStatus');
+            if (status) status.textContent = 'Click two plan points to define a wall line.';
+        }
+
+        function removeWallFromPlan(floorId, wallId) {
+            const floor = state.floors.find(item => item.id === floorId);
+            if (!floor) return;
+            saveStateSnapshot();
+            floor.wallLoads = (floor.wallLoads || []).filter(wall => wall.id !== wallId);
+            calculate();
+            populateWallElevations();
+            scheduleProjectAutosave('wall-remove');
+        }
+
+        function addWallFromPlan() {
+            const floor = getWallEditorFloor();
+            if (!floor || !wallEditorDraft.start || !wallEditorDraft.end) {
+                const status = document.getElementById('wallEditorStatus');
+                if (status) status.textContent = 'Select two endpoints before adding the wall.';
+                return;
+            }
+            const lengthM = Math.hypot(wallEditorDraft.end.x - wallEditorDraft.start.x, wallEditorDraft.end.y - wallEditorDraft.start.y);
+            if (lengthM < 0.05) {
+                const status = document.getElementById('wallEditorStatus');
+                if (status) status.textContent = 'Wall line is too short; select distinct endpoints.';
+                return;
+            }
+            saveStateSnapshot();
+            floor.wallLoads = Array.isArray(floor.wallLoads) ? floor.wallLoads : [];
+            const id = `WL-${floor.id}-${floor.wallLoads.length + 1}`;
+            floor.wallLoads.push({
+                id,
+                floorId: floor.id,
+                type: document.getElementById('wallEditorType')?.value || 'external',
+                supportMode: 'on_beam',
+                x1: wallEditorDraft.start.x,
+                y1: wallEditorDraft.start.y,
+                x2: wallEditorDraft.end.x,
+                y2: wallEditorDraft.end.y,
+                heightM: Math.max(0.1, Number(document.getElementById('wallEditorHeight')?.value) || Number(floor.height) || 3),
+                thicknessMm: Math.max(75, Number(document.getElementById('wallEditorThickness')?.value) || 150),
+                plasterInsideMm: Math.max(0, Number(document.getElementById('wallEditorPlasterInside')?.value) || 0),
+                plasterOutsideMm: Math.max(0, Number(document.getElementById('wallEditorPlasterOutside')?.value) || 0),
+                startSnap: cloneSerializable(wallEditorDraft.start.snap, {}),
+                endSnap: cloneSerializable(wallEditorDraft.end.snap, {}),
+                exportToSolvers: !!document.getElementById('wallEditorSolver')?.checked,
+                exportToIFC: true,
+                source: 'manual-wall-line'
+            });
+            clearWallEditorDraft();
+            calculate();
+            populateWallElevations();
+            const status = document.getElementById('wallEditorStatus');
+            if (status) status.textContent = `${id} added to ${floor.id}; solver export is ${floor.wallLoads[floor.wallLoads.length - 1].exportToSolvers ? 'ON' : 'OFF'}.`;
+            scheduleProjectAutosave('wall-create');
+        }
+
         function populateWallElevations() {
             const body = document.getElementById('wallElevationsBody');
             if (!body) return;
             const inventory = globalThis.FSWalls?.build?.({ floors: state.floors }) || { elevations: [], walls: [] };
+            const floorSelect = document.getElementById('wallEditorFloor');
+            const previousFloor = floorSelect?.value;
+            if (floorSelect) {
+                floorSelect.innerHTML = (state.floors || []).map(floor => `<option value="${escapeInfoText(floor.id)}">${escapeInfoText(floor.id)} - ${escapeInfoText(floor.name || '')}</option>`).join('');
+                floorSelect.value = (state.floors || []).some(floor => floor.id === previousFloor) ? previousFloor : (state.floors[state.currentFloorIndex]?.id || state.floors[0]?.id || '');
+            }
             const elevationByWall = new Map((inventory.elevations || []).map(elevation => [elevation.wallId, elevation]));
             const rows = (inventory.walls || []).map(wall => {
                 const elevation = elevationByWall.get(wall.id) || {};
                 const lintel = wall.lintel ? `${wall.lintel.widthMm}x${wall.lintel.depthMm}` : '-';
                 const solver = wall.exportToSolvers ? 'ON' : 'OFF';
-                return `<tr><td>${wall.id}</td><td>${wall.floorId || '-'}</td><td>${Number(wall.elevationBaseM || 0).toFixed(3)}</td><td>${Number(wall.elevationTopM || 0).toFixed(3)}</td><td>${(elevation.openings || []).map(opening => `${opening.type} ${opening.widthM}x${opening.heightM} / head ${Number(opening.headElevationM || 0).toFixed(3)}`).join('<br>') || '-'}</td><td>${lintel}</td><td>${solver}</td></tr>`;
+                const props = `${wall.chbThicknessMm} CHB / ${wall.plasterInsideMm}+${wall.plasterOutsideMm} plaster`;
+                return `<tr><td>${escapeInfoText(wall.id)}</td><td>${escapeInfoText(wall.floorId || '-')}</td><td>${Number(wall.elevationBaseM || 0).toFixed(3)}</td><td>${Number(wall.elevationTopM || 0).toFixed(3)}</td><td>${escapeInfoText(props)}</td><td>${(elevation.openings || []).map(opening => `${escapeInfoText(opening.type)} ${opening.widthM}x${opening.heightM} / head ${Number(opening.headElevationM || 0).toFixed(3)}`).join('<br>') || '-'}</td><td>${escapeInfoText(lintel)}</td><td>${solver}</td><td><button class="mini-action-btn remove" onclick="removeWallFromPlan('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}')">Remove</button></td></tr>`;
             });
-            body.innerHTML = rows.join('') || '<tr><td colspan="7">No wall lines defined.</td></tr>';
+            body.innerHTML = rows.join('') || '<tr><td colspan="9">No wall lines defined.</td></tr>';
+            renderWallPlanEditor();
         }
 
         function populateRoofFrame() {
