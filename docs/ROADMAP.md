@@ -55,7 +55,7 @@ Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_U
 
 ## Release Evidence
 
-- Feature branch tip: `8c4ace7` (`fix: align edge cantilever analytical joints`), with the canonical solver native readback and edge/cantilever parity acceptance recorded on the branch.
+- Feature branch tip: `06a8f1f` (`feat: connect opted-in wall line loads to solver beams`), with canonical solver, edge/cantilever parity, and wall line-load native readback evidence recorded on the branch.
 - Installed version: FS-125-RC2 / `3.16.125-rc.2` remains the last verified install until the RC3 installer is installed and smoke-tested.
 - RC2 installer SHA256: 104626A0717DD619E75ED8124C49B2CCF3AE79CD3F5E7CF35DFE95F5DE0E78C9.
 - RC3 installer: `output/desktop/FutolStructure-Setup-3.16.125-rc.3-x64.exe`; SHA256 `16DC64A771C34ADAB06466A28579039258EB0390AA59AC98D5400895993EE420`; build passed 2026-09-07. Installation is pending closure of four running `FutolStructure.exe` processes.
@@ -65,7 +65,7 @@ Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_U
 - Canonical/analytical fixture evidence: [FS-side fixture acceptance](CANONICAL_ANALYTICAL_FIXTURE_ACCEPTANCE_2026-09-07.md); the exact dated ETABS and STAAD native readback passed.
 - Canonical solver artifacts: `output/acceptance/fs125-canonical-analytical-2026-09-07/`; the fixture-specific `.ps1`, `.std`, model snapshot, ETABS EDB/audit, and STAAD ANL/LOG are hash-recorded in the acceptance document, with both native gates passed.
 - Edge/cantilever parity artifacts: `output/acceptance/fs125-edge-cantilever-2026-09-07/`; 52/52 analytical endpoint connections pass, with native ETABS and STAAD artifacts hash-recorded in [edge parity acceptance](EDGE_CANTILEVER_PARITY_ACCEPTANCE_2026-09-07.md).
-- GitHub: feature branch `feature/fs-125-shared-analytical-inputs` is pushed through `8c4ace7`; production `main` and Vercel have not been changed.
+- GitHub: feature branch `feature/fs-125-shared-analytical-inputs` is ready to push through `06a8f1f`; production `main` and Vercel have not been changed.
 - ANALYSIS-02 source gate passed with `node v3/tools/check-fs.js --no-browser`; the browser run reached the new assertions but stopped at the existing strict-DXF gate because this machine has no Python interpreter with `ezdxf` installed. Native solver acceptance remains separate.
 - Bacacay shared analytical/physical geometry evidence: [BACACAY_GEOMETRY_ACCEPTANCE_2026-09-06.md](BACACAY_GEOMETRY_ACCEPTANCE_2026-09-06.md). Native ETABS acceptance passed with analysis return `0`; the licensed STAAD rerun also completed with balanced reactions and zero errors.
 - STAAD native diagnostic evidence: [STAAD_NATIVE_ENGINE_BLOCK_2026-09-06.md](STAAD_NATIVE_ENGINE_BLOCK_2026-09-06.md). The previous exit-code `8` condition was resolved by license activation; minimal and Bacacay native result artifacts now exist, with two concrete-cover warnings retained for follow-up.
