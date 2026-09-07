@@ -206,6 +206,10 @@ function checkSourceContracts() {
     assert.match(dashboard, /Parked scope: wall, roof-frame, stair, tank, blockwall/);
     assert.match(dashboard, /id="wallEditorSolver" type="checkbox" disabled/);
     assert.match(dashboard, /id="roofFrameSolver" type="checkbox" disabled/);
+    assert.match(dashboard, /id="workspaceTheme-dark"/);
+    assert.match(dashboard, /function setWorkspaceTheme\(theme\)/);
+    assert.match(dashboard, /function getWorkspaceDrawingPalette\(\)/);
+    assert.match(dashboard, /tributaryWorkspaceTheme/);
     assert.doesNotMatch(dashboard, /getElementById\('soilBearing'\)/);
     const start = dashboard.indexOf('function updateLoadSummary()');
     const end = dashboard.indexOf('\n        function isFloorAtOrAbove', start);

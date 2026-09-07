@@ -48,6 +48,29 @@ async function main() {
         assert.equal(footingSbc.final, '', JSON.stringify(footingSbc));
         assert.equal(footingSbc.effective, '150', JSON.stringify(footingSbc));
         assert.match(footingSbc.status, /ASSUMED|PRELIMINARY/i, JSON.stringify(footingSbc));
+        const workspaceTheme = await page.evaluate(() => {
+            setWorkspaceTheme('dark');
+            const canvas = document.getElementById('mainCanvas');
+            const pixels = canvas?.getContext('2d')?.getImageData(0, 0, canvas.width, canvas.height).data || [];
+            let painted = 0;
+            for (let index = 0; index < pixels.length; index += 4) {
+                if (pixels[index] + pixels[index + 1] + pixels[index + 2] > 30) painted += 1;
+            }
+            const audit = {
+                mode: document.documentElement.getAttribute('data-workspace-theme'),
+                background: getComputedStyle(canvas).backgroundColor,
+                beam: getWorkspaceDrawingPalette().beam,
+                text: getWorkspaceDrawingPalette().text,
+                painted
+            };
+            setWorkspaceTheme('light');
+            return audit;
+        });
+        assert.equal(workspaceTheme.mode, 'dark', JSON.stringify(workspaceTheme));
+        assert.match(workspaceTheme.background, /17, 24, 39|#111827/i, JSON.stringify(workspaceTheme));
+        assert.equal(workspaceTheme.beam, '#f8fafc', JSON.stringify(workspaceTheme));
+        assert.equal(workspaceTheme.text, '#e5e7eb', JSON.stringify(workspaceTheme));
+        assert.ok(workspaceTheme.painted > 100, JSON.stringify(workspaceTheme));
         const revitDownloadPromise = page.waitForEvent('download');
         await page.getByRole('button', { name: 'Revit', exact: true }).click();
         const revitDownload = await revitDownloadPromise;
@@ -350,7 +373,7 @@ async function main() {
             await page.screenshot({ path: path.join(output, `analysis-${width}.png`), fullPage: true });
         }
         assert.deepEqual(errors, []);
-        console.log(JSON.stringify({ ok: true, evidence: output, viewports: [1440, 768, 390], draft: path.basename(filename), revitManifest: path.basename(revitPath), stairPlacement, wallEditor, roofFrame: roofSupportAudit, revit, footingSbc, canonicalAudit, geometryPreserved: true, pageErrors: errors }));
+        console.log(JSON.stringify({ ok: true, evidence: output, viewports: [1440, 768, 390], draft: path.basename(filename), revitManifest: path.basename(revitPath), stairPlacement, wallEditor, roofFrame: roofSupportAudit, revit, footingSbc, workspaceTheme, canonicalAudit, geometryPreserved: true, pageErrors: errors }));
     } finally {
         await browser.close();
     }

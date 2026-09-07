@@ -51,6 +51,7 @@
             --warning: #f0a030;
             --danger: #e05050;
             --canvas-bg: #f8f9fa;
+            --workspace-canvas-bg: #f8f9fa;
             --header-bg: #1b1e24;
             --input-bg: #2a2f38;
             --toolbar-bg: #262a32;
@@ -88,6 +89,7 @@
             --warning: #d97706;
             --danger: #dc2626;
             --canvas-bg: #ffffff;
+            --workspace-canvas-bg: #ffffff;
             --header-bg: #ffffff;
             --input-bg: #f8f9fa;
             --toolbar-bg: #f1f3f5;
@@ -125,6 +127,7 @@
             --warning: #92400e;
             --danger: #991b1b;
             --canvas-bg: #f0f0e8;
+            --workspace-canvas-bg: #f0f0e8;
             --header-bg: #fafaf5;
             --input-bg: #ffffff;
             --toolbar-bg: #f0f0e8;
@@ -137,6 +140,11 @@
             --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
             --shadow-md: 0 2px 8px rgba(0,0,0,0.08);
             --shadow-lg: 0 4px 16px rgba(0,0,0,0.1);
+        }
+
+        /* Workspace paper/dark-cad mode is independent from the application theme. */
+        html[data-workspace-theme="dark"] {
+            --workspace-canvas-bg: #111827;
         }
 
         /* ========== BASE STYLES ========== */
@@ -319,6 +327,12 @@
 
         .menu-item:hover {
             background: var(--surface-hover);
+        }
+
+        .menu-item.active {
+            background: var(--surface-hover);
+            color: var(--primary);
+            font-weight: 600;
         }
 
         .settings-close:hover {
@@ -615,10 +629,11 @@
             flex: 1;
             position: relative;
             overflow: hidden;
+            background: var(--workspace-canvas-bg);
         }
 
         #mainCanvas {
-            background: var(--canvas-bg);
+            background: var(--workspace-canvas-bg);
             cursor: crosshair;
         }
 
@@ -2247,10 +2262,13 @@
                 <button class="menu-item" onclick="setTheme('dark'); toggleDropdown()">Dark</button>
                 <button class="menu-item" onclick="setTheme('light'); toggleDropdown()">Light</button>
                 <button class="menu-item" onclick="setTheme('blueprint'); toggleDropdown()">Blueprint</button>
+                <div class="menu-item-header">Drawing workspace</div>
+                <button id="workspaceTheme-paper" class="menu-item" onclick="setWorkspaceTheme('light'); toggleDropdown()">Paper canvas</button>
+                <button id="workspaceTheme-dark" class="menu-item" onclick="setWorkspaceTheme('dark'); toggleDropdown()">Dark CAD canvas</button>
             </div>
             <img class="logo-icon" src="assets/futolstructure-icon.png" alt="FutolStructure">
             <span style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary); letter-spacing: -0.01em;">FutolStructure</span>
-<button id="buildVersionBadge" type="button" title="View FS-125-RC1 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.125-rc.1</button>
+<button id="buildVersionBadge" type="button" title="View FS-125-RC2 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.125-rc.2</button>
         </div>
         <!-- Action Toolbar -->
         <div class="header-actions">
@@ -4725,8 +4743,8 @@
         const FSTR_HIDDEN_GEOMETRY_POLICY = 'preserve-intentional-hidden-geometry';
         const FSTR_AUTOSAVE_STATE_REVISION = 'P0-C1A-column-segment-intent';
         const COLUMN_SEGMENT_INTENT_VERSION = 1;
-        const FSTR_APP_VERSION = '3.16.125-rc.1';
-        const FSTR_BUILD_ID = 'FS-125-RC1';
+        const FSTR_APP_VERSION = '3.16.125-rc.2';
+        const FSTR_BUILD_ID = 'FS-125-RC2';
         const FSTR_RELEASE_NAME = 'Desktop Workspaces Candidate';
         const FSTR_RELEASE_MANIFEST_FALLBACK = Object.freeze({
             appVersion: FSTR_APP_VERSION,
@@ -4734,7 +4752,7 @@
             releaseName: FSTR_RELEASE_NAME,
             fstrSchemaVersion: FSTR_SCHEMA_VERSION,
             releaseChannel: 'candidate',
-            gitCommit: '87b1cd57a074f25ecab14f057b6cb173af529c83',
+            gitCommit: 'bf04027c009e9b7ab5420c5d4d3de4d6548ea7ed',
             buildDate: '2026-09-05',
             validatedFixtures: [
                 'legacy-v2.8-2floor',
@@ -12310,7 +12328,7 @@
                 // Only draw if grid lines won't be too dense (performance)
                 if (gridSpacingPx > 8) {
                     ctx.save();
-                    ctx.strokeStyle = 'rgba(100, 116, 139, 0.2)';
+                    ctx.strokeStyle = getWorkspaceDrawingPalette().fineGrid;
                     ctx.lineWidth = 0.5;
                     ctx.beginPath();
 
@@ -12362,7 +12380,7 @@
                 const fineSpacing = state.snapEnabled ? state.snapSize : 0.5;
 
                 // Fine grid (subtle)
-                ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
+                ctx.strokeStyle = getWorkspaceDrawingPalette().subGrid;
                 ctx.lineWidth = 0.5;
                 ctx.setLineDash([]);
 
@@ -12859,13 +12877,14 @@
 
             // v3.7: Grid is now drawn permanently in draw() function - removed duplicate grid code here
 
-            // Classic engineering drawing colors (black ink on white paper)
-            const COLOR_GRID = '#888888';     // Gray for centerlines
-            const COLOR_BEAM = '#000000';     // Black for beams
-            const COLOR_COL = '#000000';      // Black for columns (filled)
-            const COLOR_SLAB = '#999999';     // Light gray for slab outlines
-            const COLOR_TEXT = '#000000';     // Black for text
-            const COLOR_BUBBLE = '#000000';   // Black for grid bubbles
+            // Keep drawing semantics stable while switching between paper and dark CAD palettes.
+            const drawingPalette = getWorkspaceDrawingPalette();
+            const COLOR_GRID = drawingPalette.grid;
+            const COLOR_BEAM = drawingPalette.beam;
+            const COLOR_COL = drawingPalette.column;
+            const COLOR_SLAB = drawingPalette.slab;
+            const COLOR_TEXT = drawingPalette.text;
+            const COLOR_BUBBLE = drawingPalette.bubble;
             const drawRoundedRectPath = (x, y, w, h, r) => {
                 const radius = Math.max(0, Math.min(r, w / 2, h / 2));
                 ctx.beginPath();
@@ -14076,12 +14095,13 @@
         }
 
         function drawBaseReactionPlan() {
-            const COLOR_BG = '#ffffff';
-            const COLOR_OUTLINE = '#1a1a1a';
-            const COLOR_GRID = '#64748b';
-            const COLOR_TEXT = '#1a1a1a';
-            const COLOR_DIM = '#374151';
-            const COLOR_REACTION = '#2563eb';
+            const drawingPalette = getWorkspaceDrawingPalette();
+            const COLOR_BG = drawingPalette.background;
+            const COLOR_OUTLINE = drawingPalette.outline;
+            const COLOR_GRID = drawingPalette.grid;
+            const COLOR_TEXT = drawingPalette.text;
+            const COLOR_DIM = drawingPalette.dim;
+            const COLOR_REACTION = drawingPalette.reaction;
             const currentFloor = state.floors[state.currentFloorIndex];
             const currentFloorId = currentFloor?.id;
             const totalX = state.xSpans.reduce((a, b) => a + b, 0);
@@ -14248,13 +14268,14 @@
                 drawBaseReactionPlan();
                 return;
             }
-            // CAD Colors - match Structural Plan style
-            const COLOR_BG = '#ffffff';       // White paper background
-            const COLOR_OUTLINE = '#1a1a1a';  // Black ink for outlines
-            const COLOR_GRID = '#64748b';     // Gray for gridlines
-            const COLOR_TEXT = '#1a1a1a';     // Black text
-            const COLOR_DIM = '#374151';      // Dimension text
-            const COLOR_HATCH = '#374151';    // Hatch pattern
+            // CAD colors follow the selected paper/dark workspace palette.
+            const drawingPalette = getWorkspaceDrawingPalette();
+            const COLOR_BG = drawingPalette.background;
+            const COLOR_OUTLINE = drawingPalette.outline;
+            const COLOR_GRID = drawingPalette.grid;
+            const COLOR_TEXT = drawingPalette.text;
+            const COLOR_DIM = drawingPalette.dim;
+            const COLOR_HATCH = drawingPalette.hatch;
             ctx.globalAlpha = 1;
             ctx.setLineDash([]);
             ctx.lineCap = 'butt';
@@ -14908,6 +14929,59 @@
             }
         }
 
+        function getWorkspaceDrawingPalette() {
+            const dark = document.documentElement.getAttribute('data-workspace-theme') === 'dark';
+            if (dark) {
+                return {
+                    background: '#111827',
+                    grid: '#64748b',
+                    beam: '#f8fafc',
+                    column: '#f8fafc',
+                    slab: '#94a3b8',
+                    text: '#e5e7eb',
+                    bubble: '#bfdbfe',
+                    outline: '#e5e7eb',
+                    dim: '#cbd5e1',
+                    hatch: '#94a3b8',
+                    reaction: '#60a5fa',
+                    fineGrid: 'rgba(148, 163, 184, 0.22)',
+                    subGrid: 'rgba(148, 163, 184, 0.18)'
+                };
+            }
+            return {
+                background: '#ffffff',
+                grid: '#888888',
+                beam: '#000000',
+                column: '#000000',
+                slab: '#999999',
+                text: '#000000',
+                bubble: '#000000',
+                outline: '#1a1a1a',
+                dim: '#374151',
+                hatch: '#374151',
+                reaction: '#2563eb',
+                fineGrid: 'rgba(100, 116, 139, 0.2)',
+                subGrid: 'rgba(148, 163, 184, 0.16)'
+            };
+        }
+
+        function updateWorkspaceThemeOptions() {
+            const dark = document.documentElement.getAttribute('data-workspace-theme') === 'dark';
+            document.getElementById('workspaceTheme-paper')?.classList.toggle('active', !dark);
+            document.getElementById('workspaceTheme-dark')?.classList.toggle('active', dark);
+        }
+
+        function setWorkspaceTheme(theme) {
+            const next = theme === 'dark' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-workspace-theme', next);
+            localStorage.setItem('tributaryWorkspaceTheme', next);
+            updateWorkspaceThemeOptions();
+            if (typeof draw === 'function') draw();
+            if (typeof drawWallPlan === 'function') drawWallPlan();
+            if (typeof drawRoofFramePlan === 'function') drawRoofFramePlan();
+            if (typeof renderStairBuilderPreviews === 'function') renderStairBuilderPreviews();
+        }
+
         // v3.0: Theme switcher with localStorage persistence
         function setTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
@@ -14940,6 +15014,7 @@
         function initTheme() {
             const savedTheme = localStorage.getItem('tributaryTheme') || 'dark'; // Default to Midnight
             setTheme(savedTheme);
+            setWorkspaceTheme(localStorage.getItem('tributaryWorkspaceTheme') || 'light');
             syncMemberSizePolicyInputs();
         }
 
@@ -29545,13 +29620,13 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
 
                 // FORCE Attributes & Grid
                 if (mode === 'blueprint') {
-                    document.body.setAttribute('data-theme', 'blueprint');
+                    document.body.setAttribute('data-theme', mode);
                     // Ensure Structural Grid is enabled (if user turned it off)
                     if (typeof layerVisibility !== 'undefined') {
                         layerVisibility.grid = true;
                     }
                 } else {
-                    document.body.setAttribute('data-theme', 'midnight');
+                    document.body.setAttribute('data-theme', mode);
                 }
 
                 // Force Redraw

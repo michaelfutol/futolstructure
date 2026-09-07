@@ -8,13 +8,14 @@ Detailed scope: [September delivery plan](FS_DELIVERY_ROADMAP_2026-09-05.md).
 Statuses: Planned, In Progress, Locally Verified, Native Acceptance Pending, Released.
 Locally Verified does not imply a published installer or a production deployment.
 
-Current working candidate: `feature/fs-125-shared-analytical-inputs` at `1e34818` with the FS-125-RC1 release candidate changes. The installed Windows candidate is `3.16.125-rc.1`; the feature branch is pushed, while `main` and Vercel production remain unchanged until candidate acceptance and release approval.
+Current working candidate: `feature/fs-125-shared-analytical-inputs` with the FS-125-RC2 release candidate changes. The installed Windows candidate remains FS-125-RC1 until the RC2 installer is verified; `main` and Vercel production remain unchanged until candidate acceptance and release approval.
 
 Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_ULTRA_SUPER_IMPROVEMENT_AUDIT_V2.md](FUTOLSTRUCTURE_ASTRA_ULTRA_SUPER_IMPROVEMENT_AUDIT_V2.md). Phase 1A has a focused local regression passing for unit-contract source checks, finite support validation, incomplete ETABS evidence, signed/zero-safe comparison, and per-floor dashboard source behavior. The first Phase 1B boundary is now explicit: PyNite accepts the governed zero-offset horizontal baseline but blocks physical joint offsets, vertical insertion offsets, and sloped members until equivalent mapping is implemented. The old PyNite result artifact is not a post-fix acceptance result and must be regenerated in the pinned environment.
 
 | ID | Milestone | Status | Evidence / Next Gate |
 | --- | --- | --- | --- |
 | UI-01 | Contextual workspaces, Stair Builder under Model, responsive draft panels | Locally Verified | check-workspaces.cjs; desktop/tablet/phone navigation, painted stair plan/elevation views, and unchanged model geometry |
+| UI-02 | Paper and Dark CAD drawing workspace modes | Locally Verified | [Workspace theme acceptance](UI_WORKSPACE_THEME_ACCEPTANCE_2026-09-07.md); persistent `Paper canvas` / `Dark CAD canvas` setting, dedicated high-contrast palette, and browser rendering evidence |
 | MODEL-01 | Independent floor edge defaults and manual member sizes | Locally Verified | check-fs.js partialCantilever.edgeSizing; independent, inherited and detached floors; native Bacacay readback still required |
 | MODEL-02 | Persistent column segments, exact columnation and vertical datums | Native Solvers Verified - Revit Pending | [Bacacay geometry acceptance](BACACAY_GEOMETRY_ACCEPTANCE_2026-09-06.md) passes source/model parity and native ETABS 22.6 parity (52 frames, 12 areas, 34 beam offsets, 6 modal rows); [STAAD native gate](STAAD_NATIVE_ENGINE_BLOCK_2026-09-06.md) now passes with 0 errors and 2 non-fatal concrete-cover warnings; Revit inspection remains |
 | REVIT-01 | Native Revit RVT generation and approved rebar handoff | Add-in Built/Installed - Revit 2027 Acceptance Pending | [Native Revit import acceptance](REVIT_NATIVE_IMPORT_ACCEPTANCE_2026-09-06.md) records the compiled/installed .NET 10 add-in, governed native levels/grids, conflict blocking, and dated audit; the latest Release build passes with 0 errors and 2 Autodesk reference-version warnings. Revit 2027 execution/screenshots plus native structural members and rebar remain |
@@ -33,7 +34,7 @@ Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_U
 | IMPORT-03 | PDF/CAD underlay and assisted model entry | Planned | Calibration, user-confirmed inference and preserved source drawing |
 | DOC-01 | Coordinated DXF/IFC/A4 and quantities | A4 PDF Verified - Native BIM Pending | [PDF report acceptance](PDF_REPORT_ACCEPTANCE_2026-09-06.md) verifies a real three-page A4 PDF with Arial and visual inspection; DXF/IFC native CAD/Revit inspection remains |
 | DETAIL-01 | Approved reinforcement, schedules and shop drawings | Contract Pending - Legacy BBS Is Preliminary | Existing Rebar/BBS/BOM panels remain preliminary; next gate is governed `RebarHandoff.v1`, approved solver/design results, hook/bend/lap/cut-length rules, then Revit native rebar and shop-drawing acceptance |
-| RELEASE-01 | FS-125-RC1 GitHub candidate and local Windows install | Locally Verified | `3.16.125-rc.1` packages the canonical/analytical audit, SBC governance, parked disconnected design controls, and current acceptance evidence; feature branch pushed at `1e34818`, installer exit code 0, installed manifest and startup verified |
+| RELEASE-01 | FS-125-RC2 GitHub candidate and local Windows install | In Progress | `3.16.125-rc.2` adds the verified dark workspace option to the FS-125-RC1 candidate; installer rebuild, install, and feature-branch push pending |
 | RELEASE-02 | Production web and public Windows update | Planned | Merge/release after candidate acceptance; matching version/provenance across both |
 | CLOUD-01 | Authentication and private project storage | Planned | Project ownership, access isolation, recovery and security tests before cloud sync |
 
@@ -54,7 +55,7 @@ Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_U
 ## Release Evidence
 
 - Feature branch tip: `1e34818`; release manifest source checkpoint: `87b1cd57a074f25ecab14f057b6cb173af529c83`.
-- Installed version: FS-125-RC1 / `3.16.125-rc.1`, installer exit code 0; installed manifest and window startup verified.
+- Installed version: FS-125-RC1 / `3.16.125-rc.1`, installer exit code 0; installed manifest and window startup verified. RC2 supersedes it after packaging.
 - Installed smoke: passed with isolated profile, correct source revision and no page errors; output/playwright/desktop/desktop-smoke.json.
 - Installer SHA256: C4C85B76DC1E3C39011DD68695E093205BF494ED64C8E58765AA505D8E9600E2.
 - Browser workspace regression: passed at desktop/tablet/phone; canonical audit reports `READY_FOR_SOLVER_REVIEW`, topology blockers `0`, footing SBC status `ASSUMED / PRELIMINARY`, and page errors `[]`.

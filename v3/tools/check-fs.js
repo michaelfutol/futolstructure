@@ -70,7 +70,7 @@ function checkReleaseManifest() {
     const html = fs.readFileSync(INDEX, 'utf8');
     const desktopPackage = JSON.parse(fs.readFileSync(DESKTOP_PACKAGE, 'utf8'));
     assert(manifest.appVersion === desktopPackage.version, 'Desktop and runtime versions differ', manifest);
-    assert(manifest.buildId === 'FS-125-RC1', 'Release manifest build ID is stale', manifest);
+    assert(manifest.buildId === 'FS-125-RC2', 'Release manifest build ID is stale', manifest);
     assert(manifest.releaseName === 'Desktop Workspaces Candidate', 'Release manifest name is stale', manifest);
     assert(manifest.fstrSchemaVersion === '0.2.0', 'Release manifest FSTR schema is stale', manifest);
     const allowUnstampedManifest = process.env.FS_ALLOW_UNSTAMPED_MANIFEST === '1';
@@ -3277,7 +3277,7 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
         assert(!result.initial.initError && !result.initError, 'Init error shown in app', result);
         assert(result.initial.columns === 9, 'Default 2x2 model did not initialize 9 columns', result.initial);
         assert(
-            result.uiCleanupAudit.buildBadge === 'v3.16.125-rc.1' &&
+            result.uiCleanupAudit.buildBadge === 'v3.16.125-rc.2' &&
             result.uiCleanupAudit.rebuildButton === true &&
             result.uiCleanupAudit.etabsButton === true &&
             result.uiCleanupAudit.solverImportButton === true &&
@@ -4018,7 +4018,7 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
             result.dxfLayerAudit.crlfOnly === true &&
             result.dxfLayerAudit.packageAudit.dxfVersion === 'AC1009' &&
             result.dxfLayerAudit.packageAudit.lineEnding === 'CRLF' &&
-            result.dxfLayerAudit.packageAudit.build === 'FS-125-RC1' &&
+            result.dxfLayerAudit.packageAudit.build === 'FS-125-RC2' &&
             result.dxfLayerAudit.packageAudit.writerBuild === 'FS-119-DXF-1',
             'DXF envelope or app/writer provenance is inconsistent',
             result.dxfLayerAudit
@@ -4352,13 +4352,13 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
             revisionProtection.destructive.some(item => item.includes('voids')) &&
             revisionProtection.invalidHealth.valid === false &&
             revisionProtection.rowCount >= 1 &&
-            revisionProtection.releaseVersion === '3.16.125-rc.1' &&
-            revisionProtection.releaseBuildId === 'FS-125-RC1' &&
+            revisionProtection.releaseVersion === '3.16.125-rc.2' &&
+            revisionProtection.releaseBuildId === 'FS-125-RC2' &&
             revisionProtection.schemaVersion === '0.2.0' &&
             revisionProtection.normalSaveAudit.writtenBytes > 0 &&
             /^model-revision-/.test(revisionProtection.normalSaveAudit.revisionId) &&
             revisionProtection.normalSaveAudit.parentRevisionId === 'qa-protected-baseline' &&
-            revisionProtection.normalSaveAudit.releaseBuildId === 'FS-125-RC1' &&
+            revisionProtection.normalSaveAudit.releaseBuildId === 'FS-125-RC2' &&
             revisionProtection.normalSaveAudit.protectedCount >= 3 &&
             revisionProtection.normalSaveAudit.preOverwriteCount >= 2 &&
             revisionProtection.downloadAudit?.filename.endsWith('.fstr') &&

@@ -1,10 +1,10 @@
 {
-  "appVersion": "3.16.125-rc.1",
-  "buildId": "FS-125-RC1",
+  "appVersion": "3.16.125-rc.2",
+  "buildId": "FS-125-RC2",
   "releaseName": "Desktop Workspaces Candidate",
   "fstrSchemaVersion": "0.2.0",
   "releaseChannel": "candidate",
-  "gitCommit": "87b1cd57a074f25ecab14f057b6cb173af529c83",
+  "gitCommit": "bf04027c009e9b7ab5420c5d4d3de4d6548ea7ed",
   "buildDate": "2026-09-07",
   "validatedFixtures": [
     "legacy-v2.8-2floor",
