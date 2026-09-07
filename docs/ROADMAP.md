@@ -8,7 +8,7 @@ Detailed scope: [September delivery plan](FS_DELIVERY_ROADMAP_2026-09-05.md).
 Statuses: Planned, In Progress, Locally Verified, Native Acceptance Pending, Released.
 Locally Verified does not imply a published installer or a production deployment.
 
-Current working candidate: `feature/fs-125-shared-analytical-inputs` with the FS-125-RC3 canonical/analytical fixture changes. The installed Windows candidate will be `3.16.125-rc.3` after installer acceptance; `main` and Vercel production remain unchanged until candidate acceptance and release approval.
+Current working candidate: `feature/fs-125-shared-analytical-inputs` at source checkpoint `8e55979` with the FS-125-RC3 canonical/analytical fixture changes. The installed Windows candidate will be `3.16.125-rc.3` after installer acceptance; `main` and Vercel production remain unchanged until candidate acceptance and release approval.
 
 Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_ULTRA_SUPER_IMPROVEMENT_AUDIT_V2.md](FUTOLSTRUCTURE_ASTRA_ULTRA_SUPER_IMPROVEMENT_AUDIT_V2.md). Phase 1A has a focused local regression passing for unit-contract source checks, finite support validation, incomplete ETABS evidence, signed/zero-safe comparison, and per-floor dashboard source behavior. The first Phase 1B boundary is now explicit: PyNite accepts the governed zero-offset horizontal baseline but blocks physical joint offsets, vertical insertion offsets, and sloped members until equivalent mapping is implemented. The old PyNite result artifact is not a post-fix acceptance result and must be regenerated in the pinned environment.
 
@@ -54,7 +54,7 @@ Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_U
 
 ## Release Evidence
 
-- Feature branch tip: pending RC3 commit; release manifest source checkpoint is stamped after the verified commit.
+- Feature branch tip: release-stamp commit follows source checkpoint `8e55979`; release manifest source checkpoint is `8e55979f8d12e5bf1dc95c831a9a3c58b21a5d49`.
 - Installed version: FS-125-RC2 / `3.16.125-rc.2` remains the last verified install until the RC3 installer is built and smoke-tested.
 - RC2 installer SHA256: 104626A0717DD619E75ED8124C49B2CCF3AE79CD3F5E7CF35DFE95F5DE0E78C9.
 - Installed smoke: passed with isolated profile, correct source revision and no page errors; output/playwright/desktop/desktop-smoke.json.
