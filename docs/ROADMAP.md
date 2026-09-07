@@ -34,7 +34,7 @@ Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_U
 | IMPORT-03 | PDF/CAD underlay and assisted model entry | Planned | Calibration, user-confirmed inference and preserved source drawing |
 | DOC-01 | Coordinated DXF/IFC/A4 and quantities | A4 PDF Verified - Native BIM Pending | [PDF report acceptance](PDF_REPORT_ACCEPTANCE_2026-09-06.md) verifies a real three-page A4 PDF with Arial and visual inspection; DXF/IFC native CAD/Revit inspection remains |
 | DETAIL-01 | Approved reinforcement, schedules and shop drawings | Contract Pending - Legacy BBS Is Preliminary | Existing Rebar/BBS/BOM panels remain preliminary; next gate is governed `RebarHandoff.v1`, approved solver/design results, hook/bend/lap/cut-length rules, then Revit native rebar and shop-drawing acceptance |
-| RELEASE-01 | FS-125-RC3 GitHub candidate and local Windows install | In Progress | RC3 adds the frozen canonical/analytical ETABS/STAAD fixture gate to the RC2 desktop candidate; source/browser acceptance is next, then build and install the Windows candidate |
+| RELEASE-01 | FS-125-RC3 GitHub candidate and local Windows install | In Progress | RC3 source/browser acceptance and Windows installer build are complete; installation is blocked only by four still-running FutolStructure processes, then installed smoke and native solver readback remain |
 | RELEASE-02 | Production web and public Windows update | Planned | Merge/release after candidate acceptance; matching version/provenance across both |
 | CLOUD-01 | Authentication and private project storage | Planned | Project ownership, access isolation, recovery and security tests before cloud sync |
 
@@ -46,7 +46,7 @@ Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_U
 2. ~~Resolve the local STAAD analysis-engine/licensing startup issue, then rerun the dated Bacacay readback.~~ **Licensed minimal and Bacacay native runs passed 2026-09-06; govern narrow-member concrete cover before final design acceptance.**
 3. ~~Record MODEL-01 regression evidence, then validate a dated Bacacay export against source coordinates, member sizes, analytical centroid joints, and physical member offsets.~~ **Source/model parity plus native ETABS 22.6 and STAAD 2024 acceptance verified 2026-09-06; Revit inspection remains the cross-platform geometry gate.**
 4. ~~Compare the pinned PyNite baseline against the accepted STAAD Bacacay fixture and add controlled cancellation/logging.~~ **The pinned 3.0.0 zero-offset control completes under bundled Python with equilibrium checks; the current Bacacay request is intentionally blocked by physical/insertion offsets. Implement and benchmark offset/sloped mechanical mapping before declaring Bacacay ANALYSIS-03 accepted or claiming exact equivalence.**
-5. **Add canonical-vs-analytical ETABS/STAAD fixture:** **FS-side locally verified 2026-09-07.** [Fixture acceptance](CANONICAL_ANALYTICAL_FIXTURE_ACCEPTANCE_2026-09-07.md) freezes expected centroid nodes, physical face axes, member offsets, column orientations, top-center beam cardinal, section axes, levels, and complete grid bubble parity. Native ETABS/STAAD readback of this same fixture remains the next gate.
+5. **Add canonical-vs-analytical ETABS/STAAD fixture:** **FS-side locally verified 2026-09-07; RC3 installer built and feature branch pushed.** [Fixture acceptance](CANONICAL_ANALYTICAL_FIXTURE_ACCEPTANCE_2026-09-07.md) freezes expected centroid nodes, physical face axes, member offsets, column orientations, top-center beam cardinal, section axes, levels, and complete grid bubble parity. Native ETABS/STAAD readback of this same fixture remains the next gate.
 6. **Reconnect parked features one at a time:** wall line-load transfer first, then roof-frame members, then stairs; each requires explicit canonical IDs, support/load mapping, native readback, and a separate acceptance artifact.
 7. ~~Generate the dated Bacacay IFC and prove foundation/level entity parity.~~ **Dependency-free IFC envelope gate passes 2026-09-06; native Revit/IfcOpenShell visual/property inspection remains separate from the current ETABS/STAAD priority.**
 8. ~~Make the A4 report a real PDF output and verify rendering.~~ **Bacacay report PDF generated and visually inspected 2026-09-06; include solver-result evidence only after native acceptance.**
@@ -54,9 +54,10 @@ Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_U
 
 ## Release Evidence
 
-- Feature branch tip: release-stamp commit follows source checkpoint `8e55979`; release manifest source checkpoint is `8e55979f8d12e5bf1dc95c831a9a3c58b21a5d49`.
-- Installed version: FS-125-RC2 / `3.16.125-rc.2` remains the last verified install until the RC3 installer is built and smoke-tested.
+- Feature branch tip: `0d68bba` (`chore: stamp FS-125-RC3 source checkpoint`), with runtime source checkpoint `8e55979f8d12e5bf1dc95c831a9a3c58b21a5d49`.
+- Installed version: FS-125-RC2 / `3.16.125-rc.2` remains the last verified install until the RC3 installer is installed and smoke-tested.
 - RC2 installer SHA256: 104626A0717DD619E75ED8124C49B2CCF3AE79CD3F5E7CF35DFE95F5DE0E78C9.
+- RC3 installer: `output/desktop/FutolStructure-Setup-3.16.125-rc.3-x64.exe`; SHA256 `16DC64A771C34ADAB06466A28579039258EB0390AA59AC98D5400895993EE420`; build passed 2026-09-07. Installation is pending closure of four running `FutolStructure.exe` processes.
 - Installed smoke: passed with isolated profile, correct source revision and no page errors; output/playwright/desktop/desktop-smoke.json.
 - Installer SHA256: C4C85B76DC1E3C39011DD68695E093205BF494ED64C8E58765AA505D8E9600E2.
 - Browser workspace regression: RC3 command emitted `ok:true`; the canonical fixture audit reports `PASS`, with 30 checks covering counts, levels, grids, representative columns/beams, offsets, section axes, and unique analytical joints. Existing test-only PDF stub errors remain in the regression log and are not release blockers.
