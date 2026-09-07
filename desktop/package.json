@@ -1,6 +1,6 @@
 {
   "name": "futolstructure-desktop",
-  "version": "3.16.125-rc.2",
+  "version": "3.16.125-rc.3",
   "description": "FutolStructure Windows desktop application",
   "main": "main.cjs",
   "author": {

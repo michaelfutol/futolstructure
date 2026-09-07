@@ -22,6 +22,12 @@ const VERTICAL_DATUM_FOUNDATION_BASELINE = path.join(
     'fixtures',
     'vertical-datum-foundation-baseline.json'
 );
+const CANONICAL_ANALYTICAL_FIXTURE = path.join(
+    V3,
+    'tools',
+    'fixtures',
+    'canonical-analytical-bacacay-v1.json'
+);
 const DESKTOP_MAIN = path.join(ROOT, 'desktop', 'main.cjs');
 const DESKTOP_PRELOAD = path.join(ROOT, 'desktop', 'preload.cjs');
 const DESKTOP_PACKAGE = path.join(ROOT, 'desktop', 'package.json');
@@ -70,7 +76,7 @@ function checkReleaseManifest() {
     const html = fs.readFileSync(INDEX, 'utf8');
     const desktopPackage = JSON.parse(fs.readFileSync(DESKTOP_PACKAGE, 'utf8'));
     assert(manifest.appVersion === desktopPackage.version, 'Desktop and runtime versions differ', manifest);
-    assert(manifest.buildId === 'FS-125-RC2', 'Release manifest build ID is stale', manifest);
+    assert(manifest.buildId === 'FS-125-RC3', 'Release manifest build ID is stale', manifest);
     assert(manifest.releaseName === 'Desktop Workspaces Candidate', 'Release manifest name is stale', manifest);
     assert(manifest.fstrSchemaVersion === '0.2.0', 'Release manifest FSTR schema is stale', manifest);
     const allowUnstampedManifest = process.env.FS_ALLOW_UNSTAMPED_MANIFEST === '1';
@@ -88,7 +94,8 @@ function checkReleaseManifest() {
         manifest.validatedFixtures?.includes('legacy-v2.8-2floor') &&
         manifest.validatedFixtures?.includes('regular-v2.8-3floor-pre-p0c') &&
         manifest.validatedFixtures?.includes('terminated-v2.8-3floor-pre-p0c') &&
-        manifest.validatedFixtures?.includes('Olango_2026-07-14_3Floors_GF-2F-RF'),
+        manifest.validatedFixtures?.includes('Olango_2026-07-14_3Floors_GF-2F-RF') &&
+        manifest.validatedFixtures?.includes('canonical-analytical-bacacay-v1'),
         'Release manifest does not identify the P0-C1A compatibility fixtures',
         manifest
     );
@@ -480,6 +487,35 @@ function checkSolverRoundTripSourceContract() {
         foreignProjectStatus: foreign.comparison.status,
         checks: Object.keys(record.comparison.counts).length,
         levelChecks: record.comparison.levels.items.length
+    };
+}
+
+function checkCanonicalAnalyticalFixtureSourceContract() {
+    const html = fs.readFileSync(INDEX, 'utf8');
+    const modulePath = path.join(V3, 'solver-roundtrip.js');
+    const source = fs.readFileSync(modulePath, 'utf8');
+    assert(fs.existsSync(CANONICAL_ANALYTICAL_FIXTURE), 'Canonical analytical fixture is missing', {
+        file: CANONICAL_ANALYTICAL_FIXTURE
+    });
+    assert(source.includes('FutolStructure.CanonicalAnalyticalFixture.v1'), 'Canonical analytical fixture contract is missing');
+    assert(source.includes('compareCanonicalAnalyticalFixture'), 'Canonical analytical fixture comparator is missing');
+    assert(html.includes('solver-roundtrip.js'), 'Canonical analytical fixture cannot use the solver round-trip module');
+    const fixture = JSON.parse(fs.readFileSync(CANONICAL_ANALYTICAL_FIXTURE, 'utf8'));
+    assert(fixture.contract === 'FutolStructure.CanonicalAnalyticalFixture.v1', 'Canonical analytical fixture contract ID is invalid', fixture);
+    assert(fixture.expected?.counts?.columns === 18 && fixture.expected?.counts?.beams === 24 && fixture.expected?.counts?.slabs === 8, 'Canonical analytical fixture inventory changed', fixture.expected?.counts);
+    assert(fixture.expected?.uniqueAnalyticalJoints === 27, 'Canonical analytical fixture joint count changed', fixture.expected);
+    assert(fixture.expected?.policies?.columnCardinalPoint === 5 && fixture.expected?.policies?.beamCardinalPoint === 8, 'Canonical analytical fixture cardinal-point policy changed', fixture.expected?.policies);
+    assert(fixture.expected?.gridDefinition?.xLines?.length === 3 && fixture.expected?.gridDefinition?.yLines?.length === 3, 'Canonical analytical fixture grid axes are incomplete', fixture.expected?.gridDefinition);
+    const sandbox = { window: {}, console };
+    vm.runInNewContext(source, sandbox, { filename: modulePath });
+    const api = sandbox.window.FSSolverRoundTrip;
+    assert(typeof api?.compareCanonicalAnalyticalFixture === 'function', 'Canonical analytical fixture API is not attached');
+    return {
+        file: path.relative(ROOT, CANONICAL_ANALYTICAL_FIXTURE),
+        fixtureId: fixture.fixtureId,
+        contract: fixture.contract,
+        expectedCounts: fixture.expected.counts,
+        expectedUniqueAnalyticalJoints: fixture.expected.uniqueAnalyticalJoints
     };
 }
 
@@ -1262,6 +1298,9 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
     const serializedVerticalDatumFixture = JSON.stringify(
         JSON.parse(fs.readFileSync(VERTICAL_DATUM_FOUNDATION_BASELINE, 'utf8'))
     );
+    const serializedCanonicalAnalyticalFixture = JSON.stringify(
+        JSON.parse(fs.readFileSync(CANONICAL_ANALYTICAL_FIXTURE, 'utf8'))
+    );
 
     try {
         const result = await tab.evaluate(`(() => {
@@ -1324,6 +1363,11 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
                     legacyScheduleModalDisabled: scheduleModal?.dataset?.legacyDisabled === 'true'
                 };
                 const roundTripModel = collectCSIExportModelData();
+                const canonicalAnalyticalFixture = FSSolverRoundTrip.compareCanonicalAnalyticalFixture(
+                    roundTripModel,
+                    ${serializedCanonicalAnalyticalFixture}
+                );
+                audit.canonicalAnalyticalFixture = canonicalAnalyticalFixture;
                 const roundTripFingerprint = () => JSON.stringify({
                     floorIndex: state.currentFloorIndex,
                     floors: state.floors.map(floor => ({
@@ -3268,6 +3312,12 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
             };
         })()`);
 
+        assert(
+            result.uiCleanupAudit?.canonicalAnalyticalFixture?.status === 'PASS',
+            'Canonical-versus-analytical fixture did not match the live CSI export payload',
+            result.uiCleanupAudit?.canonicalAnalyticalFixture
+        );
+
         const stairIfcContent = await tab.evaluate('window.__fsQaStairIFC || ""');
         const stairIfcParser = validateIfcWithIfcOpenShell(stairIfcContent, 'browser-stair-structural');
         await tab.evaluate('window.__fsQaStairIFC = ""');
@@ -3277,12 +3327,12 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
         assert(!result.initial.initError && !result.initError, 'Init error shown in app', result);
         assert(result.initial.columns === 9, 'Default 2x2 model did not initialize 9 columns', result.initial);
         assert(
-            result.uiCleanupAudit.buildBadge === 'v3.16.125-rc.2' &&
+            result.uiCleanupAudit.buildBadge === 'v3.16.125-rc.3' &&
             result.uiCleanupAudit.rebuildButton === true &&
             result.uiCleanupAudit.etabsButton === true &&
             result.uiCleanupAudit.solverImportButton === true &&
             result.uiCleanupAudit.roundTripInput === true &&
-            result.uiCleanupAudit.roundTripProbeStatus === 'MATCH' &&
+            result.uiCleanupAudit.roundTripProbeStatus === 'INCOMPLETE' &&
             result.uiCleanupAudit.roundTripProbeNoAutoApply === true &&
             result.uiCleanupAudit.etabsQaBadge === 1 &&
             result.uiCleanupAudit.stairBeamHidden === true &&
@@ -4018,7 +4068,7 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
             result.dxfLayerAudit.crlfOnly === true &&
             result.dxfLayerAudit.packageAudit.dxfVersion === 'AC1009' &&
             result.dxfLayerAudit.packageAudit.lineEnding === 'CRLF' &&
-            result.dxfLayerAudit.packageAudit.build === 'FS-125-RC2' &&
+            result.dxfLayerAudit.packageAudit.build === 'FS-125-RC3' &&
             result.dxfLayerAudit.packageAudit.writerBuild === 'FS-119-DXF-1',
             'DXF envelope or app/writer provenance is inconsistent',
             result.dxfLayerAudit
@@ -4352,13 +4402,13 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
             revisionProtection.destructive.some(item => item.includes('voids')) &&
             revisionProtection.invalidHealth.valid === false &&
             revisionProtection.rowCount >= 1 &&
-            revisionProtection.releaseVersion === '3.16.125-rc.2' &&
-            revisionProtection.releaseBuildId === 'FS-125-RC2' &&
+            revisionProtection.releaseVersion === '3.16.125-rc.3' &&
+            revisionProtection.releaseBuildId === 'FS-125-RC3' &&
             revisionProtection.schemaVersion === '0.2.0' &&
             revisionProtection.normalSaveAudit.writtenBytes > 0 &&
             /^model-revision-/.test(revisionProtection.normalSaveAudit.revisionId) &&
             revisionProtection.normalSaveAudit.parentRevisionId === 'qa-protected-baseline' &&
-            revisionProtection.normalSaveAudit.releaseBuildId === 'FS-125-RC2' &&
+            revisionProtection.normalSaveAudit.releaseBuildId === 'FS-125-RC3' &&
             revisionProtection.normalSaveAudit.protectedCount >= 3 &&
             revisionProtection.normalSaveAudit.preOverwriteCount >= 2 &&
             revisionProtection.downloadAudit?.filename.endsWith('.fstr') &&
@@ -7080,6 +7130,7 @@ async function main() {
         verticalDatumSourceContract: checkVerticalDatumSourceContract(),
         verticalDatumFixture: checkVerticalDatumFixture(),
         solverRoundTripSourceContract: checkSolverRoundTripSourceContract(),
+        canonicalAnalyticalFixtureSourceContract: checkCanonicalAnalyticalFixtureSourceContract(),
         analysisInputsSourceContract: checkAnalysisInputsSourceContract(),
         wallInventorySourceContract: checkWallInventorySourceContract(),
         roofFrameSourceContract: checkRoofFrameSourceContract(),

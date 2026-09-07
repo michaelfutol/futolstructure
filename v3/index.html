@@ -2268,7 +2268,7 @@
             </div>
             <img class="logo-icon" src="assets/futolstructure-icon.png" alt="FutolStructure">
             <span style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary); letter-spacing: -0.01em;">FutolStructure</span>
-<button id="buildVersionBadge" type="button" title="View FS-125-RC2 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.125-rc.2</button>
+<button id="buildVersionBadge" type="button" title="View FS-125-RC3 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.125-rc.3</button>
         </div>
         <!-- Action Toolbar -->
         <div class="header-actions">
@@ -4743,8 +4743,8 @@
         const FSTR_HIDDEN_GEOMETRY_POLICY = 'preserve-intentional-hidden-geometry';
         const FSTR_AUTOSAVE_STATE_REVISION = 'P0-C1A-column-segment-intent';
         const COLUMN_SEGMENT_INTENT_VERSION = 1;
-        const FSTR_APP_VERSION = '3.16.125-rc.2';
-        const FSTR_BUILD_ID = 'FS-125-RC2';
+        const FSTR_APP_VERSION = '3.16.125-rc.3';
+        const FSTR_BUILD_ID = 'FS-125-RC3';
         const FSTR_RELEASE_NAME = 'Desktop Workspaces Candidate';
         const FSTR_RELEASE_MANIFEST_FALLBACK = Object.freeze({
             appVersion: FSTR_APP_VERSION,
@@ -4752,13 +4752,14 @@
             releaseName: FSTR_RELEASE_NAME,
             fstrSchemaVersion: FSTR_SCHEMA_VERSION,
             releaseChannel: 'candidate',
-            gitCommit: 'c4fecdbf70e513250f9ca05b8f6c076f96953b0b',
+            gitCommit: '',
             buildDate: '2026-09-05',
             validatedFixtures: [
                 'legacy-v2.8-2floor',
                 'regular-v2.8-3floor-pre-p0c',
                 'terminated-v2.8-3floor-pre-p0c',
-                'Olango_2026-07-14_3Floors_GF-2F-RF'
+                'Olango_2026-07-14_3Floors_GF-2F-RF',
+                'canonical-analytical-bacacay-v1'
             ],
             validatedTargets: {
                 DXF: 'AutoCAD R12 ASCII strict parser gate with unresolved-topology disclosure',

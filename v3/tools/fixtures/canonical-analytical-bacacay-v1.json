@@ -1,0 +1,105 @@
+{
+  "fixtureId": "canonical-analytical-bacacay-v1",
+  "contract": "FutolStructure.CanonicalAnalyticalFixture.v1",
+  "recordedAt": "2026-09-07",
+  "description": "Deterministic 2F/RF handoff fixture for canonical coordinates, analytical centroid joints, solver section axes, cardinal points, grids, and shared physical offsets.",
+  "toleranceM": 0.0001,
+  "expected": {
+    "counts": {
+      "stories": 2,
+      "columns": 18,
+      "beams": 24,
+      "slabs": 8,
+      "levels": 4
+    },
+    "uniqueAnalyticalJoints": 27,
+    "policies": {
+      "nodePolicy": "canonical-coordinate-registry",
+      "beamEndpointPolicy": "column-centroid-joints",
+      "columnCardinalPoint": 5,
+      "beamCardinalPoint": 8,
+      "physicalGeometryPolicy": "3D and drafting beams use face-terminated physical axes; solver frames retain centroid joints"
+    },
+    "levels": [
+      { "id": "BASE/FOUNDATION", "name": "BASE/FOUNDATION", "elevation": 0 },
+      { "id": "GF", "name": "GF", "elevation": 0 },
+      { "id": "2F", "name": "2F", "elevation": 3 },
+      { "id": "RF", "name": "RF", "elevation": 6 }
+    ],
+    "gridDefinition": {
+      "xLines": [
+        { "label": "A", "coordinateM": 0, "bubbleLoc": "End", "visible": true },
+        { "label": "B", "coordinateM": 4, "bubbleLoc": "End", "visible": true },
+        { "label": "C", "coordinateM": 8, "bubbleLoc": "End", "visible": true }
+      ],
+      "yLines": [
+        { "label": "1", "coordinateM": 0, "bubbleLoc": "Start", "visible": true },
+        { "label": "2", "coordinateM": -5, "bubbleLoc": "Start", "visible": true },
+        { "label": "3", "coordinateM": -10, "bubbleLoc": "Start", "visible": true }
+      ]
+    },
+    "columns": [
+      {
+        "id": "2F-A1",
+        "start": [0.15, -0.15, 0],
+        "end": [0.15, -0.15, 3],
+        "orientationDeg": 0,
+        "etabsLocalAxisAngleDeg": 0,
+        "analyticalCardinalPoint": 5,
+        "section": "C300x300"
+      },
+      {
+        "id": "2F-B2",
+        "start": [4, -5, 0],
+        "end": [4, -5, 3],
+        "orientationDeg": 0,
+        "etabsLocalAxisAngleDeg": 0,
+        "analyticalCardinalPoint": 5,
+        "section": "C300x300"
+      },
+      {
+        "id": "RF-C3",
+        "start": [7.85, -9.85, 3],
+        "end": [7.85, -9.85, 6],
+        "orientationDeg": 0,
+        "etabsLocalAxisAngleDeg": 0,
+        "analyticalCardinalPoint": 5,
+        "section": "C300x300"
+      }
+    ],
+    "beams": [
+      {
+        "id": "2F-BX-1-1",
+        "analyticalStart": [0.15, 0.15, 3],
+        "analyticalEnd": [4, 0.15, 3],
+        "offsetStart": [0.15, 0.025, -0.075],
+        "offsetEnd": [-0.15, 0.025, -0.075],
+        "analyticalCardinalPoint": 8,
+        "section": "B250x300"
+      },
+      {
+        "id": "2F-BY-1-1",
+        "analyticalStart": [0.15, 0.15, 3],
+        "analyticalEnd": [0.15, 5, 3],
+        "offsetStart": [-0.025, -0.15, -0.1],
+        "offsetEnd": [-0.025, 0.15, -0.1],
+        "analyticalCardinalPoint": 8,
+        "section": "B250x350"
+      },
+      {
+        "id": "RF-BX-1-1",
+        "analyticalStart": [0.15, 0.15, 6],
+        "analyticalEnd": [4, 0.15, 6],
+        "offsetStart": [0.15, 0.025, -0.09],
+        "offsetEnd": [-0.15, 0.025, -0.09],
+        "analyticalCardinalPoint": 8,
+        "section": "B250x300"
+      }
+    ],
+    "sections": [
+      { "name": "C300x300", "bMm": 300, "hMm": 300, "etabsT2Mm": 300, "etabsT3Mm": 300 },
+      { "name": "B250x300", "bMm": 250, "hMm": 300, "etabsT2Mm": 250, "etabsT3Mm": 300 },
+      { "name": "B250x350", "bMm": 250, "hMm": 350, "etabsT2Mm": 250, "etabsT3Mm": 350 }
+    ]
+  }
+}

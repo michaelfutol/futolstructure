@@ -1,16 +1,17 @@
 {
-  "appVersion": "3.16.125-rc.2",
-  "buildId": "FS-125-RC2",
+  "appVersion": "3.16.125-rc.3",
+  "buildId": "FS-125-RC3",
   "releaseName": "Desktop Workspaces Candidate",
   "fstrSchemaVersion": "0.2.0",
   "releaseChannel": "candidate",
-  "gitCommit": "c4fecdbf70e513250f9ca05b8f6c076f96953b0b",
+  "gitCommit": "",
   "buildDate": "2026-09-07",
   "validatedFixtures": [
     "legacy-v2.8-2floor",
     "regular-v2.8-3floor-pre-p0c",
     "terminated-v2.8-3floor-pre-p0c",
-    "Olango_2026-07-14_3Floors_GF-2F-RF"
+    "Olango_2026-07-14_3Floors_GF-2F-RF",
+    "canonical-analytical-bacacay-v1"
   ],
   "validatedTargets": {
     "DXF": "AutoCAD R12 ASCII strict parser gate with unresolved-topology disclosure",

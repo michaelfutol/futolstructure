@@ -147,6 +147,150 @@
         };
     }
 
+    function compareCanonicalAnalyticalFixture(model, fixture) {
+        if (!model || typeof model !== 'object') throw new Error('Canonical fixture comparison requires an export model.');
+        if (!fixture || typeof fixture !== 'object') throw new Error('Canonical fixture comparison requires a fixture object.');
+        const expected = fixture.expected || {};
+        const toleranceM = finiteNumber(fixture.toleranceM) ?? 0.0001;
+        const failures = [];
+        const checks = [];
+        const record = (label, actual, target, status, details = {}) => {
+            checks.push({ label, actual, expected: target, status, ...details });
+            if (status !== 'PASS') failures.push({ label, actual, expected: target, ...details });
+        };
+        const close = (actual, target, tolerance = toleranceM) =>
+            finiteNumber(actual) != null && finiteNumber(target) != null &&
+            Math.abs(finiteNumber(actual) - finiteNumber(target)) <= tolerance;
+        const closePoint = (actual, target) => Array.isArray(actual) && Array.isArray(target) &&
+            actual.length === target.length && actual.every((value, index) => close(value, target[index]));
+        const normalizePoint = point => Array.isArray(point)
+            ? point.slice(0, 3).map(finiteNumber)
+            : [null, null, null];
+        const countSpecs = expected.counts || {};
+        Object.entries(countSpecs).forEach(([key, target]) => {
+            const actual = key === 'levels' ? model.levels?.length : model.counts?.[key];
+            record(`count.${key}`, actual, target, Number(actual) === Number(target) ? 'PASS' : 'FAIL');
+        });
+
+        const expectedPolicies = expected.policies || {};
+        const actualPolicies = model.analyticalGeometry || {};
+        Object.entries(expectedPolicies).forEach(([key, target]) => {
+            const actual = actualPolicies[key];
+            record(`policy.${key}`, actual, target, String(actual) === String(target) ? 'PASS' : 'FAIL');
+        });
+
+        const actualLevels = Array.isArray(model.levels) ? model.levels : [];
+        (expected.levels || []).forEach(target => {
+            const actual = actualLevels.find(level => String(level?.id || '').toUpperCase() === String(target.id).toUpperCase());
+            record(`level.${target.id}`, actual ? actual.elevation : null, target.elevation,
+                actual && close(actual.elevation, target.elevation) && String(actual.name || '') === String(target.name || target.id)
+                    ? 'PASS' : 'FAIL');
+        });
+
+        const actualGrid = model.gridDefinition || {};
+        ['xLines', 'yLines'].forEach(axis => {
+            (expected.gridDefinition?.[axis] || []).forEach(target => {
+                const actual = (actualGrid[axis] || []).find(line => String(line?.label || line?.id || '') === String(target.label));
+                const matched = actual && close(actual.coordinateM, target.coordinateM) &&
+                    String(actual.bubbleLoc || '') === String(target.bubbleLoc || '') &&
+                    (actual.visible !== false) === (target.visible !== false);
+                record(`grid.${axis}.${target.label}`, actual ? {
+                    coordinateM: actual.coordinateM,
+                    bubbleLoc: actual.bubbleLoc,
+                    visible: actual.visible !== false
+                } : null, target, matched ? 'PASS' : 'FAIL');
+            });
+        });
+
+        const actualColumns = new Map((model.columns || []).map(column => [String(column?.id || ''), column]));
+        (expected.columns || []).forEach(target => {
+            const actual = actualColumns.get(String(target.id));
+            const actualStart = actual ? [actual.x, actual.y, actual.z1] : null;
+            const actualEnd = actual ? [actual.x, actual.y, actual.z2] : null;
+            const matched = actual && closePoint(actualStart, target.start) && closePoint(actualEnd, target.end) &&
+                close(actual.orientationDeg, target.orientationDeg) &&
+                close(actual.etabsLocalAxisAngleDeg, target.etabsLocalAxisAngleDeg) &&
+                Number(actual.analyticalCardinalPoint) === Number(target.analyticalCardinalPoint) &&
+                String(actual.section) === String(target.section);
+            record(`column.${target.id}`, actual ? {
+                start: normalizePoint(actualStart),
+                end: normalizePoint(actualEnd),
+                orientationDeg: actual.orientationDeg,
+                etabsLocalAxisAngleDeg: actual.etabsLocalAxisAngleDeg,
+                analyticalCardinalPoint: actual.analyticalCardinalPoint,
+                section: actual.section
+            } : null, target, matched ? 'PASS' : 'FAIL');
+        });
+
+        const actualBeams = new Map((model.beams || []).map(beam => [String(beam?.id || ''), beam]));
+        (expected.beams || []).forEach(target => {
+            const actual = actualBeams.get(String(target.id));
+            const analytical = actual?.analyticalPlanAxis || {};
+            const actualStart = actual ? [analytical.x1 ?? actual.x1, analytical.y1 ?? actual.y1, actual.z] : null;
+            const actualEnd = actual ? [analytical.x2 ?? actual.x2, analytical.y2 ?? actual.y2, actual.z] : null;
+            const shared = actual?.jointOffsets?.sharedSolverPlan || {};
+            const actualOffsetStart = actual ? [shared.start?.dx ?? 0, shared.start?.dy ?? 0, actual.verticalInsertionOffsetM ?? 0] : null;
+            const actualOffsetEnd = actual ? [shared.end?.dx ?? 0, shared.end?.dy ?? 0, actual.verticalInsertionOffsetM ?? 0] : null;
+            const matched = actual && closePoint(actualStart, target.analyticalStart) && closePoint(actualEnd, target.analyticalEnd) &&
+                closePoint(actualOffsetStart, target.offsetStart) && closePoint(actualOffsetEnd, target.offsetEnd) &&
+                Number(actual.analyticalCardinalPoint) === Number(target.analyticalCardinalPoint) &&
+                String(actual.section) === String(target.section);
+            record(`beam.${target.id}`, actual ? {
+                analyticalStart: normalizePoint(actualStart),
+                analyticalEnd: normalizePoint(actualEnd),
+                offsetStart: normalizePoint(actualOffsetStart),
+                offsetEnd: normalizePoint(actualOffsetEnd),
+                analyticalCardinalPoint: actual.analyticalCardinalPoint,
+                section: actual.section
+            } : null, target, matched ? 'PASS' : 'FAIL');
+        });
+
+        const actualSections = new Map((model.frameSections || []).map(section => [String(section?.name || ''), section]));
+        (expected.sections || []).forEach(target => {
+            const actual = actualSections.get(String(target.name));
+            const matched = actual && Number(actual.bMm) === Number(target.bMm) && Number(actual.hMm) === Number(target.hMm) &&
+                Number(actual.etabsT2Mm) === Number(target.etabsT2Mm) && Number(actual.etabsT3Mm) === Number(target.etabsT3Mm);
+            record(`section.${target.name}`, actual ? {
+                bMm: actual.bMm,
+                hMm: actual.hMm,
+                etabsT2Mm: actual.etabsT2Mm,
+                etabsT3Mm: actual.etabsT3Mm
+            } : null, target, matched ? 'PASS' : 'FAIL');
+        });
+
+        const joints = new Set();
+        const addJoint = point => {
+            const normalized = normalizePoint(point);
+            if (normalized.every(value => value != null)) joints.add(normalized.map(value => Number(value).toFixed(6)).join('|'));
+        };
+        (model.columns || []).forEach(column => {
+            addJoint([column.x, column.y, column.z1]);
+            addJoint([column.x, column.y, column.z2]);
+        });
+        (model.beams || []).forEach(beam => {
+            addJoint([beam.x1, beam.y1, beam.z]);
+            addJoint([beam.x2, beam.y2, beam.z]);
+        });
+        if (expected.uniqueAnalyticalJoints != null) {
+            record('uniqueAnalyticalJoints', joints.size, expected.uniqueAnalyticalJoints,
+                joints.size === Number(expected.uniqueAnalyticalJoints) ? 'PASS' : 'FAIL');
+        }
+        return {
+            contract: 'FutolStructure.CanonicalAnalyticalFixture.v1',
+            fixtureId: fixture.fixtureId || '',
+            toleranceM,
+            status: failures.length ? 'FAIL' : 'PASS',
+            checks,
+            failures,
+            actual: {
+                counts: clone(model.counts, {}),
+                levels: clone(model.levels, []),
+                gridDefinition: clone(model.gridDefinition, {}),
+                uniqueAnalyticalJoints: joints.size
+            }
+        };
+    }
+
     function nativePoint(value) {
         if (Array.isArray(value)) return value.slice(0, 3).map(finiteNumber);
         if (!value || typeof value !== 'object') return [null, null, null];
@@ -530,6 +674,7 @@
         contract: CONTRACT,
         modelSummaryContract: MODEL_SUMMARY_CONTRACT,
         summarizeCurrentModel,
+        compareCanonicalAnalyticalFixture,
         normalizeETABSAudit,
         compareETABSAuditToModel(rawAudit, model, sourceFileName = '') {
             return buildETABSAuditRecord(rawAudit, model, sourceFileName).comparison;
