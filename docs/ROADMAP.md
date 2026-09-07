@@ -8,7 +8,7 @@ Detailed scope: [September delivery plan](FS_DELIVERY_ROADMAP_2026-09-05.md).
 Statuses: Planned, In Progress, Locally Verified, Native Acceptance Pending, Released.
 Locally Verified does not imply a published installer or a production deployment.
 
-Current working candidate: `feature/fs-125-shared-analytical-inputs` with the FS-125-RC2 release candidate changes. The installed Windows candidate remains FS-125-RC1 until the RC2 installer is verified; `main` and Vercel production remain unchanged until candidate acceptance and release approval.
+Current working candidate: `feature/fs-125-shared-analytical-inputs` at `38d0544` with the FS-125-RC2 release candidate changes. The installed Windows candidate is `3.16.125-rc.2`; `main` and Vercel production remain unchanged until candidate acceptance and release approval.
 
 Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_ULTRA_SUPER_IMPROVEMENT_AUDIT_V2.md](FUTOLSTRUCTURE_ASTRA_ULTRA_SUPER_IMPROVEMENT_AUDIT_V2.md). Phase 1A has a focused local regression passing for unit-contract source checks, finite support validation, incomplete ETABS evidence, signed/zero-safe comparison, and per-floor dashboard source behavior. The first Phase 1B boundary is now explicit: PyNite accepts the governed zero-offset horizontal baseline but blocks physical joint offsets, vertical insertion offsets, and sloped members until equivalent mapping is implemented. The old PyNite result artifact is not a post-fix acceptance result and must be regenerated in the pinned environment.
 
@@ -34,7 +34,7 @@ Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_U
 | IMPORT-03 | PDF/CAD underlay and assisted model entry | Planned | Calibration, user-confirmed inference and preserved source drawing |
 | DOC-01 | Coordinated DXF/IFC/A4 and quantities | A4 PDF Verified - Native BIM Pending | [PDF report acceptance](PDF_REPORT_ACCEPTANCE_2026-09-06.md) verifies a real three-page A4 PDF with Arial and visual inspection; DXF/IFC native CAD/Revit inspection remains |
 | DETAIL-01 | Approved reinforcement, schedules and shop drawings | Contract Pending - Legacy BBS Is Preliminary | Existing Rebar/BBS/BOM panels remain preliminary; next gate is governed `RebarHandoff.v1`, approved solver/design results, hook/bend/lap/cut-length rules, then Revit native rebar and shop-drawing acceptance |
-| RELEASE-01 | FS-125-RC2 GitHub candidate and local Windows install | In Progress | `3.16.125-rc.2` adds the verified dark workspace option to the FS-125-RC1 candidate; installer rebuild, install, and feature-branch push pending |
+| RELEASE-01 | FS-125-RC2 GitHub candidate and local Windows install | Locally Verified | `3.16.125-rc.2` adds the verified dark workspace option to the FS-125-RC1 candidate; installer exit code 0, installed manifest/startup verified, and feature branch pushed at `38d0544` |
 | RELEASE-02 | Production web and public Windows update | Planned | Merge/release after candidate acceptance; matching version/provenance across both |
 | CLOUD-01 | Authentication and private project storage | Planned | Project ownership, access isolation, recovery and security tests before cloud sync |
 
@@ -55,7 +55,8 @@ Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_U
 ## Release Evidence
 
 - Feature branch tip: `1e34818`; release manifest source checkpoint: `87b1cd57a074f25ecab14f057b6cb173af529c83`.
-- Installed version: FS-125-RC1 / `3.16.125-rc.1`, installer exit code 0; installed manifest and window startup verified. RC2 supersedes it after packaging.
+- Installed version: FS-125-RC2 / `3.16.125-rc.2`, installer exit code 0; installed manifest and window startup verified.
+- RC2 installer SHA256: 104626A0717DD619E75ED8124C49B2CCF3AE79CD3F5E7CF35DFE95F5DE0E78C9.
 - Installed smoke: passed with isolated profile, correct source revision and no page errors; output/playwright/desktop/desktop-smoke.json.
 - Installer SHA256: C4C85B76DC1E3C39011DD68695E093205BF494ED64C8E58765AA505D8E9600E2.
 - Browser workspace regression: passed at desktop/tablet/phone; canonical audit reports `READY_FOR_SOLVER_REVIEW`, topology blockers `0`, footing SBC status `ASSUMED / PRELIMINARY`, and page errors `[]`.
