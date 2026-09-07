@@ -3,7 +3,7 @@
 **Candidate:** FS-125-RC3  
 **Fixture:** `canonical-analytical-bacacay-v1`  
 **Date:** 2026-09-07  
-**Scope:** FutolStructure source and browser export payload only
+**Scope:** FutolStructure source, browser export payload, and dated native ETABS/STAAD readback
 
 ## Result
 
@@ -62,6 +62,42 @@ Artifact SHA-256 values:
 | STAAD input | `FD71152937F5B1C24E90A04C085F9917EE3063D311250E29EA98C07149F8E65B` |
 | Canonical model snapshot | `E766E6D0D41FB92000D2F34B7D0EC57DACB527BBB46935C06F8EBB3277073905` |
 
+## Native Readback
+
+The exact dated artifacts were opened and analyzed by the installed native
+solvers without changing the source model.
+
+| Native gate | Result |
+| --- | --- |
+| ETABS 22.6 OAPI | **PASS**; analysis return `0`; 42 frames and 8 areas; 6 grid-line rows; levels, geometry, columnation, cardinals, and 24 offset members matched |
+| STAAD.Pro 2024 engine | **PASS**; license `Ok`; 43 joints, 42 members, 8 plates; exit code `100`; 0 warnings and 0 errors |
+
+ETABS audit summary:
+
+```text
+Levels: BASE/FOUNDATION=0, GF=0, 2F=3, RF=6 m
+Columns / beams / slabs: 18 / 24 / 8
+Native grid rows: 6; grid status: PASS
+Native geometry: PASS; columnation parity: PASS; level parity: PASS
+Column cardinal: 5; beam cardinal: 8
+Analysis return: 0; modal rows: 6
+```
+
+Native ETABS artifact hashes:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| EDB | `F89259EF9BACE5EC4995826552C9923731DF1CE665C5D1331FB9E57D4FDFA439` |
+| Audit JSON | `377945FBAD507C3B99E8B3A9653EF8ECAC6CABA67AC52A093AD9D2B33A716C49` |
+
+Native STAAD artifact hashes:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Input `.std` | `FD71152937F5B1C24E90A04C085F9917EE3063D311250E29EA98C07149F8E65B` |
+| Native `.ANL` | `415FF5C888AFDF7524FD727DA3BFF0D69A74403B046C1BF6B72C060C7DB0F4B9` |
+| Native `.log` | `FDBE92996CA727E389DB36B4C6F1B70760A0BCF2734DDB255FF16F9108235FA9` |
+
 ## Contract Meaning
 
 - FSTR remains the canonical source for member IDs, plan coordinates, column
@@ -77,7 +113,8 @@ Artifact SHA-256 values:
 
 ## Remaining Gate
 
-The next acceptance item is a dated native readback of these same artifacts in
-ETABS and STAAD, including every grid bubble/ordinate and representative
-column orientation. Native solver evidence already exists for the prior Bacacay
-candidate; this document does not claim a fresh native run for the new fixture.
+The native readback gate is complete for this fixture. The next acceptance item
+is focused edge-beam/cantilever endpoint parity: physical face-terminated axes
+must remain distinct from analytical centroid joints in both solver payloads,
+with a representative native readback. Revit visual/property acceptance and
+the RC3 installed Windows smoke remain separate release gates.
