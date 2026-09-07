@@ -38,6 +38,30 @@ The browser gate reports the fixture status as `PASS`. The full regression also
 continues to exercise DXF, IFC, protected revisions, vertical datums, wall and
 roof coordination boundaries, and responsive workspaces.
 
+The acceptance runner can now materialize the exact fixture for native solver
+readback without changing the runtime model:
+
+```text
+node v3/tools/check-fs.js --write-canonical-etabs-script <dated.ps1> --write-canonical-staad <dated.std> --write-canonical-model <dated.model.json>
+```
+
+The dated local artifacts generated on 2026-09-07 contain `18` columns, `24`
+beams, `8` slabs, `4` levels, and `27` unique analytical joints:
+
+```text
+output/acceptance/fs125-canonical-analytical-2026-09-07/FutolStructure_Canonical_Analytical_FS125_RC3_ETABS_2026-09-07.ps1
+output/acceptance/fs125-canonical-analytical-2026-09-07/FutolStructure_Canonical_Analytical_FS125_RC3_2026-09-07.std
+output/acceptance/fs125-canonical-analytical-2026-09-07/FutolStructure_Canonical_Analytical_FS125_RC3_2026-09-07.model.json
+```
+
+Artifact SHA-256 values:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| ETABS builder script | `DEA61965C3FB9939604492D2FA2C7160A587F8FEC45171DD450B4AF3AE828323` |
+| STAAD input | `FD71152937F5B1C24E90A04C085F9917EE3063D311250E29EA98C07149F8E65B` |
+| Canonical model snapshot | `E766E6D0D41FB92000D2F34B7D0EC57DACB527BBB46935C06F8EBB3277073905` |
+
 ## Contract Meaning
 
 - FSTR remains the canonical source for member IDs, plan coordinates, column
@@ -53,8 +77,7 @@ roof coordination boundaries, and responsive workspaces.
 
 ## Remaining Gate
 
-The next acceptance item is a dated native readback of this same fixture in
+The next acceptance item is a dated native readback of these same artifacts in
 ETABS and STAAD, including every grid bubble/ordinate and representative
 column orientation. Native solver evidence already exists for the prior Bacacay
 candidate; this document does not claim a fresh native run for the new fixture.
-

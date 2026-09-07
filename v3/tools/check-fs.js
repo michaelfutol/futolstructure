@@ -5325,6 +5325,87 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
     }
 }
 
+async function writeCanonicalSolverArtifacts(etabsScriptPath = null, staadPath = null, modelPath = null) {
+    if (!etabsScriptPath && !staadPath && !modelPath) return null;
+    const browser = await ensureBrowser(DEFAULT_PORT);
+    const tab = await openAppTab(browser.base);
+    try {
+        const payload = await tab.evaluate(`(() => {
+            localStorage.removeItem('FutolStructure.autosave.v1');
+            localStorage.removeItem('FutolStructure.autosave.healthy.v1');
+            localStorage.removeItem('FutolStructure.autosave.quarantine.v1');
+            state.xSpans = [4.0, 4.0];
+            state.ySpans = [5.0, 5.0];
+            state.cantilevers = { top: [0, 0], bottom: [0, 0], left: [0, 0], right: [0, 0] };
+            state.floors = [
+                createFloor('2F', '2nd Floor', 2, 2),
+                createFloor('RF', 'Roof', 2, 2, {
+                    isRoof: true,
+                    dlSuper: 1.5,
+                    liveLoad: 1.0,
+                    slabThickness: 120,
+                    wallLoad: 0
+                })
+            ];
+            state.currentFloorIndex = 0;
+            state.columns = [];
+            state.beams = [];
+            state.slabs = [];
+            state.beamSizeOverrides = {};
+            state.beamAlignmentOverrides = {};
+            state.columnPositionOverrides = {};
+            state.foundationTieBeamAlignmentOverrides = {};
+            undoHistory.length = 0;
+            redoHistory.length = 0;
+            calculate();
+            refreshInputPanelsAfterStateRestore();
+            const model = collectCSIExportModelData();
+            return {
+                model,
+                etabs: generateETABSOAPIScript(model),
+                staad: generateSTAADContent(model)
+            };
+        })()`);
+        const paths = {};
+        if (etabsScriptPath) {
+            const resolvedPath = path.resolve(etabsScriptPath);
+            fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+            fs.writeFileSync(resolvedPath, payload.etabs, 'utf8');
+            paths.etabsScriptPath = resolvedPath;
+        }
+        if (staadPath) {
+            const resolvedPath = path.resolve(staadPath);
+            fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+            fs.writeFileSync(resolvedPath, payload.staad, 'utf8');
+            paths.staadPath = resolvedPath;
+        }
+        if (modelPath) {
+            const resolvedPath = path.resolve(modelPath);
+            fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+            fs.writeFileSync(resolvedPath, JSON.stringify(payload.model, null, 2) + '\n', 'utf8');
+            paths.modelPath = resolvedPath;
+        }
+        return {
+            ...paths,
+            counts: payload.model.counts,
+            levels: payload.model.levels.map(level => ({ id: level.id, elevation: level.elevation })),
+            uniqueAnalyticalJoints: new Set(
+                payload.model.columns.flatMap(column => [
+                    [column.x, column.y, column.z1],
+                    [column.x, column.y, column.z2]
+                ]).map(point => point.map(value => Number(value).toFixed(6)).join('|'))
+            ).size,
+            etabsBytes: Buffer.byteLength(payload.etabs, 'utf8'),
+            staadBytes: Buffer.byteLength(payload.staad, 'utf8')
+        };
+    } finally {
+        tab.close();
+        if (browser.process && !KEEP_BROWSER) {
+            try { browser.process.kill(); } catch (err) { /* noop */ }
+        }
+    }
+}
+
 async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = null, ifcPath = null, dxfPath = null) {
     const resolvedProjectPath = path.resolve(projectPath);
     assert(fs.existsSync(resolvedProjectPath), 'Project file was not found', { projectPath: resolvedProjectPath });
@@ -7142,6 +7223,9 @@ async function main() {
     const staadPath = getArgValue('--write-staad');
     const ifcPath = getArgValue('--write-ifc');
     const dxfPath = getArgValue('--write-dxf');
+    const canonicalEtabsScriptPath = getArgValue('--write-canonical-etabs-script');
+    const canonicalStaadPath = getArgValue('--write-canonical-staad');
+    const canonicalModelPath = getArgValue('--write-canonical-model');
     const fs123OutputDir = getArgValue('--fs123-output-dir');
     const projectOnly = process.argv.includes('--project-only');
     const p0C1AReleaseGate = process.argv.includes('--p0-c1a-release-gate');
@@ -7172,13 +7256,16 @@ async function main() {
     assert(!projectOnly || projectPath, 'Project-only smoke requires --project <project.fstr>');
     const historicalFixture = JSON.parse(fs.readFileSync(HISTORICAL_FSTR_FIXTURE, 'utf8'));
     const browser = projectOnly ? null : await runBrowserSmoke(historicalFixture, fs123OutputDir);
+    const canonicalSolverArtifacts = !projectOnly
+        ? await writeCanonicalSolverArtifacts(canonicalEtabsScriptPath, canonicalStaadPath, canonicalModelPath)
+        : null;
     const project = projectPath ? await runProjectSmoke(projectPath, etabsScriptPath, staadPath, ifcPath, dxfPath) : null;
     assert(!p0C1AReleaseGate || projectPath, 'P0-C1A release gate requires --project <Olango safety copy>');
     assert(!p0C1AReleaseGate || p0C1AOutputDir, 'P0-C1A release gate requires --p0-c1a-output-dir <acceptance directory>');
     const p0C1AAcceptance = p0C1AReleaseGate
         ? await runP0C1AOlangoAcceptance(projectPath, p0C1AOutputDir)
         : null;
-    console.log(JSON.stringify({ ok: true, ...summary, browser, project, p0C1AAcceptance }, null, 2));
+    console.log(JSON.stringify({ ok: true, ...summary, browser, canonicalSolverArtifacts, project, p0C1AAcceptance }, null, 2));
 }
 
 main().catch(err => {
