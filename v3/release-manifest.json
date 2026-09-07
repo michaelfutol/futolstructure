@@ -4,7 +4,7 @@
   "releaseName": "Desktop Workspaces Candidate",
   "fstrSchemaVersion": "0.2.0",
   "releaseChannel": "candidate",
-  "gitCommit": "146413fae3b991703945e59e45580840386169c2",
+  "gitCommit": "87b1cd57a074f25ecab14f057b6cb173af529c83",
   "buildDate": "2026-09-07",
   "validatedFixtures": [
     "legacy-v2.8-2floor",
