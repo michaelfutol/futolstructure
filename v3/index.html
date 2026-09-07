@@ -6481,9 +6481,25 @@
                 const startCol = state.columns.find(col => col.id === member.startCol);
                 const endCol = state.columns.find(col => col.id === member.endCol);
                 const segment = getRenderedBeamPlanSegment(member, startCol, endCol);
+                // Use the same centroid-joint rule as the shared solver model.
+                // Side cantilever beams may have only one supported column; the
+                // free endpoint inherits that column centroid on the beam axis.
+                const supportedStart = startCol
+                    ? getColumnPlanPosition(startCol)
+                    : { x: segment.x1, y: segment.y1 };
+                const supportedEnd = endCol
+                    ? getColumnPlanPosition(endCol)
+                    : { x: segment.x2, y: segment.y2 };
+                if (startCol && !endCol) {
+                    if (member.direction === 'X') supportedEnd.y = supportedStart.y;
+                    if (member.direction === 'Y') supportedEnd.x = supportedStart.x;
+                } else if (!startCol && endCol) {
+                    if (member.direction === 'X') supportedStart.y = supportedEnd.y;
+                    if (member.direction === 'Y') supportedStart.x = supportedEnd.x;
+                }
                 const points = [
-                    { x: segment.x1, y: segment.y1 },
-                    { x: segment.x2, y: segment.y2 }
+                    { x: Number(supportedStart.x) || 0, y: Number(supportedStart.y) || 0 },
+                    { x: Number(supportedEnd.x) || 0, y: Number(supportedEnd.y) || 0 }
                 ];
                 const target = beam.direction === 'X' ? result.y1 : result.x1;
                 return points.sort((a, b) => {
@@ -25142,6 +25158,8 @@ function populateBOM() {
                             analyticalAxisPolicy: beam.isEdgeBeam
                                 ? 'cantilever-side-beam-centerline-joints; top-center cardinal at FSTR floor elevation; drawingAxis face-terminated'
                                 : 'support-centerline-joints; top-center cardinal at FSTR floor elevation',
+                            terminationStartBeamId: beam.isEdgeBeam ? (beam.terminationStartBeamId || null) : null,
+                            terminationEndBeamId: beam.isEdgeBeam ? (beam.terminationEndBeamId || null) : null,
                             analyticalCardinalPoint: 8,
                             levelId: floorLevel?.id || floorId,
                             floorElevationM: zTop,

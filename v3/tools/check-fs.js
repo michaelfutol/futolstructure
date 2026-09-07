@@ -5406,6 +5406,165 @@ async function writeCanonicalSolverArtifacts(etabsScriptPath = null, staadPath =
     }
 }
 
+async function writeEdgeCantileverSolverArtifacts(etabsScriptPath = null, staadPath = null, modelPath = null) {
+    if (!etabsScriptPath && !staadPath && !modelPath) return null;
+    const browser = await ensureBrowser(DEFAULT_PORT);
+    const tab = await openAppTab(browser.base);
+    try {
+        const payload = await tab.evaluate(`(() => {
+            localStorage.removeItem('FutolStructure.autosave.v1');
+            localStorage.removeItem('FutolStructure.autosave.healthy.v1');
+            localStorage.removeItem('FutolStructure.autosave.quarantine.v1');
+            state.xSpans = [2.05, 4.38, 4.58, 2.91];
+            state.ySpans = [4.06, 4.0, 2.8];
+            state.cantilevers = {
+                top: [0.5, 0.5, 0.5, 0.5],
+                bottom: [0.5, 0.5, 0.5, 0.5],
+                left: [0.5, 0.5, 0.5],
+                right: [1.2, 0, 0.5]
+            };
+            state.floors = [
+                createFloor('2F', '2nd Floor', 4, 3),
+                createFloor('RF', 'Roof', 4, 3, {
+                    isRoof: true,
+                    dlSuper: 1.5,
+                    liveLoad: 1.0,
+                    slabThickness: 120,
+                    wallLoad: 0
+                })
+            ];
+            state.floors.forEach(floor => {
+                floor.cantilevers = normalizeCantileverSet(state.cantilevers, state.xSpans.length, state.ySpans.length);
+            });
+            state.currentFloorIndex = 0;
+            state.columns = [];
+            state.beams = [];
+            state.slabs = [];
+            state.beamSizeOverrides = {};
+            state.beamAlignmentOverrides = {};
+            state.columnPositionOverrides = {};
+            state.foundationTieBeamAlignmentOverrides = {};
+            undoHistory.length = 0;
+            redoHistory.length = 0;
+            calculate();
+            refreshInputPanelsAfterStateRestore();
+            const model = collectCSIExportModelData();
+            const edgeBeams = model.beams.filter(beam => beam.type === 'cantilever_edge');
+            const sideBeams = model.beams.filter(beam => beam.type === 'cantilever');
+            const samePoint = (a, b) => Math.abs(Number(a?.x) - Number(b?.x)) <= 0.001 &&
+                Math.abs(Number(a?.y) - Number(b?.y)) <= 0.001;
+            const endpointChecks = edgeBeams.map(edgeBeam => {
+                const side = sideBeams.filter(candidate => candidate.floorId === edgeBeam.floorId);
+                const rawBeams = typeof state !== 'undefined' && Array.isArray(state.beams) ? state.beams : [];
+                const rawBeam = rawBeams.find(candidate =>
+                    candidate.id === edgeBeam.sourceId ||
+                    candidate.id === edgeBeam.id ||
+                    candidate.sourceId === edgeBeam.sourceId
+                ) || null;
+                const rawStart = rawBeam?.terminationStartBeamId || null;
+                const rawEnd = rawBeam?.terminationEndBeamId || null;
+                const rawStartBeam = rawStart
+                    ? rawBeams.find(candidate => candidate.id === rawStart || candidate.sourceId === rawStart)
+                    : null;
+                const rawEndBeam = rawEnd
+                    ? rawBeams.find(candidate => candidate.id === rawEnd || candidate.sourceId === rawEnd)
+                    : null;
+                const start = { x: edgeBeam.x1, y: edgeBeam.y1 };
+                const end = { x: edgeBeam.x2, y: edgeBeam.y2 };
+                const startConnected = side.some(candidate =>
+                    samePoint(start, { x: candidate.x1, y: candidate.y1 }) ||
+                    samePoint(start, { x: candidate.x2, y: candidate.y2 })
+                );
+                const endConnected = side.some(candidate =>
+                    samePoint(end, { x: candidate.x1, y: candidate.y1 }) ||
+                    samePoint(end, { x: candidate.x2, y: candidate.y2 })
+                );
+                const startOffset = edgeBeam.jointOffsets?.sharedSolverPlan?.start || {};
+                const endOffset = edgeBeam.jointOffsets?.sharedSolverPlan?.end || {};
+                return {
+                    id: edgeBeam.id,
+                    floorId: edgeBeam.floorId,
+                    terminationStartBeamId: rawStart,
+                    terminationEndBeamId: rawEnd,
+                    resolvedStartBeam: rawStartBeam ? {
+                        id: rawStartBeam.id,
+                        sourceId: rawStartBeam.sourceId || null,
+                        x1: rawStartBeam.x1,
+                        y1: rawStartBeam.y1,
+                        x2: rawStartBeam.x2,
+                        y2: rawStartBeam.y2
+                    } : null,
+                    resolvedEndBeam: rawEndBeam ? {
+                        id: rawEndBeam.id,
+                        sourceId: rawEndBeam.sourceId || null,
+                        x1: rawEndBeam.x1,
+                        y1: rawEndBeam.y1,
+                        x2: rawEndBeam.x2,
+                        y2: rawEndBeam.y2
+                    } : null,
+                    startConnected,
+                    endConnected,
+                    faceTerminated: edgeBeam.physicalPlanAxis && edgeBeam.drawingAxis,
+                    startOffset: { dx: Number(startOffset.dx) || 0, dy: Number(startOffset.dy) || 0 },
+                    endOffset: { dx: Number(endOffset.dx) || 0, dy: Number(endOffset.dy) || 0 },
+                    analyticalCardinalPoint: Number(edgeBeam.analyticalCardinalPoint),
+                    analyticalAxis: edgeBeam.analyticalPlanAxis,
+                    physicalAxis: edgeBeam.physicalPlanAxis,
+                    drawingAxis: edgeBeam.drawingAxis
+                };
+            });
+            return {
+                model,
+                etabs: generateETABSOAPIScript(model),
+                staad: generateSTAADContent(model),
+                edgeAcceptance: {
+                    edgeBeamCount: edgeBeams.length,
+                    sideBeamCount: sideBeams.length,
+                    endpointChecks,
+                    allEndpointsConnected: endpointChecks.length > 0 && endpointChecks.every(item => item.startConnected && item.endConnected),
+                    allHaveOffsets: endpointChecks.length > 0 && endpointChecks.every(item =>
+                        Math.abs(item.startOffset.dx) + Math.abs(item.startOffset.dy) +
+                        Math.abs(item.endOffset.dx) + Math.abs(item.endOffset.dy) > 0.000001
+                    ),
+                    allTopCenter: endpointChecks.length > 0 && endpointChecks.every(item => item.analyticalCardinalPoint === 8)
+                }
+            };
+        })()`);
+        const paths = {};
+        if (etabsScriptPath) {
+            const resolvedPath = path.resolve(etabsScriptPath);
+            fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+            fs.writeFileSync(resolvedPath, payload.etabs, 'utf8');
+            paths.etabsScriptPath = resolvedPath;
+        }
+        if (staadPath) {
+            const resolvedPath = path.resolve(staadPath);
+            fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+            fs.writeFileSync(resolvedPath, payload.staad, 'utf8');
+            paths.staadPath = resolvedPath;
+        }
+        if (modelPath) {
+            const resolvedPath = path.resolve(modelPath);
+            fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+            fs.writeFileSync(resolvedPath, JSON.stringify({ ...payload.model, edgeAcceptance: payload.edgeAcceptance }, null, 2) + '\n', 'utf8');
+            paths.modelPath = resolvedPath;
+        }
+        return {
+            ...paths,
+            counts: payload.model.counts,
+            levels: payload.model.levels.map(level => ({ id: level.id, elevation: level.elevation })),
+            edgeAcceptance: payload.edgeAcceptance,
+            etabsBytes: Buffer.byteLength(payload.etabs, 'utf8'),
+            staadBytes: Buffer.byteLength(payload.staad, 'utf8')
+        };
+    } finally {
+        tab.close();
+        if (browser.process && !KEEP_BROWSER) {
+            try { browser.process.kill(); } catch (err) { /* noop */ }
+        }
+    }
+}
+
 async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = null, ifcPath = null, dxfPath = null) {
     const resolvedProjectPath = path.resolve(projectPath);
     assert(fs.existsSync(resolvedProjectPath), 'Project file was not found', { projectPath: resolvedProjectPath });
@@ -7226,6 +7385,9 @@ async function main() {
     const canonicalEtabsScriptPath = getArgValue('--write-canonical-etabs-script');
     const canonicalStaadPath = getArgValue('--write-canonical-staad');
     const canonicalModelPath = getArgValue('--write-canonical-model');
+    const edgeEtabsScriptPath = getArgValue('--write-edge-etabs-script');
+    const edgeStaadPath = getArgValue('--write-edge-staad');
+    const edgeModelPath = getArgValue('--write-edge-model');
     const fs123OutputDir = getArgValue('--fs123-output-dir');
     const projectOnly = process.argv.includes('--project-only');
     const p0C1AReleaseGate = process.argv.includes('--p0-c1a-release-gate');
@@ -7259,13 +7421,16 @@ async function main() {
     const canonicalSolverArtifacts = !projectOnly
         ? await writeCanonicalSolverArtifacts(canonicalEtabsScriptPath, canonicalStaadPath, canonicalModelPath)
         : null;
+    const edgeCantileverSolverArtifacts = !projectOnly
+        ? await writeEdgeCantileverSolverArtifacts(edgeEtabsScriptPath, edgeStaadPath, edgeModelPath)
+        : null;
     const project = projectPath ? await runProjectSmoke(projectPath, etabsScriptPath, staadPath, ifcPath, dxfPath) : null;
     assert(!p0C1AReleaseGate || projectPath, 'P0-C1A release gate requires --project <Olango safety copy>');
     assert(!p0C1AReleaseGate || p0C1AOutputDir, 'P0-C1A release gate requires --p0-c1a-output-dir <acceptance directory>');
     const p0C1AAcceptance = p0C1AReleaseGate
         ? await runP0C1AOlangoAcceptance(projectPath, p0C1AOutputDir)
         : null;
-    console.log(JSON.stringify({ ok: true, ...summary, browser, canonicalSolverArtifacts, project, p0C1AAcceptance }, null, 2));
+    console.log(JSON.stringify({ ok: true, ...summary, browser, canonicalSolverArtifacts, edgeCantileverSolverArtifacts, project, p0C1AAcceptance }, null, 2));
 }
 
 main().catch(err => {
