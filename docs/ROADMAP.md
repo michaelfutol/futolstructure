@@ -8,7 +8,7 @@ Detailed scope: [September delivery plan](FS_DELIVERY_ROADMAP_2026-09-05.md).
 Statuses: Planned, In Progress, Locally Verified, Native Acceptance Pending, Released.
 Locally Verified does not imply a published installer or a production deployment.
 
-Current working candidate: `feature/fs-125-shared-analytical-inputs` at `146413f` plus the FS-125-RC1 release candidate changes. The installed Windows candidate is being updated to `3.16.125-rc.1`; `main` and Vercel production remain unchanged until candidate acceptance and release approval.
+Current working candidate: `feature/fs-125-shared-analytical-inputs` at `1e34818` with the FS-125-RC1 release candidate changes. The installed Windows candidate is `3.16.125-rc.1`; the feature branch is pushed, while `main` and Vercel production remain unchanged until candidate acceptance and release approval.
 
 Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_ULTRA_SUPER_IMPROVEMENT_AUDIT_V2.md](FUTOLSTRUCTURE_ASTRA_ULTRA_SUPER_IMPROVEMENT_AUDIT_V2.md). Phase 1A has a focused local regression passing for unit-contract source checks, finite support validation, incomplete ETABS evidence, signed/zero-safe comparison, and per-floor dashboard source behavior. The first Phase 1B boundary is now explicit: PyNite accepts the governed zero-offset horizontal baseline but blocks physical joint offsets, vertical insertion offsets, and sloped members until equivalent mapping is implemented. The old PyNite result artifact is not a post-fix acceptance result and must be regenerated in the pinned environment.
 
@@ -33,7 +33,7 @@ Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_U
 | IMPORT-03 | PDF/CAD underlay and assisted model entry | Planned | Calibration, user-confirmed inference and preserved source drawing |
 | DOC-01 | Coordinated DXF/IFC/A4 and quantities | A4 PDF Verified - Native BIM Pending | [PDF report acceptance](PDF_REPORT_ACCEPTANCE_2026-09-06.md) verifies a real three-page A4 PDF with Arial and visual inspection; DXF/IFC native CAD/Revit inspection remains |
 | DETAIL-01 | Approved reinforcement, schedules and shop drawings | Contract Pending - Legacy BBS Is Preliminary | Existing Rebar/BBS/BOM panels remain preliminary; next gate is governed `RebarHandoff.v1`, approved solver/design results, hook/bend/lap/cut-length rules, then Revit native rebar and shop-drawing acceptance |
-| RELEASE-01 | FS-125-RC1 GitHub candidate and local Windows install | In Progress | `3.16.125-rc.1` packages the canonical/analytical audit, SBC governance, parked disconnected design controls, and current acceptance evidence; feature branch push and installed verification pending |
+| RELEASE-01 | FS-125-RC1 GitHub candidate and local Windows install | Locally Verified | `3.16.125-rc.1` packages the canonical/analytical audit, SBC governance, parked disconnected design controls, and current acceptance evidence; feature branch pushed at `1e34818`, installer exit code 0, installed manifest and startup verified |
 | RELEASE-02 | Production web and public Windows update | Planned | Merge/release after candidate acceptance; matching version/provenance across both |
 | CLOUD-01 | Authentication and private project storage | Planned | Project ownership, access isolation, recovery and security tests before cloud sync |
 
@@ -53,12 +53,12 @@ Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_U
 
 ## Release Evidence
 
-- Source checkpoint: db13836f698cbd90d49ec5382f5fe193788e10b0.
-- Installed version: FS-125-RC1 / `3.16.125-rc.1`, installer verification pending for this update.
+- Feature branch tip: `1e34818`; release manifest source checkpoint: `87b1cd57a074f25ecab14f057b6cb173af529c83`.
+- Installed version: FS-125-RC1 / `3.16.125-rc.1`, installer exit code 0; installed manifest and window startup verified.
 - Installed smoke: passed with isolated profile, correct source revision and no page errors; output/playwright/desktop/desktop-smoke.json.
-- Installer SHA256: DADD15B89B104306B327272BF8066E172AD96331C0146D107580444AB87671D7.
-- Full release regression: passed; output/playwright/workspaces/fs124-full-regression.log. Independent edge defaults: 2F 225x475 mm, RF 330x620 mm. After detaching typical framing, changing 2F to 250x500 leaves RF 225x475. Manual overrides: 2F 210x360, RF 330x620.
-- GitHub review: [draft PR #11](https://github.com/michaelfutol/futolstructure/pull/11), branch release/fs-124-desktop-workspaces-rc1. Source and release metadata pushed; production main has not been changed.
+- Installer SHA256: C4C85B76DC1E3C39011DD68695E093205BF494ED64C8E58765AA505D8E9600E2.
+- Browser workspace regression: passed at desktop/tablet/phone; canonical audit reports `READY_FOR_SOLVER_REVIEW`, topology blockers `0`, footing SBC status `ASSUMED / PRELIMINARY`, and page errors `[]`.
+- GitHub: feature branch `feature/fs-125-shared-analytical-inputs` pushed through `1e34818`; production `main` and Vercel have not been changed.
 - ANALYSIS-02 source gate passed with `node v3/tools/check-fs.js --no-browser`; the browser run reached the new assertions but stopped at the existing strict-DXF gate because this machine has no Python interpreter with `ezdxf` installed. Native solver acceptance remains separate.
 - Bacacay shared analytical/physical geometry evidence: [BACACAY_GEOMETRY_ACCEPTANCE_2026-09-06.md](BACACAY_GEOMETRY_ACCEPTANCE_2026-09-06.md). Native ETABS acceptance passed with analysis return `0`; the licensed STAAD rerun also completed with balanced reactions and zero errors.
 - STAAD native diagnostic evidence: [STAAD_NATIVE_ENGINE_BLOCK_2026-09-06.md](STAAD_NATIVE_ENGINE_BLOCK_2026-09-06.md). The previous exit-code `8` condition was resolved by license activation; minimal and Bacacay native result artifacts now exist, with two concrete-cover warnings retained for follow-up.
