@@ -2,14 +2,20 @@
     'use strict';
 
     const CONTRACT = 'FutolStructure.WallInventory.v1';
+    const CHB_THICKNESS_OPTIONS_MM = Object.freeze([100, 150, 200]);
+    const CHB_FACE_WEIGHT_KPA = Object.freeze({
+        100: 1.65,
+        150: 2.33,
+        200: 3.10
+    });
     const DEFAULTS = Object.freeze({
         chbThicknessMm: 150,
         wallHeightM: 3,
-        plasterEachSideMm: 15,
-        plasterInsideMm: 15,
-        plasterOutsideMm: 15,
-        chbFaceWeightKPa: 2.33,
-        plasterWeightKPaPerMm: 0.02,
+        plasterEachSideMm: 20,
+        plasterInsideMm: 20,
+        plasterOutsideMm: 20,
+        plasterUnitWeightKNM3: 23,
+        plasterWeightKPaPerMm: 0.023,
         openingDeductionMode: 'area'
     });
 
@@ -20,6 +26,15 @@
 
     function clone(value, fallback) {
         return value == null ? fallback : JSON.parse(JSON.stringify(value));
+    }
+
+    function normalizeChbThickness(value, fallback = DEFAULTS.chbThicknessMm) {
+        const raw = Number(value);
+        const target = Number.isFinite(raw) && raw > 0 ? raw : fallback;
+        return CHB_THICKNESS_OPTIONS_MM.reduce((nearest, option) =>
+            Math.abs(option - target) < Math.abs(nearest - target) ? option : nearest,
+            CHB_THICKNESS_OPTIONS_MM[0]
+        );
     }
 
     function normalizeOpening(opening, index) {
@@ -53,11 +68,14 @@
     function normalizeWall(wall, floor, index) {
         const item = wall || {};
         const ref = item.reference || item;
-        const thickness = Math.max(75, num(item.thicknessMm ?? item.chbThicknessMm ?? item.chbSize, DEFAULTS.chbThicknessMm));
+        const thickness = normalizeChbThickness(item.thicknessMm ?? item.chbThicknessMm ?? item.chbSize);
         const height = Math.max(0, num(item.heightM ?? item.height, num(floor?.height, DEFAULTS.wallHeightM)));
         const plasterEachSide = Math.max(0, num(item.plasterEachSideMm, DEFAULTS.plasterEachSideMm));
         const plasterInside = Math.max(0, num(item.plasterInsideMm, plasterEachSide));
         const plasterOutside = Math.max(0, num(item.plasterOutsideMm, plasterEachSide));
+        const alignmentMode = ['center', 'flush-exterior', 'flush-interior'].includes(String(item.alignmentMode || item.placementMode || '').toLowerCase())
+            ? String(item.alignmentMode || item.placementMode).toLowerCase()
+            : 'center';
         const x1 = num(ref.x1, NaN);
         const y1 = num(ref.y1, NaN);
         const x2 = num(ref.x2, NaN);
@@ -68,8 +86,15 @@
         const openingArea = openings.reduce((sum, opening) => sum + opening.widthM * opening.heightM * opening.count, 0);
         const grossArea = length * height;
         const netArea = Math.max(0, grossArea - Math.min(openingArea, grossArea));
-        const wallWeightKPa = Math.max(0, num(item.wallWeightKPa, DEFAULTS.chbFaceWeightKPa)) +
-            ((plasterInside + plasterOutside) * DEFAULTS.plasterWeightKPaPerMm);
+        const chbFaceWeightKPa = Math.max(0, num(
+            item.chbFaceWeightKPa ?? item.faceWeightKPa ?? item.wallWeightKPa,
+            CHB_FACE_WEIGHT_KPA[thickness]
+        ));
+        const plasterWeightKPaPerMm = Math.max(0, num(
+            item.plasterWeightKPaPerMm,
+            num(item.plasterUnitWeightKNM3, DEFAULTS.plasterUnitWeightKNM3) / 1000
+        ));
+        const wallWeightKPa = chbFaceWeightKPa + ((plasterInside + plasterOutside) * plasterWeightKPaPerMm);
         const lineLoadKNm = Math.max(0, netArea * wallWeightKPa / Math.max(length, 0.001));
         const lintel = item.lintel ? {
             id: item.lintel.id || `L-${item.id || index + 1}`,
@@ -94,8 +119,13 @@
             elevationBaseM,
             elevationTopM,
             chbThicknessMm: thickness,
+            wallTotalThicknessMm: thickness + plasterInside + plasterOutside,
+            alignmentMode,
             plasterInsideMm: plasterInside,
             plasterOutsideMm: plasterOutside,
+            chbFaceWeightKPa,
+            plasterUnitWeightKNM3: plasterWeightKPaPerMm * 1000,
+            plasterWeightKPaPerMm,
             openings,
             openingAreaM2: openingArea,
             wallWeightKPa,
@@ -138,6 +168,9 @@
                 solverExportDefault: false,
                 unresolvedGeometry: 'coordination-only-with-warning',
                 openings: 'deduct net wall area and retain opening metadata',
+                chbThicknessOptionsMm: [...CHB_THICKNESS_OPTIONS_MM],
+                plasterDefaultMmEachSide: DEFAULTS.plasterEachSideMm,
+                placement: 'center|flush-exterior|flush-interior; effective geometry retains eccentricity metadata',
                 lintels: 'explicit member metadata; design remains preliminary until reviewed'
             },
             walls, openings, lintels, elevations,
@@ -150,6 +183,14 @@
         };
     }
 
-    global.FSWalls = Object.freeze({ contract: CONTRACT, build, normalizeWall, normalizeOpening, normalizeSnap });
+    global.FSWalls = Object.freeze({
+        contract: CONTRACT,
+        build,
+        normalizeWall,
+        normalizeOpening,
+        normalizeSnap,
+        normalizeChbThickness,
+        chbThicknessOptionsMm: CHB_THICKNESS_OPTIONS_MM
+    });
     if (typeof module !== 'undefined' && module.exports) module.exports = global.FSWalls;
 })(typeof window !== 'undefined' ? window : globalThis);

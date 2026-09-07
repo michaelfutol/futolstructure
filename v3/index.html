@@ -4446,14 +4446,15 @@
             <div id="panelWallElevations" class="schedule-panel" style="display:none;">
                 <div class="schedule-header"><h3>Wall Elevations <span class="capability-badge parked">Coordination draft</span></h3></div>
                 <div style="padding:12px;">
-                    <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Draw a wall line in plan, snap its endpoints to a governed beam, then assign wall height, CHB, plaster, openings, and lintels. Opted-in walls transfer as explicit line loads to the matched ETABS/STAAD beam; unresolved lines remain coordination-only.</p>
+                    <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Draw a wall line in plan, snap its endpoints to a governed beam, then assign CHB, plaster, alignment, openings, and lintels. Opted-in walls transfer as beam-associated line loads to ETABS/STAAD; unresolved lines remain coordination-only.</p>
                     <div class="wall-editor-controls">
                         <label>Floor <select id="wallEditorFloor" onchange="renderWallPlanEditor()"></select></label>
                         <label>Snap <select id="wallEditorSnapMode"><option value="grid">Grid</option><option value="column">Column</option><option value="beam">Beam</option><option value="free">Free</option></select></label>
                         <label>Height (m) <input id="wallEditorHeight" type="number" value="3" min="0.1" max="20" step="0.1"></label>
-                        <label>CHB (mm) <input id="wallEditorThickness" type="number" value="150" min="75" max="300" step="25"></label>
-                        <label>Plaster inside (mm) <input id="wallEditorPlasterInside" type="number" value="15" min="0" max="50" step="1"></label>
-                        <label>Plaster outside (mm) <input id="wallEditorPlasterOutside" type="number" value="15" min="0" max="50" step="1"></label>
+                        <label>CHB <select id="wallEditorThickness"><option value="100">100 mm</option><option value="150" selected>150 mm</option><option value="200">200 mm</option></select></label>
+                        <label>Plaster inside (mm) <input id="wallEditorPlasterInside" type="number" value="20" min="0" max="50" step="1"></label>
+                        <label>Plaster outside (mm) <input id="wallEditorPlasterOutside" type="number" value="20" min="0" max="50" step="1"></label>
+                        <label>Wall / beam alignment <select id="wallEditorAlignment" title="Wall shell geometry is coordination-only; solver line load remains on the canonical beam"><option value="center">Center on beam</option><option value="flush-exterior">Flush exterior face</option><option value="flush-interior">Flush interior face</option></select></label>
                         <label>Type <select id="wallEditorType"><option value="external">External</option><option value="internal">Internal</option><option value="partition">Partition</option><option value="parapet">Parapet</option></select></label>
                         <label>Opening <select id="wallEditorOpeningType"><option value="none">None</option><option value="door">Door</option><option value="window">Window</option><option value="other">Other</option></select></label>
                         <label>Opening W (m) <input id="wallEditorOpeningWidth" type="number" value="0.9" min="0" max="20" step="0.05"></label>
@@ -4927,12 +4928,24 @@
             };
         }
 
+        const WALL_CHB_THICKNESS_OPTIONS_MM = Object.freeze([100, 150, 200]);
+        const WALL_PLASTER_UNIT_WEIGHT_KN_M3 = 23;
+
+        function normalizeWallChbThicknessMm(value, fallback = 150) {
+            const raw = Number(value);
+            const target = Number.isFinite(raw) && raw > 0 ? raw : fallback;
+            return WALL_CHB_THICKNESS_OPTIONS_MM.reduce((nearest, option) =>
+                Math.abs(option - target) < Math.abs(nearest - target) ? option : nearest,
+                WALL_CHB_THICKNESS_OPTIONS_MM[0]
+            );
+        }
+
         const WALL_LOAD_TYPE_DEFAULTS = Object.freeze({
             external: {
                 supportMode: 'on_beam',
                 thicknessMm: 150,
                 defaultHeightMode: 'floor',
-                finishAllowance: 0.69,
+                finishAllowance: 0.92,
                 openingDeductionMode: 'ratio',
                 openingFactor: 0.15,
                 lintelAllowance: 0
@@ -4941,7 +4954,7 @@
                 supportMode: 'on_beam',
                 thicknessMm: 150,
                 defaultHeightMode: 'floor',
-                finishAllowance: 0.69,
+                finishAllowance: 0.92,
                 openingDeductionMode: 'ratio',
                 openingFactor: 0,
                 lintelAllowance: 0
@@ -4951,7 +4964,7 @@
                 thicknessMm: 150,
                 defaultHeightMode: 'fixed',
                 heightM: 1.0,
-                finishAllowance: 0.69,
+                finishAllowance: 0.92,
                 openingDeductionMode: 'ratio',
                 openingFactor: 0,
                 lintelAllowance: 0
@@ -4960,7 +4973,7 @@
                 supportMode: 'on_slab_support_strip',
                 thicknessMm: 100,
                 defaultHeightMode: 'floor',
-                finishAllowance: 0.69,
+                finishAllowance: 0.92,
                 openingDeductionMode: 'ratio',
                 openingFactor: 0,
                 lintelAllowance: 0
@@ -5016,6 +5029,7 @@
             const defaults = getWallLoadTypeDefaults(type, floorHeight);
             const rawThickness = Number(wall.thicknessMm ?? wall.thickness ?? wall.chbSize ?? defaults.thicknessMm);
             const thicknessInput = rawThickness > 0 && rawThickness < 10 ? rawThickness * 1000 : rawThickness;
+            const thicknessMm = normalizeWallChbThicknessMm(thicknessInput, defaults.thicknessMm);
             const normalizedOpening = Number(wall.openingFactor ?? wall.openingPct ?? defaults.openingFactor);
             const finiteOrNull = value => {
                 const parsed = Number(value);
@@ -5032,6 +5046,26 @@
                 count: Math.max(1, Math.round(Number(opening?.count) || 1)),
                 notes: opening?.notes || ''
             }));
+            const plasterInsideValue = Number(wall.plasterInsideMm ?? wall.plasterEachSideMm ?? 20);
+            const plasterOutsideValue = Number(wall.plasterOutsideMm ?? wall.plasterEachSideMm ?? 20);
+            const plasterInsideMm = Number.isFinite(plasterInsideValue) ? Math.max(0, plasterInsideValue) : 20;
+            const plasterOutsideMm = Number.isFinite(plasterOutsideValue) ? Math.max(0, plasterOutsideValue) : 20;
+            const x1 = finiteOrNull(wall.x1 ?? wall.reference?.x1);
+            const y1 = finiteOrNull(wall.y1 ?? wall.reference?.y1);
+            const x2 = finiteOrNull(wall.x2 ?? wall.reference?.x2);
+            const y2 = finiteOrNull(wall.y2 ?? wall.reference?.y2);
+            const lengthM = [x1, y1, x2, y2].every(Number.isFinite)
+                ? Math.hypot(x2 - x1, y2 - y1)
+                : Math.max(0, Number(wall.lengthM ?? wall.length) || 0);
+            const derivedOpeningArea = openings.reduce((sum, opening) =>
+                sum + opening.widthM * opening.heightM * opening.count, 0);
+            const explicitFinishAllowance = Number(wall.finishAllowance ?? wall.finishKPa);
+            const finishAllowance = Number.isFinite(explicitFinishAllowance)
+                ? Math.max(0, explicitFinishAllowance)
+                : (plasterInsideMm + plasterOutsideMm) * (WALL_PLASTER_UNIT_WEIGHT_KN_M3 / 1000);
+            const alignmentMode = ['center', 'flush-exterior', 'flush-interior'].includes(String(wall.alignmentMode || wall.placementMode || '').toLowerCase())
+                ? String(wall.alignmentMode || wall.placementMode).toLowerCase()
+                : 'center';
             const lintel = wall.lintel ? {
                 id: wall.lintel.id || `L-${wall.id || context.floorId || 'F'}`,
                 widthMm: Math.max(100, Number(wall.lintel.widthMm) || thicknessInput || defaults.thicknessMm),
@@ -5045,25 +5079,29 @@
                 floorId: wall.floorId || context.floorId || '',
                 type,
                 supportMode: wall.supportMode || defaults.supportMode,
-                thicknessMm: normalizeMemberSizeMm(thicknessInput, defaults.thicknessMm, 75, 300),
+                thicknessMm,
+                chbThicknessMm: thicknessMm,
+                wallTotalThicknessMm: thicknessMm + plasterInsideMm + plasterOutsideMm,
+                alignmentMode,
                 heightM: Math.max(0, Number(wall.heightM ?? wall.height ?? defaults.heightM)),
-                x1: finiteOrNull(wall.x1 ?? wall.reference?.x1),
-                y1: finiteOrNull(wall.y1 ?? wall.reference?.y1),
-                x2: finiteOrNull(wall.x2 ?? wall.reference?.x2),
-                y2: finiteOrNull(wall.y2 ?? wall.reference?.y2),
+                x1,
+                y1,
+                x2,
+                y2,
+                lengthM,
                 startSnap: cloneSerializable(wall.startSnap || wall.snapStart || wall.endpoints?.start?.snap, {}),
                 endSnap: cloneSerializable(wall.endSnap || wall.snapEnd || wall.endpoints?.end?.snap, {}),
-                plasterInsideMm: Math.max(0, Number(wall.plasterInsideMm ?? wall.plasterEachSideMm) || 0),
-                plasterOutsideMm: Math.max(0, Number(wall.plasterOutsideMm ?? wall.plasterEachSideMm) || 0),
+                plasterInsideMm,
+                plasterOutsideMm,
                 unitWeight: Math.max(0, Number(wall.unitWeight || wall.density || 0)),
                 faceWeightKPa: Number(wall.faceWeightKPa ?? wall.faceWeight ?? 0) || null,
                 wallWeightKPa: Number(wall.wallWeightKPa) || null,
-                finishAllowance: Math.max(0, Number(wall.finishAllowance ?? wall.finishKPa ?? defaults.finishAllowance)),
+                finishAllowance,
                 openings,
                 lintel,
                 openingDeductionMode: wall.openingDeductionMode || defaults.openingDeductionMode,
                 openingFactor: Math.min(Math.max(normalizedOpening > 1 ? normalizedOpening / 100 : normalizedOpening, 0), 0.9),
-                openingArea: Math.max(0, Number(wall.openingArea || 0)),
+                openingArea: Math.max(0, Number(wall.openingArea ?? derivedOpeningArea) || 0),
                 lintelAllowance: Math.max(0, Number(wall.lintelAllowance ?? wall.lintelLoad ?? defaults.lintelAllowance)),
                 loadCase: wall.loadCase || 'WALL',
                 // Solver export is opt-in per wall. Keep legacy records
@@ -5849,18 +5887,18 @@
             };
         }
 
-        const WALL_FACE_WEIGHTS_KPA = { 100: 1.77, 150: 2.33, 200: 3.39 };
+        const WALL_FACE_WEIGHTS_KPA = { 100: 1.65, 150: 2.33, 200: 3.10 };
 
         function computeWallLineLoad(wallLoad) {
             const wall = normalizeWallLoadObject(wallLoad);
             const rawThickness = Number(wall.thicknessMm ?? wall.thickness ?? wall.chbSize ?? 150);
             const thicknessInput = rawThickness > 0 && rawThickness < 10 ? rawThickness * 1000 : rawThickness;
-            const thickness = normalizeMemberSizeMm(thicknessInput, 150, 75, 300);
+            const thickness = normalizeWallChbThicknessMm(thicknessInput, 150);
             const height = Math.max(0, Number(wall.heightM ?? wall.height ?? 0));
             const faceWeight = Number(wall.faceWeightKPa ?? wall.faceWeight ?? WALL_FACE_WEIGHTS_KPA[thickness] ?? 0);
             const unitWeight = Number(wall.unitWeight || wall.density || 0);
             const thicknessWeight = unitWeight > 0 ? unitWeight * (thickness / 1000) : 0;
-            const finishAllowance = Math.max(0, Number(wall.finishAllowance || wall.finishKPa || 0));
+            const finishAllowance = Math.max(0, Number(wall.finishAllowance ?? wall.finishKPa ?? ((Number(wall.plasterInsideMm || 20) + Number(wall.plasterOutsideMm || 20)) * 0.023)) || 0);
             const grossFaceWeight = Math.max(faceWeight, thicknessWeight) + finishAllowance;
             const openingArea = Math.max(0, Number(wall.openingArea || 0));
             const length = Math.max(0, Number(wall.length || wall.lengthM || 0));
@@ -22728,6 +22766,82 @@ function calculateWaterTank() {
             return targets;
         }
 
+        function getWallReferenceBeam(wall, floorId = null, beamList = state.beams || []) {
+            const ids = [
+                wall?.reference?.beamId,
+                wall?.beamId,
+                wall?.startSnap?.targetId,
+                wall?.endSnap?.targetId,
+                wall?.endpoints?.start?.snap?.targetId,
+                wall?.endpoints?.end?.snap?.targetId
+            ].map(value => String(value || '').replace(/^BEAM-/, '').replace(/-(?:START|END)$/, '')).filter(Boolean);
+            return (beamList || []).find(beam =>
+                ids.includes(String(beam?.id || '')) && (!floorId || !beam.floorId || beam.floorId === floorId)
+            ) || null;
+        }
+
+        function getWallPlacementGeometry(wall, floorId = null, referenceBeam = null) {
+            const x1 = Number(wall?.x1);
+            const y1 = Number(wall?.y1);
+            const x2 = Number(wall?.x2);
+            const y2 = Number(wall?.y2);
+            const mode = ['center', 'flush-exterior', 'flush-interior'].includes(String(wall?.alignmentMode || wall?.placementMode || '').toLowerCase())
+                ? String(wall.alignmentMode || wall.placementMode).toLowerCase()
+                : 'center';
+            const lengthM = Math.hypot(x2 - x1, y2 - y1);
+            const totalThicknessRawMm = Number(wall?.wallTotalThicknessMm);
+            const totalThicknessM = (Number.isFinite(totalThicknessRawMm)
+                ? Math.max(0, totalThicknessRawMm)
+                : Math.max(0,
+                    Number(wall?.chbThicknessMm ?? wall?.thicknessMm ?? 150) +
+                    Number(wall?.plasterInsideMm ?? 20) +
+                    Number(wall?.plasterOutsideMm ?? 20)
+                )) / 1000;
+            const base = {
+                x1, y1, x2, y2,
+                raw: { x1, y1, x2, y2 },
+                floorId,
+                alignmentMode: mode,
+                wallTotalThicknessM: totalThicknessM,
+                eccentricityM: 0,
+                eccentricityVector: { dx: 0, dy: 0 },
+                referenceBeamId: referenceBeam?.id || null,
+                placementStatus: mode === 'center' ? 'CENTERED' : 'REVIEW'
+            };
+            if (![x1, y1, x2, y2].every(Number.isFinite) || lengthM <= 0.001 || mode === 'center' || !referenceBeam) {
+                return base;
+            }
+
+            const beamSize = getBeamSizeMm(referenceBeam, floorId);
+            const beamWidthM = Math.max(0, Number(beamSize?.b) || 0) / 1000;
+            const { totalX, totalY } = getPlanBounds();
+            const midX = (x1 + x2) / 2;
+            const midY = (y1 + y2) / 2;
+            const boundaryDistances = [
+                { distance: Math.abs(midX), vector: { dx: -1, dy: 0 } },
+                { distance: Math.abs(totalX - midX), vector: { dx: 1, dy: 0 } },
+                { distance: Math.abs(midY), vector: { dx: 0, dy: -1 } },
+                { distance: Math.abs(totalY - midY), vector: { dx: 0, dy: 1 } }
+            ].sort((a, b) => a.distance - b.distance);
+            const outward = boundaryDistances[0]?.vector || { dx: 0, dy: -1 };
+            const signedSide = mode === 'flush-exterior' ? 1 : -1;
+            const shiftM = signedSide * (beamWidthM / 2 - totalThicknessM / 2);
+            const dx = outward.dx * shiftM;
+            const dy = outward.dy * shiftM;
+            return {
+                ...base,
+                x1: x1 + dx,
+                y1: y1 + dy,
+                x2: x2 + dx,
+                y2: y2 + dy,
+                beamWidthM,
+                eccentricityM: Math.abs(shiftM),
+                eccentricityVector: { dx, dy },
+                side: mode === 'flush-exterior' ? 'exterior' : 'interior',
+                placementStatus: 'RESOLVED'
+            };
+        }
+
         function renderWallPlanEditor() {
             const canvas = document.getElementById('wallPlanCanvas');
             const floorSelect = document.getElementById('wallEditorFloor');
@@ -22757,8 +22871,9 @@ function calculateWaterTank() {
             });
             const inventory = globalThis.FSWalls?.build?.({ floors: state.floors }) || { walls: [] };
             (inventory.walls || []).filter(wall => wall.floorId === floor.id && [wall.x1, wall.y1, wall.x2, wall.y2].every(Number.isFinite)).forEach(wall => {
+                const placement = getWallPlacementGeometry(wall, floor.id, getWallReferenceBeam(wall, floor.id));
                 context.strokeStyle = wall.exportToSolvers ? '#f59e0b' : '#38bdf8'; context.lineWidth = 5;
-                context.beginPath(); context.moveTo(sx(wall.x1), sy(wall.y1)); context.lineTo(sx(wall.x2), sy(wall.y2)); context.stroke();
+                context.beginPath(); context.moveTo(sx(placement.x1), sy(placement.y1)); context.lineTo(sx(placement.x2), sy(placement.y2)); context.stroke();
                 context.fillStyle = '#f8fafc'; context.font = '11px Arial'; context.fillText(wall.id, (sx(wall.x1) + sx(wall.x2)) / 2 + 6, (sy(wall.y1) + sy(wall.y2)) / 2 - 6);
             });
             const draftPoint = (point, label) => {
@@ -22833,8 +22948,9 @@ function calculateWaterTank() {
             setValue('wallEditorType', wall.type || 'external');
             setValue('wallEditorHeight', wall.heightM);
             setValue('wallEditorThickness', wall.thicknessMm || wall.chbThicknessMm);
-            setValue('wallEditorPlasterInside', wall.plasterInsideMm);
-            setValue('wallEditorPlasterOutside', wall.plasterOutsideMm);
+            setValue('wallEditorPlasterInside', wall.plasterInsideMm ?? 20);
+            setValue('wallEditorPlasterOutside', wall.plasterOutsideMm ?? 20);
+            setValue('wallEditorAlignment', wall.alignmentMode || wall.placementMode || 'center');
             const opening = wall.openings?.[0];
             setValue('wallEditorOpeningType', opening?.type || 'none');
             setValue('wallEditorOpeningWidth', opening?.widthM || 0.9);
@@ -22902,6 +23018,8 @@ function calculateWaterTank() {
                 material: 'reinforced_concrete',
                 designStatus: 'preliminary'
             } : null;
+            const plasterInsideInput = Number(document.getElementById('wallEditorPlasterInside')?.value);
+            const plasterOutsideInput = Number(document.getElementById('wallEditorPlasterOutside')?.value);
             const wallData = {
                 id,
                 floorId: floor.id,
@@ -22912,9 +23030,10 @@ function calculateWaterTank() {
                 x2: wallEditorDraft.end.x,
                 y2: wallEditorDraft.end.y,
                 heightM: Math.max(0.1, Number(document.getElementById('wallEditorHeight')?.value) || Number(floor.height) || 3),
-                thicknessMm: Math.max(75, Number(document.getElementById('wallEditorThickness')?.value) || 150),
-                plasterInsideMm: Math.max(0, Number(document.getElementById('wallEditorPlasterInside')?.value) || 0),
-                plasterOutsideMm: Math.max(0, Number(document.getElementById('wallEditorPlasterOutside')?.value) || 0),
+                thicknessMm: normalizeWallChbThicknessMm(document.getElementById('wallEditorThickness')?.value, 150),
+                plasterInsideMm: Number.isFinite(plasterInsideInput) ? Math.max(0, plasterInsideInput) : 20,
+                plasterOutsideMm: Number.isFinite(plasterOutsideInput) ? Math.max(0, plasterOutsideInput) : 20,
+                alignmentMode: document.getElementById('wallEditorAlignment')?.value || 'center',
                 startSnap: cloneSerializable(wallEditorDraft.start.snap, {}),
                 endSnap: cloneSerializable(wallEditorDraft.end.snap, {}),
                 exportToSolvers: document.getElementById('wallEditorSolver')?.checked === true,
@@ -22952,7 +23071,11 @@ function calculateWaterTank() {
                 const elevation = elevationByWall.get(wall.id) || {};
                 const lintel = wall.lintel ? `${wall.lintel.widthMm}x${wall.lintel.depthMm}` : '-';
                 const solver = wall.exportToSolvers ? 'ON' : 'OFF';
-                const props = `${wall.chbThicknessMm} CHB / ${wall.plasterInsideMm}+${wall.plasterOutsideMm} plaster`;
+                const placement = getWallPlacementGeometry(wall, wall.floorId, getWallReferenceBeam(wall, wall.floorId));
+                const alignmentLabel = wall.alignmentMode === 'flush-exterior'
+                    ? 'flush exterior'
+                    : wall.alignmentMode === 'flush-interior' ? 'flush interior' : 'center';
+                const props = `${wall.chbThicknessMm} CHB / ${wall.plasterInsideMm}+${wall.plasterOutsideMm} plaster / ${alignmentLabel} / e=${Number(placement.eccentricityM || 0).toFixed(3)}m`;
                 return `<tr><td>${escapeInfoText(wall.id)}</td><td>${escapeInfoText(wall.floorId || '-')}</td><td>${Number(wall.elevationBaseM || 0).toFixed(3)}</td><td>${Number(wall.elevationTopM || 0).toFixed(3)}</td><td>${escapeInfoText(props)}</td><td>${(elevation.openings || []).map(opening => `${escapeInfoText(opening.type)} ${opening.widthM}x${opening.heightM} / head ${Number(opening.headElevationM || 0).toFixed(3)}`).join('<br>') || '-'}</td><td>${escapeInfoText(lintel)}</td><td>${solver}</td><td><button class="mini-action-btn" onclick="editWallFromPlan('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}')">Edit</button> <button class="mini-action-btn remove" onclick="removeWallFromPlan('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}')">Remove</button></td></tr>`;
             });
             body.innerHTML = rows.join('') || '<tr><td colspan="9">No wall lines defined.</td></tr>';
@@ -25058,6 +25181,7 @@ function populateBOM() {
             };
             const wallSolverAssignments = [];
             const wallLoadByBeamKey = new Map();
+            const wallPlacementById = new Map();
             const explicitWallFloors = new Set();
             const pointToSegment = (point, start, end) => {
                 const dx = Number(end.x) - Number(start.x);
@@ -25115,15 +25239,21 @@ function populateBOM() {
                     const candidate = candidates[0];
                     const lineLoadKNm = Math.max(0, Number(wall.lineLoadKNm) || 0);
                     if (!candidate) {
+                        const placement = getWallPlacementGeometry(wall, floorId, null);
+                        wallPlacementById.set(wall.id, placement);
                         return {
                             wallId: wall.id,
                             floorId,
                             status: 'UNRESOLVED',
                             targetBeamId: null,
                             lineLoadKNm,
+                            alignmentMode: wall.alignmentMode || 'center',
+                            wallPlacement: placement,
                             reason: referencedIds.length ? 'Referenced beam was not found on the wall floor.' : 'Wall endpoints are not coincident with a beam axis.'
                         };
                     }
+                    const placement = getWallPlacementGeometry(wall, floorId, candidate.beam);
+                    wallPlacementById.set(wall.id, placement);
                     const assignment = {
                         wallId: wall.id,
                         floorId,
@@ -25132,7 +25262,13 @@ function populateBOM() {
                         lineLoadKNm,
                         matchErrorM: Number(candidate.score.toFixed(6)),
                         supportMode: wall.supportMode,
-                        loadCase: wall.loadCase || 'WALL'
+                        loadCase: wall.loadCase || 'WALL',
+                        alignmentMode: wall.alignmentMode || 'center',
+                        wallTotalThicknessM: Number(placement.wallTotalThicknessM || 0),
+                        eccentricityM: Number(placement.eccentricityM || 0),
+                        eccentricityVector: { ...(placement.eccentricityVector || { dx: 0, dy: 0 }) },
+                        wallPlacement: placement,
+                        solverLoadPolicy: 'line-load-on-canonical-beam; wall shell is not exported'
                     };
                     const key = `${floorId}|${candidate.beam.id}`;
                     if (!wallLoadByBeamKey.has(key)) wallLoadByBeamKey.set(key, []);
@@ -25490,12 +25626,14 @@ function populateBOM() {
                 foundation,
                 foundationHandoff,
                 wallInventory,
+                wallPlacements: [...wallPlacementById.values()],
                 wallSolverAssignments,
                 wallLoadTransfer: {
                     policy: 'explicit-wall-lines-replace-coarse-floor-wall-load-on-opted-in floors',
                     explicitWallCount: wallSolverAssignments.filter(item => item.status === 'RESOLVED').length,
                     resolvedAssignmentCount: wallSolverAssignments.filter(item => item.status === 'RESOLVED').length,
                     unresolvedAssignmentCount: wallSolverAssignments.filter(item => item.status !== 'RESOLVED').length,
+                    eccentricWallCount: wallSolverAssignments.filter(item => item.status === 'RESOLVED' && Number(item.eccentricityM) > 0.000001).length,
                     unresolved: wallSolverAssignments.filter(item => item.status !== 'RESOLVED'),
                     explicitFloorIds: [...explicitWallFloors]
                 },

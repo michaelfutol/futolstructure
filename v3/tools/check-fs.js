@@ -631,16 +631,21 @@ function checkWallInventorySourceContract() {
     assert(html.includes('engine/walls.js'), 'Wall inventory engine is not loaded by the app');
     assert(source.includes('FutolStructure.WallInventory.v1'), 'Wall inventory contract is missing');
     assert(source.includes('chbThicknessMm') && source.includes('plasterInsideMm') && source.includes('plasterOutsideMm'), 'Wall masonry properties are missing');
+    assert(source.includes('CHB_THICKNESS_OPTIONS_MM') && source.includes('normalizeChbThickness'), 'Governed 100/150/200 mm CHB options are missing');
+    assert(source.includes('alignmentMode') && source.includes('flush-exterior') && source.includes('flush-interior'), 'Wall placement alignment modes are missing');
+    assert(source.includes('plasterUnitWeightKNM3') && source.includes('wallTotalThicknessMm'), 'Wall finish weight or total thickness metadata is missing');
     assert(source.includes('openings') && source.includes('lintel') && source.includes('exportToSolvers'), 'Wall opening/lintel or solver opt-in policy is missing');
     assert(source.includes('normalizeSnap') && source.includes('elevations'), 'Programmable wall snaps or elevation inventory is missing');
-    ['wallEditorOpeningType', 'wallEditorOpeningWidth', 'wallEditorOpeningHeight', 'wallEditorLintel', 'editWallFromPlan'].forEach(id => {
+    ['wallEditorOpeningType', 'wallEditorOpeningWidth', 'wallEditorOpeningHeight', 'wallEditorLintel', 'wallEditorAlignment', 'editWallFromPlan'].forEach(id => {
         assert(html.includes(id), `Wall editor control ${id} is missing`);
     });
     const api = require(modulePath);
-    const inventory = api.build({ floors: [{ id: 'GF', height: 3, wallLoads: [{ id: 'W-GF-1', x1: 0, y1: 0, x2: 4, y2: 0, chbThicknessMm: 150, plasterInsideMm: 15, plasterOutsideMm: 10, openings: [{ id: 'D1', type: 'door', widthM: 0.9, heightM: 2.1 }], lintel: { depthMm: 200 }, exportToSolvers: true }] }] });
+    const inventory = api.build({ floors: [{ id: 'GF', height: 3, wallLoads: [{ id: 'W-GF-1', x1: 0, y1: 0, x2: 4, y2: 0, chbThicknessMm: 150, plasterInsideMm: 20, plasterOutsideMm: 20, alignmentMode: 'flush-exterior', openings: [{ id: 'D1', type: 'door', widthM: 0.9, heightM: 2.1 }], lintel: { depthMm: 200 }, exportToSolvers: true }] }] });
     assert(inventory.contract === 'FutolStructure.WallInventory.v1', 'Wall inventory API contract is not attached');
     assert(inventory.walls.length === 1 && inventory.openings.length === 1 && inventory.lintels.length === 1, 'Wall opening/lintel inventory did not normalize');
     assert(inventory.solverWalls.length === 1 && inventory.walls[0].lineLoadKNm > 0, 'Opted-in wall line load was not derived');
+    assert(inventory.walls[0].alignmentMode === 'flush-exterior' && inventory.walls[0].wallTotalThicknessMm === 190, 'Wall alignment or total thickness did not normalize');
+    assert(inventory.walls[0].plasterInsideMm === 20 && inventory.walls[0].plasterOutsideMm === 20, 'Wall plaster defaults did not normalize to 20 mm each side');
     assert(inventory.elevations[0].openings[0].headElevationM > 0, 'Wall elevation opening head was not derived');
     return { contract: api.contract, walls: inventory.walls.length, openings: inventory.openings.length, lintels: inventory.lintels.length, elevations: inventory.elevations.length };
 }
@@ -5617,8 +5622,9 @@ async function writeWallSolverArtifacts(etabsScriptPath = null, staadPath = null
                 y2: 0.125,
                 heightM: 3,
                 thicknessMm: 150,
-                plasterInsideMm: 15,
-                plasterOutsideMm: 15,
+                plasterInsideMm: 20,
+                plasterOutsideMm: 20,
+                alignmentMode: 'flush-exterior',
                 exportToSolvers: true,
                 openings: [{ id: 'OPEN-W-2F-BEAM-1', type: 'door', widthM: 0.9, heightM: 2.1, count: 1 }],
                 lintel: { id: 'L-W-2F-BEAM-1', widthMm: 150, depthMm: 200, designStatus: 'preliminary' },
@@ -5642,6 +5648,9 @@ async function writeWallSolverArtifacts(etabsScriptPath = null, staadPath = null
                     unresolvedAssignmentCount: model.wallSolverAssignments.filter(item => item.status !== 'RESOLVED').length,
                     explicitBeamCount: explicitBeams.length,
                     explicitLineLoadKNm: explicitAssignments.reduce((sum, item) => sum + Number(item.lineLoadKNm || 0), 0),
+                    eccentricityM: Number(explicitAssignments[0]?.eccentricityM || 0),
+                    alignmentMode: explicitAssignments[0]?.alignmentMode || 'center',
+                    wallPlacement: explicitAssignments[0]?.wallPlacement || null,
                     assignment: explicitAssignments[0] || null,
                     beamProbe: model.beams.filter(beam => beam.floorId === '2F').slice(0, 6).map(beam => ({
                         id: beam.id,
@@ -5687,6 +5696,8 @@ async function writeWallSolverArtifacts(etabsScriptPath = null, staadPath = null
             payload.wallAcceptance.unresolvedAssignmentCount === 0 &&
             payload.wallAcceptance.explicitBeamCount === 1 &&
             payload.wallAcceptance.explicitLineLoadKNm > 0 &&
+            payload.wallAcceptance.alignmentMode === 'flush-exterior' &&
+            payload.wallAcceptance.eccentricityM > 0 &&
             payload.wallAcceptance.etabsHasWallLoad &&
             payload.wallAcceptance.staadHasWallLoad,
         'Wall solver transfer fixture did not resolve an opted-in wall to a beam', payload.wallAcceptance);
