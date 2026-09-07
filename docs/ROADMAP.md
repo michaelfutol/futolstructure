@@ -55,7 +55,7 @@ Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_U
 
 ## Release Evidence
 
-- Feature branch tip: pending commit for the wall modeling/alignment extension; source implementation is in the current working tree on top of `00c04a3`, with canonical solver, edge/cantilever parity, and wall line-load native readback evidence recorded on the branch.
+- Feature branch tip: `b651081` (`feat: model wall alignment and beam line loads`), with canonical solver, edge/cantilever parity, and wall line-load native readback evidence recorded on the branch.
 - Installed version: FS-125-RC2 / `3.16.125-rc.2` remains the last verified install until the RC3 installer is installed and smoke-tested.
 - RC2 installer SHA256: 104626A0717DD619E75ED8124C49B2CCF3AE79CD3F5E7CF35DFE95F5DE0E78C9.
 - RC3 installer: `output/desktop/FutolStructure-Setup-3.16.125-rc.3-x64.exe`; SHA256 `16DC64A771C34ADAB06466A28579039258EB0390AA59AC98D5400895993EE420`; build passed 2026-09-07. Installation is pending closure of four running `FutolStructure.exe` processes.
