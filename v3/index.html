@@ -4446,7 +4446,7 @@
             <div id="panelWallElevations" class="schedule-panel" style="display:none;">
                 <div class="schedule-header"><h3>Wall Elevations <span class="capability-badge parked">Coordination draft</span></h3></div>
                 <div style="padding:12px;">
-                    <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Draw a wall line in plan, snap its endpoints to governed grid or member targets, then assign wall height, CHB, plaster, openings, and lintels. Solver export is parked until wall-to-member connectivity and load transfer are implemented and read back in ETABS/STAAD.</p>
+                    <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Draw a wall line in plan, snap its endpoints to a governed beam, then assign wall height, CHB, plaster, openings, and lintels. Opted-in walls transfer as explicit line loads to the matched ETABS/STAAD beam; unresolved lines remain coordination-only.</p>
                     <div class="wall-editor-controls">
                         <label>Floor <select id="wallEditorFloor" onchange="renderWallPlanEditor()"></select></label>
                         <label>Snap <select id="wallEditorSnapMode"><option value="grid">Grid</option><option value="column">Column</option><option value="beam">Beam</option><option value="free">Free</option></select></label>
@@ -4463,7 +4463,7 @@
                         <label class="wall-editor-check"><input id="wallEditorLintel" type="checkbox"> RC lintel</label>
                         <label>Lintel W (mm) <input id="wallEditorLintelWidth" type="number" value="150" min="100" max="1000" step="25"></label>
                         <label>Lintel D (mm) <input id="wallEditorLintelDepth" type="number" value="200" min="100" max="1000" step="25"></label>
-                        <label class="wall-editor-check"><input id="wallEditorSolver" type="checkbox" disabled title="Parked until canonical wall connectivity and native solver readback are implemented"> Solver export parked</label>
+                        <label class="wall-editor-check"><input id="wallEditorSolver" type="checkbox" title="Export this wall as a line load only when its endpoints resolve to a beam"> Export to ETABS/STAAD</label>
                     </div>
                     <div class="wall-editor-actions"><button type="button" class="wall-editor-button" onclick="clearWallEditorDraft()">Clear points</button><button type="button" class="wall-editor-button wall-editor-primary" onclick="addWallFromPlan()">Add wall line</button><span id="wallEditorStatus">Click two plan points to define a wall line.</span></div>
                     <canvas id="wallPlanCanvas" width="1100" height="420" aria-label="Wall plan line editor"></canvas>
@@ -4985,10 +4985,14 @@
                 const n = Number(value);
                 return Number.isFinite(n) ? n : null;
             };
+            const snapBeamId = [wall.startSnap?.targetId, wall.endSnap?.targetId]
+                .map(targetId => String(targetId || '').match(/^BEAM-(.+?)-(?:START|END)$/i)?.[1] || '')
+                .find(Boolean) || '';
+            const beamId = ref.beamId || wall.beamId || snapBeamId;
 
             return {
-                kind: ref.kind || (wall.beamId ? 'beam' : (wall.slabId ? 'slab' : (wall.edge ? 'edge' : 'unresolved'))),
-                beamId: ref.beamId || wall.beamId || '',
+                kind: ref.kind || (beamId ? 'beam' : (wall.slabId ? 'slab' : (wall.edge ? 'edge' : 'unresolved'))),
+                beamId,
                 slabId: ref.slabId || wall.slabId || '',
                 edge: ref.edge || wall.edge || '',
                 label: ref.label || wall.referenceLabel || '',
@@ -5062,7 +5066,9 @@
                 openingArea: Math.max(0, Number(wall.openingArea || 0)),
                 lintelAllowance: Math.max(0, Number(wall.lintelAllowance ?? wall.lintelLoad ?? defaults.lintelAllowance)),
                 loadCase: wall.loadCase || 'WALL',
-                exportToSolvers: false,
+                // Solver export is opt-in per wall. Keep legacy records
+                // coordination-only unless the user explicitly enables it.
+                exportToSolvers: wall.exportToSolvers === true,
                 exportToIFC: wall.exportToIFC !== false,
                 source: wall.source || '',
                 reference: normalizeWallLoadReference(wall.reference, wall),
@@ -21013,7 +21019,7 @@ async function generatePDFReport() {
 
     // Load governance scaffold - report visibility only, not yet analysis/export truth.
     report += '<h2>5. LOAD GOVERNANCE SCAFFOLD</h2>';
-    report += '<p>Explicit wall loads and point loads are data-scaffolded for governance. They are not yet applied to analysis/export until support mapping is resolved.</p>';
+    report += '<p>Explicit wall loads transfer to solver beams only when the opted-in wall endpoints resolve to a canonical beam axis. Unresolved wall and point-load records remain visible for coordination review.</p>';
     report += '<h3>Wall Load Objects</h3><table>';
     report += '<tr><th>Floor</th><th>ID</th><th>Type</th><th>Support</th><th>Ref</th><th>Thickness</th><th>Height</th><th>Open</th><th>Lintel</th><th>Service w</th></tr>';
     const loadGovernance = typeof collectLoadGovernanceSummary === 'function'
@@ -22838,7 +22844,7 @@ function calculateWaterTank() {
             setChecked('wallEditorLintel', !!wall.lintel);
             setValue('wallEditorLintelWidth', wall.lintel?.widthMm || wall.thicknessMm || 150);
             setValue('wallEditorLintelDepth', wall.lintel?.depthMm || 200);
-            setChecked('wallEditorSolver', false);
+            setChecked('wallEditorSolver', wall.exportToSolvers === true);
             wallEditorSelectedId = wall.id;
             wallEditorDraft = {
                 start: { x: Number(wall.x1), y: Number(wall.y1), snap: cloneSerializable(wall.startSnap || wall.endpoints?.start?.snap, {}) },
@@ -22911,7 +22917,7 @@ function calculateWaterTank() {
                 plasterOutsideMm: Math.max(0, Number(document.getElementById('wallEditorPlasterOutside')?.value) || 0),
                 startSnap: cloneSerializable(wallEditorDraft.start.snap, {}),
                 endSnap: cloneSerializable(wallEditorDraft.end.snap, {}),
-                exportToSolvers: false,
+                exportToSolvers: document.getElementById('wallEditorSolver')?.checked === true,
                 exportToIFC: true,
                 openings: opening,
                 lintel,
@@ -25041,6 +25047,101 @@ function populateBOM() {
                 return slabSectionMap.get(key).name;
             };
 
+            // Resolve opted-in wall lines to the canonical physical beam axis.
+            // The solver receives a line load on the matched frame member; the
+            // wall remains a coordination/elevation object rather than a shell.
+            const wallInventory = globalThis.FSWalls?.build?.({ floors: state.floors }) || {
+                walls: [],
+                solverWalls: [],
+                elevations: [],
+                validation: { status: 'REVIEW', warnings: [] }
+            };
+            const wallSolverAssignments = [];
+            const wallLoadByBeamKey = new Map();
+            const explicitWallFloors = new Set();
+            const pointToSegment = (point, start, end) => {
+                const dx = Number(end.x) - Number(start.x);
+                const dy = Number(end.y) - Number(start.y);
+                const lengthSquared = dx * dx + dy * dy;
+                const t = lengthSquared > 1e-12
+                    ? ((Number(point.x) - Number(start.x)) * dx + (Number(point.y) - Number(start.y)) * dy) / lengthSquared
+                    : 0;
+                const clamped = Math.max(0, Math.min(1, t));
+                const projection = { x: Number(start.x) + clamped * dx, y: Number(start.y) + clamped * dy };
+                return {
+                    distance: Math.hypot(Number(point.x) - projection.x, Number(point.y) - projection.y),
+                    t
+                };
+            };
+            const getWallReferencedBeamIds = wall => {
+                const ids = [];
+                const referenceId = wall?.reference?.beamId || wall?.beamId;
+                if (referenceId) ids.push(String(referenceId));
+                [wall?.endpoints?.start?.snap?.targetId, wall?.endpoints?.end?.snap?.targetId].forEach(targetId => {
+                    const match = /^BEAM-(.*)-(?:START|END)$/.exec(String(targetId || ''));
+                    if (match?.[1]) ids.push(match[1]);
+                });
+                return [...new Set(ids)];
+            };
+            const resolveFloorWallAssignments = (floorId, floorBeams) => {
+                const solverWalls = (wallInventory.solverWalls || []).filter(wall => wall.floorId === floorId);
+                return solverWalls.map(wall => {
+                    const wallStart = { x: Number(wall.x1), y: Number(wall.y1) };
+                    const wallEnd = { x: Number(wall.x2), y: Number(wall.y2) };
+                    const wallTolerance = Math.max(
+                        0.05,
+                        Number(wall.endpoints?.start?.snap?.toleranceM) || 0,
+                        Number(wall.endpoints?.end?.snap?.toleranceM) || 0,
+                        0.20
+                    );
+                    const referencedIds = getWallReferencedBeamIds(wall);
+                    const candidates = (floorBeams || []).map(beam => {
+                        if (!beam || beam.deleted) return null;
+                        if (referencedIds.length && !referencedIds.includes(String(beam.id))) return null;
+                        const physical = getBeamAnalyticalPhysicalGeometry(beam, floorId, getBeamSizeMm(beam, floorId)).physical;
+                        const beamStart = { x: physical.x1, y: physical.y1 };
+                        const beamEnd = { x: physical.x2, y: physical.y2 };
+                        const startProjection = pointToSegment(wallStart, beamStart, beamEnd);
+                        const endProjection = pointToSegment(wallEnd, beamStart, beamEnd);
+                        const wallLineError = Math.max(startProjection.distance, endProjection.distance);
+                        const withinSegment = startProjection.t >= -0.05 && startProjection.t <= 1.05 &&
+                            endProjection.t >= -0.05 && endProjection.t <= 1.05;
+                        if (!withinSegment || wallLineError > wallTolerance) return null;
+                        return {
+                            beam,
+                            score: wallLineError + Math.abs(Math.hypot(wallEnd.x - wallStart.x, wallEnd.y - wallStart.y) - Math.hypot(beamEnd.x - beamStart.x, beamEnd.y - beamStart.y)) * 0.01
+                        };
+                    }).filter(Boolean).sort((a, b) => a.score - b.score);
+                    const candidate = candidates[0];
+                    const lineLoadKNm = Math.max(0, Number(wall.lineLoadKNm) || 0);
+                    if (!candidate) {
+                        return {
+                            wallId: wall.id,
+                            floorId,
+                            status: 'UNRESOLVED',
+                            targetBeamId: null,
+                            lineLoadKNm,
+                            reason: referencedIds.length ? 'Referenced beam was not found on the wall floor.' : 'Wall endpoints are not coincident with a beam axis.'
+                        };
+                    }
+                    const assignment = {
+                        wallId: wall.id,
+                        floorId,
+                        status: 'RESOLVED',
+                        targetBeamId: candidate.beam.id,
+                        lineLoadKNm,
+                        matchErrorM: Number(candidate.score.toFixed(6)),
+                        supportMode: wall.supportMode,
+                        loadCase: wall.loadCase || 'WALL'
+                    };
+                    const key = `${floorId}|${candidate.beam.id}`;
+                    if (!wallLoadByBeamKey.has(key)) wallLoadByBeamKey.set(key, []);
+                    wallLoadByBeamKey.get(key).push(assignment);
+                    explicitWallFloors.add(floorId);
+                    return assignment;
+                });
+            };
+
             try {
                 (state.floors || []).forEach((floor, floorIndex) => {
                     const floorId = floor.id;
@@ -25050,6 +25151,7 @@ function populateBOM() {
                     const storyHeightM = zTop - zBottom;
                     const geometry = floorGeometry.get(floorId) || { beams: [], slabs: [] };
                     state.beams = geometry.beams || [];
+                    wallSolverAssignments.push(...resolveFloorWallAssignments(floorId, geometry.beams));
 
                     (state.columns || []).forEach(col => {
                         if (!isColumnActiveForExport(col, floorId)) return;
@@ -25099,13 +25201,17 @@ function populateBOM() {
                         const verticalInsertionOffsetM = -Math.max(0, (size.h - slabThicknessMm) / 2000);
                         const section = registerFrameSection('B', 'beam', size.b, size.h);
                         const governanceType = getBeamGovernanceType(beam);
-                        const rawFloorWallLoad = Math.max(0, Number(floor.wallLoad) || 0);
+                        const explicitWallLoads = wallLoadByBeamKey.get(`${floorId}|${beam.id}`) || [];
+                        const explicitWallLoad = explicitWallLoads.reduce((sum, item) => sum + Math.max(0, Number(item.lineLoadKNm) || 0), 0);
+                        const rawFloorWallLoad = explicitWallFloors.has(floorId)
+                            ? 0
+                            : Math.max(0, Number(floor.wallLoad) || 0);
                         // Tributary design stores beam.wallLoad at 1.2W. Solver load
                         // patterns must receive the unfactored permanent line load;
                         // strength combinations apply the 1.2 factor separately.
-                        const solverWallLoad = Number(beam.wallLoad) > 0
-                            ? rawFloorWallLoad
-                            : 0;
+                        const solverWallLoad = explicitWallLoad > 0
+                            ? explicitWallLoad
+                            : (Number(beam.wallLoad) > 0 ? rawFloorWallLoad : 0);
                         const beamGeometry = getBeamAnalyticalPhysicalGeometry(beam, floorId, size);
                         const drawingAxis = beamGeometry.physical;
                         const analyticalAxis = beamGeometry.analytical;
@@ -25169,7 +25275,9 @@ function populateBOM() {
                             section,
                             slabThicknessMm,
                             verticalInsertionOffsetM,
-                            wallLoad: solverWallLoad
+                            wallLoad: solverWallLoad,
+                            wallLoadSource: explicitWallLoads.length ? 'explicit-wall-line' : (solverWallLoad > 0 ? 'legacy-floor-wall-load' : 'none'),
+                            wallLoadAssignments: explicitWallLoads.map(item => ({ ...item }))
                         });
                     });
 
@@ -25381,6 +25489,16 @@ function populateBOM() {
                 stairSupportReactions,
                 foundation,
                 foundationHandoff,
+                wallInventory,
+                wallSolverAssignments,
+                wallLoadTransfer: {
+                    policy: 'explicit-wall-lines-replace-coarse-floor-wall-load-on-opted-in floors',
+                    explicitWallCount: wallSolverAssignments.filter(item => item.status === 'RESOLVED').length,
+                    resolvedAssignmentCount: wallSolverAssignments.filter(item => item.status === 'RESOLVED').length,
+                    unresolvedAssignmentCount: wallSolverAssignments.filter(item => item.status !== 'RESOLVED').length,
+                    unresolved: wallSolverAssignments.filter(item => item.status !== 'RESOLVED'),
+                    explicitFloorIds: [...explicitWallFloors]
+                },
                 counts: {
                     stories: (state.floors || []).length,
                     columns: columns.length,
@@ -25401,10 +25519,7 @@ function populateBOM() {
             // Attach one governed analytical-input contract to the canonical export model.
             // ETABS, STAAD, PyNite, and OpenSees adapters must consume this contract rather
             // than rebuilding load cases, mass sources, or supports independently.
-            if (globalThis.FSWalls?.build) {
-                model.wallInventory = globalThis.FSWalls.build({ floors: state.floors });
-                model.wallElevations = model.wallInventory.elevations;
-            }
+            model.wallElevations = model.wallInventory.elevations;
             if (globalThis.FSRoofFrame?.build) model.roofFrame = globalThis.FSRoofFrame.build({ floors: state.floors, columns: state.columns, roofFrame: state.roofFrame });
             if (globalThis.FSAnalysisInputs?.build) {
                 const analyticalInputs = globalThis.FSAnalysisInputs.build(model);

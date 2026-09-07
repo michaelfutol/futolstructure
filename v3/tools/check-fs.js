@@ -645,6 +645,20 @@ function checkWallInventorySourceContract() {
     return { contract: api.contract, walls: inventory.walls.length, openings: inventory.openings.length, lintels: inventory.lintels.length, elevations: inventory.elevations.length };
 }
 
+function checkWallSolverTransferSourceContract() {
+    const html = fs.readFileSync(INDEX, 'utf8');
+    assert(html.includes('resolveFloorWallAssignments') && html.includes('wallSolverAssignments'), 'Canonical wall-to-beam solver resolver is missing');
+    assert(html.includes('explicit-wall-line') && html.includes('wallLoadTransfer'), 'Per-beam explicit wall line-load transfer metadata is missing');
+    assert(html.includes('wall.exportToSolvers === true'), 'Wall solver export is not persisted as an explicit opt-in');
+    assert(html.includes('id="wallEditorSolver" type="checkbox"') && !html.includes('id="wallEditorSolver" type="checkbox" disabled'), 'Wall solver opt-in control is still disabled');
+    assert(html.includes('wall endpoints resolve to a canonical beam axis'), 'Wall solver connectivity warning policy is missing');
+    return {
+        contract: 'FutolStructure.WallSolverTransfer.v1',
+        policy: 'explicit-opt-in-to-canonical-beam-line-load',
+        unresolvedPolicy: 'coordination-only-with-warning'
+    };
+}
+
 function checkRoofFrameSourceContract() {
     const html = fs.readFileSync(INDEX, 'utf8');
     const modulePath = path.join(V3, 'engine', 'roof-frame.js');
@@ -5565,6 +5579,132 @@ async function writeEdgeCantileverSolverArtifacts(etabsScriptPath = null, staadP
     }
 }
 
+async function writeWallSolverArtifacts(etabsScriptPath = null, staadPath = null, modelPath = null) {
+    if (!etabsScriptPath && !staadPath && !modelPath) return null;
+    const browser = await ensureBrowser(DEFAULT_PORT);
+    const tab = await openAppTab(browser.base);
+    try {
+        const payload = await tab.evaluate(`(() => {
+            localStorage.removeItem('FutolStructure.autosave.v1');
+            localStorage.removeItem('FutolStructure.autosave.healthy.v1');
+            localStorage.removeItem('FutolStructure.autosave.quarantine.v1');
+            state.xSpans = [4, 4];
+            state.ySpans = [3, 3];
+            state.cantilevers = { top: [0, 0], bottom: [0, 0], left: [0, 0], right: [0, 0] };
+            state.floors = [
+                createFloor('2F', '2nd Floor', 2, 2, { wallLoad: 0 }),
+                createFloor('RF', 'Roof', 2, 2, { isRoof: true, wallLoad: 0, slabThickness: 120 })
+            ];
+            state.currentFloorIndex = 0;
+            state.columns = [];
+            state.beams = [];
+            state.slabs = [];
+            state.beamSizeOverrides = {};
+            state.beamAlignmentOverrides = {};
+            state.columnPositionOverrides = {};
+            state.foundationTieBeamAlignmentOverrides = {};
+            undoHistory.length = 0;
+            redoHistory.length = 0;
+            calculate();
+            const wall = {
+                id: 'W-2F-BEAM-1',
+                floorId: '2F',
+                type: 'external',
+                supportMode: 'on_beam',
+                x1: 0.3,
+                y1: 0.125,
+                x2: 3.85,
+                y2: 0.125,
+                heightM: 3,
+                thicknessMm: 150,
+                plasterInsideMm: 15,
+                plasterOutsideMm: 15,
+                exportToSolvers: true,
+                openings: [{ id: 'OPEN-W-2F-BEAM-1', type: 'door', widthM: 0.9, heightM: 2.1, count: 1 }],
+                lintel: { id: 'L-W-2F-BEAM-1', widthMm: 150, depthMm: 200, designStatus: 'preliminary' },
+                startSnap: { mode: 'beam', targetId: 'BEAM-BX-1-1-START', toleranceM: 0.45 },
+                endSnap: { mode: 'beam', targetId: 'BEAM-BX-1-1-END', toleranceM: 0.45 }
+            };
+            state.floors[0].wallLoads = [wall];
+            calculate();
+            refreshInputPanelsAfterStateRestore();
+            const model = collectCSIExportModelData();
+            const explicitAssignments = model.wallSolverAssignments.filter(item => item.status === 'RESOLVED');
+            const explicitBeams = model.beams.filter(beam => beam.wallLoadSource === 'explicit-wall-line');
+            return {
+                model,
+                etabs: generateETABSOAPIScript(model),
+                staad: generateSTAADContent(model),
+                wallAcceptance: {
+                    wallCount: model.wallInventory.walls.length,
+                    optedInWallCount: model.wallInventory.solverWalls.length,
+                    resolvedAssignmentCount: explicitAssignments.length,
+                    unresolvedAssignmentCount: model.wallSolverAssignments.filter(item => item.status !== 'RESOLVED').length,
+                    explicitBeamCount: explicitBeams.length,
+                    explicitLineLoadKNm: explicitAssignments.reduce((sum, item) => sum + Number(item.lineLoadKNm || 0), 0),
+                    assignment: explicitAssignments[0] || null,
+                    beamProbe: model.beams.filter(beam => beam.floorId === '2F').slice(0, 6).map(beam => ({
+                        id: beam.id,
+                        sourceId: beam.sourceId,
+                        physicalPlanAxis: beam.physicalPlanAxis,
+                        analyticalPlanAxis: beam.analyticalPlanAxis,
+                        wallLoad: beam.wallLoad
+                    })),
+                    beam: explicitBeams[0] ? {
+                        id: explicitBeams[0].id,
+                        sourceId: explicitBeams[0].sourceId,
+                        wallLoad: explicitBeams[0].wallLoad,
+                        wallLoadSource: explicitBeams[0].wallLoadSource,
+                        wallLoadAssignments: explicitBeams[0].wallLoadAssignments
+                    } : null,
+                    etabsHasWallLoad: generateETABSOAPIScript(model).includes('FS_WALL'),
+                    staadHasWallLoad: generateSTAADContent(model).includes('MEMBER LOAD') && generateSTAADContent(model).includes('UNI GY')
+                }
+            };
+        })()`);
+        const paths = {};
+        if (etabsScriptPath) {
+            const resolvedPath = path.resolve(etabsScriptPath);
+            fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+            fs.writeFileSync(resolvedPath, payload.etabs, 'utf8');
+            paths.etabsScriptPath = resolvedPath;
+        }
+        if (staadPath) {
+            const resolvedPath = path.resolve(staadPath);
+            fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+            fs.writeFileSync(resolvedPath, payload.staad, 'utf8');
+            paths.staadPath = resolvedPath;
+        }
+        if (modelPath) {
+            const resolvedPath = path.resolve(modelPath);
+            fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+            fs.writeFileSync(resolvedPath, JSON.stringify({ ...payload.model, wallAcceptance: payload.wallAcceptance }, null, 2) + '\n', 'utf8');
+            paths.modelPath = resolvedPath;
+        }
+        assert(payload.wallAcceptance.wallCount === 1 &&
+            payload.wallAcceptance.optedInWallCount === 1 &&
+            payload.wallAcceptance.resolvedAssignmentCount === 1 &&
+            payload.wallAcceptance.unresolvedAssignmentCount === 0 &&
+            payload.wallAcceptance.explicitBeamCount === 1 &&
+            payload.wallAcceptance.explicitLineLoadKNm > 0 &&
+            payload.wallAcceptance.etabsHasWallLoad &&
+            payload.wallAcceptance.staadHasWallLoad,
+        'Wall solver transfer fixture did not resolve an opted-in wall to a beam', payload.wallAcceptance);
+        return {
+            ...paths,
+            counts: payload.model.counts,
+            wallAcceptance: payload.wallAcceptance,
+            etabsBytes: Buffer.byteLength(payload.etabs, 'utf8'),
+            staadBytes: Buffer.byteLength(payload.staad, 'utf8')
+        };
+    } finally {
+        tab.close();
+        if (browser.process && !KEEP_BROWSER) {
+            try { browser.process.kill(); } catch (err) { /* noop */ }
+        }
+    }
+}
+
 async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = null, ifcPath = null, dxfPath = null) {
     const resolvedProjectPath = path.resolve(projectPath);
     assert(fs.existsSync(resolvedProjectPath), 'Project file was not found', { projectPath: resolvedProjectPath });
@@ -7373,6 +7513,7 @@ async function main() {
         canonicalAnalyticalFixtureSourceContract: checkCanonicalAnalyticalFixtureSourceContract(),
         analysisInputsSourceContract: checkAnalysisInputsSourceContract(),
         wallInventorySourceContract: checkWallInventorySourceContract(),
+        wallSolverTransferSourceContract: checkWallSolverTransferSourceContract(),
         roofFrameSourceContract: checkRoofFrameSourceContract(),
         analysisOptimizationSourceContract: checkAnalysisOptimizationSourceContract(),
         desktopETABSBridge: checkDesktopETABSBridge()
@@ -7388,8 +7529,12 @@ async function main() {
     const edgeEtabsScriptPath = getArgValue('--write-edge-etabs-script');
     const edgeStaadPath = getArgValue('--write-edge-staad');
     const edgeModelPath = getArgValue('--write-edge-model');
+    const wallEtabsScriptPath = getArgValue('--write-wall-etabs-script');
+    const wallStaadPath = getArgValue('--write-wall-staad');
+    const wallModelPath = getArgValue('--write-wall-model');
     const fs123OutputDir = getArgValue('--fs123-output-dir');
     const projectOnly = process.argv.includes('--project-only');
+    const wallOnly = process.argv.includes('--wall-only');
     const p0C1AReleaseGate = process.argv.includes('--p0-c1a-release-gate');
     const p0C1AOutputDir = getArgValue('--p0-c1a-output-dir');
 
@@ -7417,12 +7562,15 @@ async function main() {
 
     assert(!projectOnly || projectPath, 'Project-only smoke requires --project <project.fstr>');
     const historicalFixture = JSON.parse(fs.readFileSync(HISTORICAL_FSTR_FIXTURE, 'utf8'));
-    const browser = projectOnly ? null : await runBrowserSmoke(historicalFixture, fs123OutputDir);
-    const canonicalSolverArtifacts = !projectOnly
+    const browser = projectOnly || wallOnly ? null : await runBrowserSmoke(historicalFixture, fs123OutputDir);
+    const canonicalSolverArtifacts = !projectOnly && !wallOnly
         ? await writeCanonicalSolverArtifacts(canonicalEtabsScriptPath, canonicalStaadPath, canonicalModelPath)
         : null;
-    const edgeCantileverSolverArtifacts = !projectOnly
+    const edgeCantileverSolverArtifacts = !projectOnly && !wallOnly
         ? await writeEdgeCantileverSolverArtifacts(edgeEtabsScriptPath, edgeStaadPath, edgeModelPath)
+        : null;
+    const wallSolverArtifacts = !projectOnly
+        ? await writeWallSolverArtifacts(wallEtabsScriptPath, wallStaadPath, wallModelPath)
         : null;
     const project = projectPath ? await runProjectSmoke(projectPath, etabsScriptPath, staadPath, ifcPath, dxfPath) : null;
     assert(!p0C1AReleaseGate || projectPath, 'P0-C1A release gate requires --project <Olango safety copy>');
@@ -7430,7 +7578,7 @@ async function main() {
     const p0C1AAcceptance = p0C1AReleaseGate
         ? await runP0C1AOlangoAcceptance(projectPath, p0C1AOutputDir)
         : null;
-    console.log(JSON.stringify({ ok: true, ...summary, browser, canonicalSolverArtifacts, edgeCantileverSolverArtifacts, project, p0C1AAcceptance }, null, 2));
+    console.log(JSON.stringify({ ok: true, ...summary, browser, canonicalSolverArtifacts, edgeCantileverSolverArtifacts, wallSolverArtifacts, project, p0C1AAcceptance }, null, 2));
 }
 
 main().catch(err => {
