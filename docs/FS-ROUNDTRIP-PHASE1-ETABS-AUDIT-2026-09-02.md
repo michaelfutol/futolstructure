@@ -8,7 +8,7 @@
 
 Round-trip work starts with a controlled read-only audit path. FutolStructure can now read the dated JSON audit produced by the ETABS builder and compare it with the current in-memory model before any future result-import or geometry-reconciliation work is attempted.
 
-This phase intentionally does not write to the model. Importing an audit cannot move, delete, resize, relabel, or unlock members, and it cannot overwrite an `.fstr`, `.edb`, or `.e2k` file.
+This phase intentionally does not write to the model. Importing an audit cannot move, delete, resize, relabel, or unlock members, and it cannot overwrite an `.fstr`, `.edb`, or `.e2k` file. The importer now also consumes the native ETABS geometry readback that the builder already writes: member endpoints, centroid-joint geometry, columnation parity, section-axis/cardinal checks, and joint-offset parity.
 
 ## Contract
 
@@ -27,6 +27,9 @@ The comparison record contains:
 - exact named-level elevation comparisons when the audit reports levels;
 - analysis return code and modal participation summary;
 - foundation handoff policy comparison;
+- read-only native member geometry and columnation comparison when the audit contains `analyticalGeometry.nativeGeometryAudit`;
+- read-only grid-axis comparison from `Grid Definitions - Grid Lines`, including axis labels, ordinates, bubble locations, and visibility;
+- read-only comparison of ETABS native joint offsets and reconstructed offset-adjusted physical endpoints, so centroid-joint parity cannot hide a face-termination mismatch;
 - warnings and informational notes;
 - `MATCH` or `REVIEW` status.
 
@@ -51,13 +54,13 @@ The existing ETABS structural export remains unchanged: columns, beams, slabs, l
 
 ## Deliberate limitations
 
-Phase 1 does not parse `.edb` or `.e2k` geometry back into FutolStructure. It does not import solver forces, reactions, modal shapes, design ratios, section changes, or revised member sizes. It also does not write solver results into the `.fstr` model.
+Phase 1 does not parse `.edb` or `.e2k` geometry directly back into FutolStructure. The supported ETABS return path is the dated `_audit.json` produced by the governed OAPI builder, which is the controlled evidence package for the EDB run. It does not import solver forces, reactions, modal shapes, design ratios, section changes, or revised member sizes. It also does not write solver results into the `.fstr` model. The comparison intentionally separates analytical centroid joints from offset-adjusted physical endpoints, which is required for edge beams and cantilever-face termination.
 
-Those operations require a separate controlled mapping layer with stable object IDs, source-revision matching, unit checks, tolerance rules, conflict previews, and an explicit engineer-approved apply step.
+Those operations require a separate controlled mapping layer with stable object IDs, source-revision matching, unit checks, tolerance rules, conflict previews, and an explicit engineer-approved apply step. No imported solver geometry may overwrite the current canonical revision.
 
 ## Next controlled phases
 
-1. Add read-only adapters for STAAD audit/output records using the same provenance and comparison shape.
+1. Add a read-only STAAD audit/output adapter using the same provenance, stable source IDs, geometry, and comparison shape. A raw `.std` file is not treated as an approved import until its parser and units are independently validated.
 2. Add ETABS result-table import for reactions and selected analysis results, still read-only.
 3. Add a conflict preview with per-member mapping and units/tolerance evidence.
 4. Add an explicit, revisioned apply operation only after the preview and regression gates are stable.

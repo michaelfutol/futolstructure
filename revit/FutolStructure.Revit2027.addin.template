@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<RevitAddIns>
+  <AddIn Type="Command">
+    <Name>FutolStructure Revit 2027</Name>
+    <Assembly>PATH_TO_BUILD_OUTPUT\FutolStructure.Revit2027.dll</Assembly>
+    <AddInId>7E17F4AF-6C55-4A17-A77C-B0CC0B2D7A27</AddInId>
+    <FullClassName>FutolStructure.Revit2027.FutolStructureCommand</FullClassName>
+    <VendorId>FutolTech</VendorId>
+    <VendorDescription>FutolStructure governed structural-model importer</VendorDescription>
+  </AddIn>
+</RevitAddIns>

@@ -21,6 +21,10 @@ node_modules/
 desktop/node_modules/
 output/desktop/
 
+# Native Revit build outputs
+revit/bin/
+revit/obj/
+
 # IDE
 .idea/
 .vscode/

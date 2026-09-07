@@ -10,8 +10,10 @@
             section: source.section || 'RHS-100x50x3', material: source.material || 'steel', grade: source.grade || 'Grade 350',
             start: { x: num(source.start?.x), y: num(source.start?.y), z: num(source.start?.z) },
             end: { x: num(source.end?.x), y: num(source.end?.y), z: num(source.end?.z) },
+            startSnap: source.startSnap || source.start?.snap || {}, endSnap: source.endSnap || source.end?.snap || {},
+            deadLoadKNm: Math.max(0, num(source.deadLoadKNm)), liveLoadKNm: Math.max(0, num(source.liveLoadKNm)),
             releaseStart: !!source.releaseStart, releaseEnd: !!source.releaseEnd,
-            exportToSolvers: source.exportToSolvers !== false, exportToIFC: source.exportToIFC !== false, notes: source.notes || ''
+            exportToSolvers: source.exportToSolvers === true, exportToIFC: source.exportToIFC !== false, notes: source.notes || ''
         };
     }
     function supportNode(item, index) {
@@ -104,7 +106,11 @@
             framingSystem: source.framingSystem || 'steel_rafters_and_purlins',
             supportType: policy, supportPolicy: policy, supportPlan, supports: supportPlan.assignments, members,
             solverMembers: members.filter(item => item.exportToSolvers),
-            loadPolicy: source.loadPolicy || 'roof-cladding-and-maintenance-loads-assigned-explicitly',
+            loadPolicy: source.loadPolicy || 'roof-cladding-and-maintenance-line-loads-assigned-explicitly',
+            loads: members.flatMap(item => [
+                ...(item.deadLoadKNm > 0 ? [{ memberId: item.id, caseId: 'FS_ROOF_DL', valueKNm: item.deadLoadKNm }] : []),
+                ...(item.liveLoadKNm > 0 ? [{ memberId: item.id, caseId: 'FS_ROOF_LL', valueKNm: item.liveLoadKNm }] : [])
+            ]),
             validation: { status: source.enabled === true && members.length ? 'READY_FOR_COORDINATION' : 'DRAFT', warnings: [
                 ...(source.enabled === true && !members.length ? ['Roof frame is enabled but has no members.'] : []),
                 ...supportPlan.warnings

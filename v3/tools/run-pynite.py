@@ -9,9 +9,11 @@ never edits an FSTR project or applies solver results back to the source model.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import importlib.metadata
 import json
 import math
+import signal
 import sys
 import traceback
 from pathlib import Path
@@ -28,6 +30,24 @@ class RunnerError(RuntimeError):
     pass
 
 
+class RunnerCancelled(RuntimeError):
+    pass
+
+
+def utc_now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def append_event(events, name, **details):
+    events.append({"at": utc_now(), "event": name, **details})
+
+
+def check_cancelled(cancel_file, events):
+    if cancel_file and Path(cancel_file).exists():
+        append_event(events, "cancellation_detected", source="cancel_file")
+        raise RunnerCancelled(f"Cancellation marker detected: {cancel_file}")
+
+
 def as_list(value):
     return value if isinstance(value, list) else []
 
@@ -42,6 +62,107 @@ def finite(value, fallback=None):
 
 def positive(value, fallback=0.0):
     return max(0.0, finite(value, fallback) or 0.0)
+
+
+def nonzero(value):
+    parsed = finite(value)
+    return parsed is not None and abs(parsed) > 1e-9
+
+
+def consolidate_unsupported_features(findings):
+    """Keep one blocker per feature/member while retaining all source paths."""
+    consolidated = {}
+    for finding in findings:
+        feature = finding.get("feature") or "unknown_feature"
+        element_id = finding.get("elementId") or ""
+        key = (feature, element_id)
+        existing = consolidated.get(key)
+        if existing is None:
+            path = finding.get("path") or ""
+            consolidated[key] = {
+                "feature": feature,
+                "elementId": element_id,
+                "path": path,
+                "paths": [path] if path else [],
+            }
+        else:
+            path = finding.get("path") or ""
+            if path and path not in existing["paths"]:
+                existing["paths"].append(path)
+    return list(consolidated.values())
+
+
+def summarize_unsupported_features(findings):
+    counts = {}
+    for finding in findings:
+        feature = finding.get("feature") or "unknown_feature"
+        counts[feature] = counts.get(feature, 0) + 1
+    return ", ".join(
+        f"{feature}={count} {'member' if count == 1 else 'members'}"
+        for feature, count in counts.items()
+    )
+
+
+def collect_unsupported_features(model):
+    """Return features the current PyNite mapping cannot preserve mechanically."""
+    findings = []
+
+    def inspect_offset_map(item, path, feature):
+        offset = item.get(path) if isinstance(item, dict) else None
+        if not isinstance(offset, dict):
+            return
+        for end in ("start", "end"):
+            value = offset.get(end)
+            if isinstance(value, dict) and any(nonzero(value.get(axis)) for axis in ("dx", "dy", "dz")):
+                findings.append({
+                    "feature": feature,
+                    "elementId": item.get("id") or item.get("sourceId") or "",
+                    "path": f"{path}.{end}",
+                })
+
+    for item in as_list(model.get("beams")):
+        inspect_offset_map(item, "jointOffsets", "physical_member_joint_offsets")
+        nested = item.get("jointOffsets") if isinstance(item, dict) else None
+        if isinstance(nested, dict):
+            for path in ("sharedSolverPlan", "sourcePlan"):
+                plan = nested.get(path)
+                if not isinstance(plan, dict):
+                    continue
+                for end in ("start", "end"):
+                    value = plan.get(end)
+                    if isinstance(value, dict) and any(nonzero(value.get(axis)) for axis in ("dx", "dy", "dz")):
+                        findings.append({
+                            "feature": "physical_member_joint_offsets",
+                            "elementId": item.get("id") or item.get("sourceId") or "",
+                            "path": f"jointOffsets.{path}.{end}",
+                        })
+        if nonzero(item.get("verticalInsertionOffsetM")):
+            findings.append({
+                "feature": "vertical_member_insertion_offsets",
+                "elementId": item.get("id") or item.get("sourceId") or "",
+                "path": "verticalInsertionOffsetM",
+            })
+        z1 = finite(item.get("z1", item.get("startZ")))
+        z2 = finite(item.get("z2", item.get("endZ")))
+        if z1 is not None and z2 is not None and abs(z2 - z1) > 1e-9:
+            findings.append({
+                "feature": "sloped_members",
+                "elementId": item.get("id") or item.get("sourceId") or "",
+                "path": "z1/z2",
+            })
+
+    for item in as_list(model.get("columns")):
+        x1 = finite(item.get("x1", item.get("startX")))
+        y1 = finite(item.get("y1", item.get("startY")))
+        x2 = finite(item.get("x2", item.get("endX")))
+        y2 = finite(item.get("y2", item.get("endY")))
+        if all(value is not None for value in (x1, y1, x2, y2)) and (abs(x2 - x1) > 1e-9 or abs(y2 - y1) > 1e-9):
+            findings.append({
+                "feature": "sloped_members",
+                "elementId": item.get("id") or item.get("sourceId") or "",
+                "path": "x/y endpoints",
+            })
+    return consolidate_unsupported_features(findings)
 
 
 def load_payload(path):
@@ -67,6 +188,13 @@ def preflight(request):
         blockers.append("No governed load combinations are available.")
     if not as_list(model.get("supports")):
         blockers.append("No explicit base supports are available.")
+    unsupported = collect_unsupported_features(model)
+    if unsupported:
+        blockers.append(
+            "PyNite feature scope is unsupported until Phase 1B mapping is implemented: "
+            + summarize_unsupported_features(unsupported)
+            + "."
+        )
     unique = list(dict.fromkeys(str(item) for item in blockers if item))
     if unique:
         raise RunnerError("PyNite request is blocked: " + " | ".join(unique))
@@ -110,9 +238,12 @@ def section_dimensions(section):
 
 def build_material_and_sections(model, source_model):
     fc = max(1.0, finite(source_model.get("fcMPa"), 21.0))
-    elastic = 4700.0 * math.sqrt(fc)
+    elastic_mpa = 4700.0 * math.sqrt(fc)
     poisson = 0.2
-    shear = elastic / (2.0 * (1.0 + poisson))
+    shear_mpa = elastic_mpa / (2.0 * (1.0 + poisson))
+    # Geometry and loads are kN/m, so PyNite must receive stiffness in kN/m2.
+    elastic = elastic_mpa * 1000.0
+    shear = shear_mpa * 1000.0
     density = max(0.001, finite(source_model.get("concreteDensity"), 24.0))
     model.add_material(MATERIAL_NAME, elastic, shear, poisson, density)
     sections = {}
@@ -134,9 +265,11 @@ def build_material_and_sections(model, source_model):
     return {
         "name": MATERIAL_NAME,
         "fcMPa": fc,
-        "elasticModulusMPa": elastic,
+        "elasticModulusMPa": elastic_mpa,
+        "elasticModulusKNM2": elastic,
         "poisson": poisson,
-        "shearModulusMPa": shear,
+        "shearModulusMPa": shear_mpa,
+        "shearModulusKNM2": shear,
         "densityKNM3": density,
     }, sections
 
@@ -156,7 +289,8 @@ def frame_endpoints(item, kind):
     )
 
 
-def add_frame_members(model, source_model, registry, sections, warnings):
+def add_frame_members(model, source_model, registry, sections, warnings, mapping_audit=None):
+    mapping_audit = mapping_audit if mapping_audit is not None else {"skipped": []}
     member_names = {}
     source_names = {}
     members = []
@@ -165,15 +299,18 @@ def add_frame_members(model, source_model, registry, sections, warnings):
         source_id = str(item.get("id") or item.get("sourceId") or "")
         if not source_id:
             warnings.append(f"{kind} without an ID was skipped.")
+            mapping_audit["skipped"].append({"kind": kind, "reason": "missing_id"})
             return
         x1, y1, z1, x2, y2, z2 = frame_endpoints(item, kind)
         coords = (x1, y1, z1, x2, y2, z2)
         if any(value is None for value in coords):
             warnings.append(f"{source_id}: invalid frame coordinates; skipped.")
+            mapping_audit["skipped"].append({"kind": kind, "elementId": source_id, "reason": "invalid_coordinates"})
             return
         length = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2)
         if length <= 1e-6:
             warnings.append(f"{source_id}: zero-length frame; skipped.")
+            mapping_audit["skipped"].append({"kind": kind, "elementId": source_id, "reason": "zero_length"})
             return
         start = registry.add(x1, y1, z1)
         end = registry.add(x2, y2, z2)
@@ -225,13 +362,15 @@ def add_frame_members(model, source_model, registry, sections, warnings):
     return members, member_names, source_names
 
 
-def add_quad_members(model, source_model, registry, warnings):
+def add_quad_members(model, source_model, registry, warnings, mapping_audit=None):
+    mapping_audit = mapping_audit if mapping_audit is not None else {"skipped": []}
     slab_names = {}
     slabs = []
     for item in as_list(source_model.get("slabs")):
         points = as_list(item.get("points"))
         if len(points) != 4:
             warnings.append(f"{item.get('id', 'slab')}: slab does not have four points; skipped.")
+            mapping_audit["skipped"].append({"kind": "slab", "elementId": item.get("id"), "reason": "not_four_points"})
             continue
         node_ids = []
         try:
@@ -240,6 +379,7 @@ def add_quad_members(model, source_model, registry, warnings):
                 node_ids.append(registry.add(point.get("x"), point.get("y"), z))
         except RunnerError as error:
             warnings.append(f"{item.get('id', 'slab')}: {error}; skipped.")
+            mapping_audit["skipped"].append({"kind": "slab", "elementId": item.get("id"), "reason": "invalid_coordinates"})
             continue
         name = f"Q{len(slabs) + 1}"
         thickness = max(0.075, finite(item.get("thicknessMm"), 150.0) / 1000.0)
@@ -251,10 +391,12 @@ def add_quad_members(model, source_model, registry, warnings):
     for item in as_list(source_model.get("stairSlabs")):
         if item.get("solverExportReadiness") != "solver-ready":
             warnings.append(f"{item.get('id', 'stair slab')}: stair shell is not solver-ready and was skipped.")
+            mapping_audit["skipped"].append({"kind": "stair_slab", "elementId": item.get("id"), "reason": "not_solver_ready"})
             continue
         points = as_list(item.get("points"))
         if len(points) != 4:
             warnings.append(f"{item.get('id', 'stair slab')}: stair shell is not a four-node quad; skipped.")
+            mapping_audit["skipped"].append({"kind": "stair_slab", "elementId": item.get("id"), "reason": "not_four_points"})
             continue
         try:
             node_ids = [
@@ -263,6 +405,7 @@ def add_quad_members(model, source_model, registry, warnings):
             ]
         except RunnerError as error:
             warnings.append(f"{item.get('id', 'stair slab')}: {error}; skipped.")
+            mapping_audit["skipped"].append({"kind": "stair_slab", "elementId": item.get("id"), "reason": "invalid_coordinates"})
             continue
         name = f"SQ{len(slabs) + 1}"
         thickness = max(0.075, finite(item.get("thicknessMm"), 150.0) / 1000.0)
@@ -273,13 +416,15 @@ def add_quad_members(model, source_model, registry, warnings):
     return slabs, slab_names
 
 
-def add_supports(model, source_model, registry, warnings):
+def add_supports(model, source_model, registry, warnings, mapping_audit=None):
+    mapping_audit = mapping_audit if mapping_audit is not None else {"skipped": []}
     records = []
     for support in as_list(source_model.get("supports")):
         try:
             node = registry.add(support.get("nodeX"), support.get("nodeY"), support.get("elevation"))
         except RunnerError as error:
             warnings.append(f"{support.get('id', 'support')}: {error}; skipped.")
+            mapping_audit["skipped"].append({"kind": "support", "elementId": support.get("id"), "reason": "invalid_coordinates"})
             continue
         restraints = as_list(support.get("restraint"))
         flags = (restraints + [False] * 6)[:6]
@@ -436,7 +581,8 @@ def collect_results(model, members, supports, combinations):
     return {"nodes": nodes, "members": member_results, "reactionSums": reaction_sums}
 
 
-def run(request, raw_wrapper):
+def run(request, raw_wrapper, events, cancel_file=None):
+    check_cancelled(cancel_file, events)
     try:
         from Pynite import FEModel3D
     except ImportError as error:
@@ -468,20 +614,42 @@ def run(request, raw_wrapper):
         }, 2
 
     source_model = preflight(request)
+    append_event(events, "preflight_completed")
+    check_cancelled(cancel_file, events)
     warnings = list(dict.fromkeys(as_list(request.get("readiness", {}).get("warnings"))))
     model = FEModel3D()
     registry = NodeRegistry(model)
     material, sections = build_material_and_sections(model, source_model)
-    frame_members, member_names, source_names = add_frame_members(model, source_model, registry, sections, warnings)
-    slab_members, slab_names = add_quad_members(model, source_model, registry, warnings)
-    supports = add_supports(model, source_model, registry, warnings)
+    mapping_audit = {"skipped": []}
+    frame_members, member_names, source_names = add_frame_members(model, source_model, registry, sections, warnings, mapping_audit)
+    slab_members, slab_names = add_quad_members(model, source_model, registry, warnings, mapping_audit)
+    supports = add_supports(model, source_model, registry, warnings, mapping_audit)
     load_audit = add_loads(model, request, source_model, member_names | source_names, slab_names, warnings)
+    if mapping_audit["skipped"] or load_audit["unresolved"]:
+        details = {
+            "skippedGeometry": mapping_audit["skipped"],
+            "unresolvedLoads": load_audit["unresolved"],
+        }
+        raise RunnerError("PyNite mapping is incomplete; no analysis was run: " + json.dumps(details, separators=(",", ":")))
+    append_event(
+        events,
+        "model_assembled",
+        nodes=len(model.nodes),
+        members=len(frame_members),
+        quads=len(slab_members),
+        supports=len(supports),
+        appliedLoads=len(load_audit["applied"]),
+        unresolvedLoads=len(load_audit["unresolved"]),
+    )
+    check_cancelled(cancel_file, events)
     model.merge_duplicate_nodes(tolerance=0.000001)
     try:
+        append_event(events, "analysis_started", mode="linear_static_gravity")
         model.analyze_linear(log=False, check_stability=True, check_statics=True)
     except Exception as error:
         raise RunnerError(f"PyNite linear gravity analysis failed: {error}") from error
     results = collect_results(model, frame_members, supports, load_audit["combinations"])
+    append_event(events, "analysis_completed", combinations=len(load_audit["combinations"]))
     return {
         "contract": RESULT_CONTRACT,
         "status": "COMPLETED",
@@ -501,10 +669,10 @@ def run(request, raw_wrapper):
             "foundation": "base restraints only; foundation geometry is not analyzed by this runner",
         },
         "assumptions": {
-            "concreteElasticModulus": "E = 4700 * sqrt(fc) MPa",
+            "concreteElasticModulus": "E = 4700 * sqrt(fc) MPa, converted to kN/m2 for PyNite",
             "poisson": material["poisson"],
             "slabSelfWeight": "added explicitly as FS_DEAD quad surface pressure because PyNite member self-weight does not include plates/quads",
-            "unmappedLoads": "reported as warnings and not guessed onto nearby members",
+            "unmappedLoads": "block the run and are reported with source IDs; never guessed onto nearby members",
         },
         "counts": {
             "nodes": len(model.nodes),
@@ -518,6 +686,7 @@ def run(request, raw_wrapper):
         "material": material,
         "sections": list(sections.values()),
         "loadAudit": load_audit,
+        "mappingAudit": mapping_audit,
         "warnings": list(dict.fromkeys(warnings)),
         "results": results,
     }, 0
@@ -527,12 +696,33 @@ def main():
     parser = argparse.ArgumentParser(description="Run a governed FutolStructure PyNite gravity request.")
     parser.add_argument("--input", required=True, help="PyNite run-request JSON")
     parser.add_argument("--output", required=True, help="Result JSON path")
+    parser.add_argument("--log", help="Optional structured execution-log JSON path")
+    parser.add_argument("--cancel-file", help="Optional marker file; if present, stop without running analysis")
     args = parser.parse_args()
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
+    events = []
+    append_event(events, "runner_started", input=str(args.input), output=str(args.output))
+
+    def request_cancellation(signum, _frame):
+        append_event(events, "cancellation_detected", source="signal", signal=signum)
+        raise RunnerCancelled(f"Cancellation signal received: {signum}")
+
+    signal.signal(signal.SIGINT, request_cancellation)
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, request_cancellation)
     try:
         wrapper, request = load_payload(args.input)
-        result, code = run(request, wrapper)
+        append_event(events, "request_loaded", contract=request.get("contract", ""))
+        result, code = run(request, wrapper, events, args.cancel_file)
+    except RunnerCancelled as error:
+        result, code = {
+            "contract": RESULT_CONTRACT,
+            "status": "CANCELLED",
+            "solver": "PyNite",
+            "message": str(error),
+            "policy": {"applyResults": False},
+        }, 130
     except RunnerError as error:
         result, code = {
             "contract": RESULT_CONTRACT,
@@ -549,6 +739,15 @@ def main():
             "traceback": traceback.format_exc(),
         }, 1
     output.write_text(json.dumps(result, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    append_event(events, "runner_finished", status=result.get("status"), exitCode=code)
+    if args.log:
+        log_path = Path(args.log)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text(json.dumps({
+            "contract": "FutolStructure.PyNiteExecutionLog.v1",
+            "result": str(output),
+            "events": events,
+        }, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     print(json.dumps({"status": result.get("status"), "output": str(output), "message": result.get("message", "")}))
     return code
 

@@ -1487,6 +1487,24 @@
             color: #fde68a;
         }
 
+        .capability-badge {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 2px 6px;
+            border: 1px solid rgba(148, 163, 184, 0.5);
+            border-radius: 3px;
+            color: #cbd5e1;
+            font: 600 0.58rem/1.2 Arial, sans-serif;
+            vertical-align: middle;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .capability-badge.parked {
+            border-color: rgba(245, 158, 11, 0.65);
+            color: #fbbf24;
+        }
+
         .analysis-workbench-job {
             margin-top: 12px;
             padding: 10px 12px;
@@ -2220,6 +2238,7 @@
                 <button class="menu-item" onclick="exportResults(); toggleDropdown()">PDF Report</button>
                 <button class="menu-item" onclick="exportToDXF(); toggleDropdown()">AutoCAD DXF</button>
                 <button class="menu-item" onclick="exportToIFC(); toggleDropdown()">IFC (BIM)</button>
+                <button class="menu-item" onclick="exportToRevitPackage(); toggleDropdown()" title="Download the governed native-Revit import manifest">Revit Package</button>
                 <button class="menu-item" onclick="exportToSTAAD(); toggleDropdown()">STAAD.Pro</button>
                 <button class="menu-item" onclick="exportToETABS(); toggleDropdown()" title="Create and open a dated ETABS 22 model through the validated CSI OAPI builder">ETABS 22</button>
                 <button class="menu-item" onclick="exportToSAFEViaETABS(); toggleDropdown()" title="Create the ETABS model used for CSI's supported SAFE V12 story export">SAFE via ETABS</button>
@@ -2231,11 +2250,11 @@
             </div>
             <img class="logo-icon" src="assets/futolstructure-icon.png" alt="FutolStructure">
             <span style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary); letter-spacing: -0.01em;">FutolStructure</span>
-<button id="buildVersionBadge" type="button" title="View FS-124-RC1 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.124-rc.1</button>
+<button id="buildVersionBadge" type="button" title="View FS-125-RC1 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.125-rc.1</button>
         </div>
         <!-- Action Toolbar -->
         <div class="header-actions">
-            <button class="tool-btn" onclick="calculate()" style="background: var(--primary); color: #fff; font-weight: 600;">Run Analysis</button>
+            <button class="tool-btn" onclick="calculate()" title="Rebuild geometry, gravity-load paths, preliminary member checks, and dashboard totals. This does not run an external finite-element solver." style="background: var(--primary); color: #fff; font-weight: 600;">Recalculate</button>
             <button class="tool-btn secondary-action" onclick="refreshView()" title="Recalculate model data and rebuild the current view">Rebuild</button>
             <button class="tool-btn" onclick="saveProject()" title="Save current project">Save</button>
             <button class="tool-btn" id="undoBtn" onclick="undo()" title="Undo last model edit" disabled>Undo</button>
@@ -2244,6 +2263,7 @@
             <button class="tool-btn" onclick="exportResults()" title="Generate PDF Report">Report</button>
             <button class="tool-btn" onclick="exportToDXF()" title="Export to AutoCAD DXF">DXF</button>
             <button class="tool-btn" onclick="exportToIFC()" title="Export to IFC (BIM)">IFC</button>
+            <button class="tool-btn" onclick="exportToRevitPackage()" title="Download the governed native-Revit import manifest">Revit</button>
             <button class="tool-btn" onclick="exportToSTAAD()" title="Export to STAAD.Pro">STAAD</button>
             <button class="tool-btn" onclick="exportToETABS()" title="Create and open a dated ETABS 22 .edb model">ETABS</button>
             <button class="tool-btn" onclick="chooseETABSAuditFile()" title="Import a read-only ETABS audit and compare it with the current FS model">Import</button>
@@ -2476,6 +2496,23 @@
                         <label>Footing Embedment (m)</label>
                         <input type="number" id="footingDepth" value="1.5" step="0.05" min="0.1"
                             onchange="updateVerticalDatumsFromUI()">
+                    </div>
+                    <div class="param-item">
+                        <label>Assumed SBC (kPa)</label>
+                        <input type="number" id="assumedSoilBearing" value="150" min="1" max="5000" step="5"
+                            onchange="updateSoilBearingFromUI()"
+                            title="Preliminary allowable service bearing pressure. Replace with the geotechnical recommendation when available.">
+                    </div>
+                    <div class="param-item">
+                        <label>Final / Verified SBC (kPa)</label>
+                        <input type="number" id="finalSoilBearing" value="" min="1" max="5000" step="5"
+                            placeholder="Optional"
+                            onchange="updateSoilBearingFromUI()"
+                            title="Optional geotechnical/design-confirmed allowable bearing pressure. This governs when entered.">
+                    </div>
+                    <div id="soilBearingStatus"
+                        style="grid-column:1 / -1;font-size:0.62rem;color:#f59e0b;line-height:1.35;">
+                        Effective SBC: 150 kPa | Basis: ASSUMED / PRELIMINARY
                     </div>
                     <!-- v3.2: Relocated Tie Beam Size -->
                     <div class="param-item">
@@ -2848,6 +2885,8 @@
                         <button class="schedule-back-btn" onclick="chooseETABSAuditFile()">Import ETABS audit</button>
                     </div>
                     <div id="analysisOptimizationModelSummary" class="analysis-workbench-status" role="status">Model inventory pending.</div>
+                    <div id="canonicalAnalyticalAudit" class="analysis-workbench-status" role="status" style="white-space:pre-line; margin-top:8px;">Canonical / analytical audit pending.</div>
+                    <div class="analysis-workbench-status" style="white-space:pre-line; margin-top:8px; color:#fbbf24;">Parked scope: wall, roof-frame, stair, tank, blockwall, and preliminary design panels remain coordination/draft tools until their geometry and loads are connected to the canonical CSI model and pass native ETABS/STAAD readback.</div>
                     <div id="analysisOptimizationStatus" class="analysis-workbench-status" role="status" hidden></div>
                     <details><summary>Draft details</summary><pre id="analysisOptimizationJob" class="analysis-workbench-job" hidden></pre></details>
                 </div>
@@ -2971,9 +3010,10 @@
             <!-- v3.11: Blockwall Design Panel -->
             <div id="panelBlockwall" class="schedule-panel" style="display:none;">
                 <div class="schedule-header">
-                    <h3>🧱 Blockwall Design</h3>
+                    <h3>🧱 Blockwall Design <span class="capability-badge parked">Draft / parked</span></h3>
                 </div>
                 <div style="padding:12px;">
+                    <div class="analysis-workbench-status" style="white-space:pre-line; color:#fbbf24; margin-bottom:10px;">Preliminary line-load calculation only. Use the Wall Elevations editor for identified wall geometry; solver export remains parked until canonical member connectivity is validated.</div>
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
                         <label style="font-size:0.75rem;">CHB Size:
                             <select id="chbSize" onchange="calculateBlockwalls()"
@@ -3310,9 +3350,8 @@
                     <div class="schedule-summary">Geometry, support map, and load handoff</div>
                 </div>
                 <div class="stair-builder-note">
-                    Stair flight/landing shells and stair beams are included in the shared ETABS, STAAD, and IFC payload after creation.
-                    Surface dead/live loads are transferred by explicit stair load cases; solver-ready status still requires mapped supports,
-                    engineer review, and native solver read-back.
+                    Stair geometry and preliminary load intent are retained as a coordination draft. Solver export is parked until stair nodes,
+                    support reactions, load transfer, and native ETABS/STAAD read-back are connected to the canonical model.
                 </div>
                 <div class="stair-builder-layout">
                     <div class="stair-builder-form">
@@ -3448,9 +3487,10 @@
             <!-- v3.12: Water Tank Panel -->
             <div id="panelWaterTank" class="schedule-panel" style="display:none;">
                 <div class="schedule-header">
-                    <h3>Water Tank Loading</h3>
+                    <h3>Water Tank Loading <span class="capability-badge parked">Draft / parked</span></h3>
                 </div>
                 <div style="padding:12px;">
+                    <div class="analysis-workbench-status" style="white-space:pre-line; color:#fbbf24; margin-bottom:10px;">Preliminary load calculation only. No governed tank support geometry or ETABS/STAAD load assignment is currently generated.</div>
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
                         <label style="font-size:0.75rem;">Capacity (liters):
                             <input type="number" id="tankCapacity" value="1000" min="500" max="10000" step="500"
@@ -3778,9 +3818,10 @@
                             <input type="number" id="settCover" value="40" min="20" max="75" step="5"
                                 style="width:100%; padding:4px; margin-top:4px;">
                         </label>
-                        <label style="font-size:0.75rem;">Soil Bearing (kPa):
-                            <input type="number" id="settSoilBearing" value="100" min="50" max="500" step="10"
-                                style="width:100%; padding:4px; margin-top:4px;">
+                        <label style="font-size:0.75rem;">Effective SBC (read-only):
+                            <input type="number" id="settSoilBearing" value="150" readonly
+                                style="width:100%; padding:4px; margin-top:4px; opacity:0.75;"
+                                title="Edit Assumed SBC or Final / Verified SBC in Footing Parameters.">
                         </label>
                         <label style="font-size:0.75rem;">Concrete Unit Wt (kN/m3):
                             <input type="number" id="settGammaC" value="24" min="22" max="25" step="0.5"
@@ -4385,9 +4426,9 @@
             </div>
 
             <div id="panelWallElevations" class="schedule-panel" style="display:none;">
-                <div class="schedule-header"><h3>Wall Elevations</h3></div>
+                <div class="schedule-header"><h3>Wall Elevations <span class="capability-badge parked">Coordination draft</span></h3></div>
                 <div style="padding:12px;">
-                    <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Draw a wall line in plan, snap its endpoints to governed grid or member targets, then assign wall height, CHB, plaster, and solver opt-in properties. Openings and lintels remain explicit inventory data.</p>
+                    <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Draw a wall line in plan, snap its endpoints to governed grid or member targets, then assign wall height, CHB, plaster, openings, and lintels. Solver export is parked until wall-to-member connectivity and load transfer are implemented and read back in ETABS/STAAD.</p>
                     <div class="wall-editor-controls">
                         <label>Floor <select id="wallEditorFloor" onchange="renderWallPlanEditor()"></select></label>
                         <label>Snap <select id="wallEditorSnapMode"><option value="grid">Grid</option><option value="column">Column</option><option value="beam">Beam</option><option value="free">Free</option></select></label>
@@ -4396,7 +4437,15 @@
                         <label>Plaster inside (mm) <input id="wallEditorPlasterInside" type="number" value="15" min="0" max="50" step="1"></label>
                         <label>Plaster outside (mm) <input id="wallEditorPlasterOutside" type="number" value="15" min="0" max="50" step="1"></label>
                         <label>Type <select id="wallEditorType"><option value="external">External</option><option value="internal">Internal</option><option value="partition">Partition</option><option value="parapet">Parapet</option></select></label>
-                        <label class="wall-editor-check"><input id="wallEditorSolver" type="checkbox"> Export to ETABS/STAAD</label>
+                        <label>Opening <select id="wallEditorOpeningType"><option value="none">None</option><option value="door">Door</option><option value="window">Window</option><option value="other">Other</option></select></label>
+                        <label>Opening W (m) <input id="wallEditorOpeningWidth" type="number" value="0.9" min="0" max="20" step="0.05"></label>
+                        <label>Opening H (m) <input id="wallEditorOpeningHeight" type="number" value="2.1" min="0" max="20" step="0.05"></label>
+                        <label>Sill (m) <input id="wallEditorOpeningSill" type="number" value="0" min="0" max="20" step="0.05"></label>
+                        <label>Count <input id="wallEditorOpeningCount" type="number" value="1" min="1" max="20" step="1"></label>
+                        <label class="wall-editor-check"><input id="wallEditorLintel" type="checkbox"> RC lintel</label>
+                        <label>Lintel W (mm) <input id="wallEditorLintelWidth" type="number" value="150" min="100" max="1000" step="25"></label>
+                        <label>Lintel D (mm) <input id="wallEditorLintelDepth" type="number" value="200" min="100" max="1000" step="25"></label>
+                        <label class="wall-editor-check"><input id="wallEditorSolver" type="checkbox" disabled title="Parked until canonical wall connectivity and native solver readback are implemented"> Solver export parked</label>
                     </div>
                     <div class="wall-editor-actions"><button type="button" class="wall-editor-button" onclick="clearWallEditorDraft()">Clear points</button><button type="button" class="wall-editor-button wall-editor-primary" onclick="addWallFromPlan()">Add wall line</button><span id="wallEditorStatus">Click two plan points to define a wall line.</span></div>
                     <canvas id="wallPlanCanvas" width="1100" height="420" aria-label="Wall plan line editor"></canvas>
@@ -4408,8 +4457,21 @@
             </div>
 
             <div id="panelRoofFrame" class="schedule-panel" style="display:none;">
-                <div class="schedule-header"><h3>Steel Roof Frame</h3></div>
-                <div style="padding:12px;"><p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Dedicated roof-plan modeling space. AUTO assigns a primary hinge and an expansion roller; fixed supports are never guessed. Review the support plan before native solver acceptance.</p><label style="font-size:0.75rem;">Support assignment <select id="roofFrameSupportType" onchange="setRoofFrameSupportType(this.value)" style="margin-left:6px;"><option value="auto">AUTO - Hinge + Roller (recommended)</option><option value="hinge">All Hinge</option><option value="fixed">All Fixed</option><option value="roller">All Roller</option></select></label><button type="button" onclick="renderRoofFrameViewport()" style="margin-left:10px;">Refresh View</button><div id="roofFrameSummary" style="font-size:0.8rem;margin:10px 0;">Roof frame draft: no members defined.</div><div id="roofFrameSupportAdvice" style="font-size:0.75rem;color:var(--text-muted);margin:8px 0;"></div><canvas id="roofFrameCanvas" width="1100" height="560" style="width:100%;height:560px;background:#101827;border:1px solid #334155;display:block;"></canvas><table class="schedule-table" style="width:100%;margin-top:12px;"><thead><tr><th>Support ID</th><th>Type</th><th>Mode</th><th>Reason</th></tr></thead><tbody id="roofFrameSupportBody"><tr><td colspan="4">No support assignments yet.</td></tr></tbody></table><table class="schedule-table" style="width:100%;margin-top:12px;"><thead><tr><th>ID</th><th>Type</th><th>Section</th><th>Material</th><th>Solver</th></tr></thead><tbody id="roofFrameBody"><tr><td colspan="5">No steel roof members defined.</td></tr></tbody></table></div>
+                <div class="schedule-header"><h3>Steel Roof Frame <span class="capability-badge parked">Coordination draft</span></h3></div>
+                <div style="padding:12px;"><p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Dedicated roof-plan modeling space. AUTO assigns a preliminary hinge/roller support suggestion; solver export is parked until roof members, supports, levels, and loads are connected to the canonical ETABS/STAAD model and read back.</p>
+                    <div class="wall-editor-controls">
+                        <label>Member <select id="roofFrameMemberType"><option value="rafter">Rafter</option><option value="purlin">Purlin</option><option value="tie">Tie</option><option value="strut">Strut</option><option value="bracing">Bracing</option></select></label>
+                        <label>Section <input id="roofFrameSection" value="RHS-100x50x3"></label>
+                        <label>Start elev. (m) <input id="roofFrameStartZ" type="number" step="0.05"></label>
+                        <label>End elev. (m) <input id="roofFrameEndZ" type="number" step="0.05"></label>
+                        <label>Dead (kN/m) <input id="roofFrameDeadLoad" type="number" value="0" min="0" step="0.05"></label>
+                        <label>Live (kN/m) <input id="roofFrameLiveLoad" type="number" value="0" min="0" step="0.05"></label>
+                        <label>Snap <select id="roofFrameSnapMode"><option value="grid">Grid</option><option value="column">Column</option><option value="free">Free</option></select></label>
+                        <label class="wall-editor-check"><input id="roofFrameSolver" type="checkbox" disabled title="Parked until canonical roof connectivity and native solver readback are implemented"> Solver export parked</label>
+                        <label>Supports <select id="roofFrameSupportType" onchange="setRoofFrameSupportType(this.value)"><option value="auto">AUTO - Hinge + Roller</option><option value="hinge">All Hinge</option><option value="fixed">All Fixed</option><option value="roller">All Roller</option></select></label>
+                    </div>
+                    <div class="wall-editor-actions"><button type="button" class="wall-editor-button" onclick="clearRoofFrameDraft()">Clear points</button><button type="button" class="wall-editor-button wall-editor-primary" onclick="addRoofFrameMember()">Add member</button><span id="roofFrameEditorStatus">Click two roof-plan points to define a member.</span></div>
+                    <div id="roofFrameSummary" style="font-size:0.8rem;margin:10px 0;">Roof frame draft: no members defined.</div><div id="roofFrameSupportAdvice" style="font-size:0.75rem;color:var(--text-muted);margin:8px 0;"></div><canvas id="roofFrameCanvas" width="1100" height="560" style="width:100%;height:560px;background:#101827;border:1px solid #334155;display:block;"></canvas><table class="schedule-table" style="width:100%;margin-top:12px;"><thead><tr><th>Support ID</th><th>Type</th><th>Mode</th><th>Reason</th></tr></thead><tbody id="roofFrameSupportBody"><tr><td colspan="4">No support assignments yet.</td></tr></tbody></table><table class="schedule-table" style="width:100%;margin-top:12px;"><thead><tr><th>ID</th><th>Type</th><th>Section</th><th>Elevations</th><th>DL / LL</th><th>Solver</th><th>Action</th></tr></thead><tbody id="roofFrameBody"><tr><td colspan="7">No steel roof members defined.</td></tr></tbody></table></div>
             </div>
             <div style="padding:16px 20px;">
                 <div id="solverRoundTripStatus" style="padding:10px 12px; border-radius:5px; font:700 0.82rem Arial,sans-serif; margin-bottom:12px;"></div>
@@ -4430,6 +4492,8 @@
                     </table>
                 </div>
                 <div id="solverRoundTripLevels" style="margin-top:14px;"></div>
+                <div id="solverRoundTripGrid" style="margin-top:14px;"></div>
+                <div id="solverRoundTripGeometry" style="margin-top:14px;"></div>
                 <div id="solverRoundTripFoundation" style="margin-top:14px;"></div>
             </div>
             <div style="display:flex; justify-content:flex-end; gap:8px; padding:14px 20px; border-top:1px solid #334155;">
@@ -4661,8 +4725,8 @@
         const FSTR_HIDDEN_GEOMETRY_POLICY = 'preserve-intentional-hidden-geometry';
         const FSTR_AUTOSAVE_STATE_REVISION = 'P0-C1A-column-segment-intent';
         const COLUMN_SEGMENT_INTENT_VERSION = 1;
-        const FSTR_APP_VERSION = '3.16.124-rc.1';
-        const FSTR_BUILD_ID = 'FS-124-RC1';
+        const FSTR_APP_VERSION = '3.16.125-rc.1';
+        const FSTR_BUILD_ID = 'FS-125-RC1';
         const FSTR_RELEASE_NAME = 'Desktop Workspaces Candidate';
         const FSTR_RELEASE_MANIFEST_FALLBACK = Object.freeze({
             appVersion: FSTR_APP_VERSION,
@@ -4670,7 +4734,7 @@
             releaseName: FSTR_RELEASE_NAME,
             fstrSchemaVersion: FSTR_SCHEMA_VERSION,
             releaseChannel: 'candidate',
-            gitCommit: 'db13836f698cbd90d49ec5382f5fe193788e10b0',
+            gitCommit: '146413fae3b991703945e59e45580840386169c2',
             buildDate: '2026-09-05',
             validatedFixtures: [
                 'legacy-v2.8-2floor',
@@ -4761,8 +4825,58 @@
             return `${paper.css} ${settings.orientation}`;
         }
 
+        function parseOptionalSoilBearing(value) {
+            if (value == null || String(value).trim() === '') return null;
+            const parsed = Number(value);
+            return Number.isFinite(parsed) && parsed > 0 ? Math.min(5000, parsed) : null;
+        }
+
+        function getEffectiveSoilBearing() {
+            const assumed = parseOptionalSoilBearing(state.assumedSoilBearing) ||
+                parseOptionalSoilBearing(state.soilBearing) || 150;
+            const finalValue = parseOptionalSoilBearing(state.finalSoilBearing);
+            return finalValue ?? assumed;
+        }
+
+        function syncSoilBearingStateFromUI() {
+            const assumedInput = document.getElementById('assumedSoilBearing');
+            const finalInput = document.getElementById('finalSoilBearing');
+            const assumed = parseOptionalSoilBearing(assumedInput?.value);
+            const finalValue = parseOptionalSoilBearing(finalInput?.value);
+            if (assumed != null) state.assumedSoilBearing = assumed;
+            state.finalSoilBearing = finalInput ? finalValue : parseOptionalSoilBearing(state.finalSoilBearing);
+            state.assumedSoilBearing = parseOptionalSoilBearing(state.assumedSoilBearing) || 150;
+            state.soilBearing = getEffectiveSoilBearing();
+            return state.soilBearing;
+        }
+
+        function syncSoilBearingUI() {
+            const effective = getEffectiveSoilBearing();
+            state.soilBearing = effective;
+            const assumedInput = document.getElementById('assumedSoilBearing');
+            const finalInput = document.getElementById('finalSoilBearing');
+            const effectiveInput = document.getElementById('settSoilBearing');
+            const status = document.getElementById('soilBearingStatus');
+            if (assumedInput) assumedInput.value = String(state.assumedSoilBearing || 150);
+            if (finalInput) finalInput.value = state.finalSoilBearing == null ? '' : String(state.finalSoilBearing);
+            if (effectiveInput) effectiveInput.value = String(effective);
+            if (status) {
+                const isFinal = state.finalSoilBearing != null;
+                status.style.color = isFinal ? '#34d399' : '#f59e0b';
+                status.textContent = `Effective SBC: ${effective.toFixed(1)} kPa | Basis: ${isFinal ? 'FINAL / VERIFIED INPUT' : 'ASSUMED / PRELIMINARY'}`;
+            }
+            return effective;
+        }
+
+        function updateSoilBearingFromUI() {
+            syncSoilBearingStateFromUI();
+            syncSoilBearingUI();
+            calculate();
+        }
+
         // v3.17: Build parameters object for EngineLoads module calls
         function getLoadParams(floorId = null) {
+            syncSoilBearingStateFromUI();
             const edgeBeamDefaults = typeof getFloorEdgeBeamDefaults === 'function'
                 ? getFloorEdgeBeamDefaults(floorId)
                 : { b: state.defaultEdgeBeamB, h: state.defaultEdgeBeamH };
@@ -4780,6 +4894,8 @@
                 practicalColumnSideMm: COLUMN_PRACTICAL_MIN_MM,
                 concreteDensity: state.concreteDensity,
                 floorHeight: state.floors[0]?.height || 3.0,
+                assumedSoilBearing: state.assumedSoilBearing,
+                finalSoilBearing: state.finalSoilBearing,
                 soilBearing: state.soilBearing,
                 numFloors: state.floors.length,
                 floors: state.floors,
@@ -4878,21 +4994,58 @@
             const rawThickness = Number(wall.thicknessMm ?? wall.thickness ?? wall.chbSize ?? defaults.thicknessMm);
             const thicknessInput = rawThickness > 0 && rawThickness < 10 ? rawThickness * 1000 : rawThickness;
             const normalizedOpening = Number(wall.openingFactor ?? wall.openingPct ?? defaults.openingFactor);
+            const finiteOrNull = value => {
+                const parsed = Number(value);
+                return Number.isFinite(parsed) ? parsed : null;
+            };
+            const openings = (Array.isArray(wall.openings) ? wall.openings : []).map((opening, index) => ({
+                id: opening?.id || `OPEN-${wall.id || context.floorId || 'F'}-${index + 1}`,
+                type: ['door', 'window', 'other'].includes(String(opening?.type || '').toLowerCase())
+                    ? String(opening.type).toLowerCase()
+                    : 'window',
+                widthM: Math.max(0, Number(opening?.widthM ?? opening?.width) || 0),
+                heightM: Math.max(0, Number(opening?.heightM ?? opening?.height) || 0),
+                sillHeightM: Math.max(0, Number(opening?.sillHeightM ?? opening?.sillHeight) || 0),
+                count: Math.max(1, Math.round(Number(opening?.count) || 1)),
+                notes: opening?.notes || ''
+            }));
+            const lintel = wall.lintel ? {
+                id: wall.lintel.id || `L-${wall.id || context.floorId || 'F'}`,
+                widthMm: Math.max(100, Number(wall.lintel.widthMm) || thicknessInput || defaults.thicknessMm),
+                depthMm: Math.max(100, Number(wall.lintel.depthMm) || 200),
+                material: wall.lintel.material || 'reinforced_concrete',
+                designStatus: wall.lintel.designStatus || 'preliminary'
+            } : null;
 
             return {
                 id: wall.id || `WL-${context.floorId || 'F'}-${(context.index ?? 0) + 1}`,
+                floorId: wall.floorId || context.floorId || '',
                 type,
                 supportMode: wall.supportMode || defaults.supportMode,
                 thicknessMm: normalizeMemberSizeMm(thicknessInput, defaults.thicknessMm, 75, 300),
                 heightM: Math.max(0, Number(wall.heightM ?? wall.height ?? defaults.heightM)),
+                x1: finiteOrNull(wall.x1 ?? wall.reference?.x1),
+                y1: finiteOrNull(wall.y1 ?? wall.reference?.y1),
+                x2: finiteOrNull(wall.x2 ?? wall.reference?.x2),
+                y2: finiteOrNull(wall.y2 ?? wall.reference?.y2),
+                startSnap: cloneSerializable(wall.startSnap || wall.snapStart || wall.endpoints?.start?.snap, {}),
+                endSnap: cloneSerializable(wall.endSnap || wall.snapEnd || wall.endpoints?.end?.snap, {}),
+                plasterInsideMm: Math.max(0, Number(wall.plasterInsideMm ?? wall.plasterEachSideMm) || 0),
+                plasterOutsideMm: Math.max(0, Number(wall.plasterOutsideMm ?? wall.plasterEachSideMm) || 0),
                 unitWeight: Math.max(0, Number(wall.unitWeight || wall.density || 0)),
                 faceWeightKPa: Number(wall.faceWeightKPa ?? wall.faceWeight ?? 0) || null,
+                wallWeightKPa: Number(wall.wallWeightKPa) || null,
                 finishAllowance: Math.max(0, Number(wall.finishAllowance ?? wall.finishKPa ?? defaults.finishAllowance)),
+                openings,
+                lintel,
                 openingDeductionMode: wall.openingDeductionMode || defaults.openingDeductionMode,
                 openingFactor: Math.min(Math.max(normalizedOpening > 1 ? normalizedOpening / 100 : normalizedOpening, 0), 0.9),
                 openingArea: Math.max(0, Number(wall.openingArea || 0)),
                 lintelAllowance: Math.max(0, Number(wall.lintelAllowance ?? wall.lintelLoad ?? defaults.lintelAllowance)),
                 loadCase: wall.loadCase || 'WALL',
+                exportToSolvers: false,
+                exportToIFC: wall.exportToIFC !== false,
+                source: wall.source || '',
                 reference: normalizeWallLoadReference(wall.reference, wall),
                 notes: wall.notes || wall.note || ''
             };
@@ -5347,7 +5500,9 @@
             nominalFootingThickness: RESIDENTIAL_FOOTING_THICKNESS_MM / 1000,
             footingElevationMode: 'derived',
             verticalDatums: null,
-            soilBearing: 150,  // kPa
+            assumedSoilBearing: 150,  // kPa, preliminary until geotechnical/design confirmation
+            finalSoilBearing: null,  // kPa, optional verified allowable service bearing pressure
+            soilBearing: 150,  // effective kPa used by preliminary footing sizing
             foundationMode: 'plan', // plan | baseReactionsOnly
             plotSettings: normalizePlotSettings(),
 
@@ -7697,10 +7852,79 @@
 
         let lastAnalysisOptimizationJob = null;
 
+        function buildCanonicalAnalyticalAudit(model) {
+            const source = model || {};
+            const geometry = source.analyticalGeometry || {};
+            const columns = Array.isArray(source.columns) ? source.columns : [];
+            const beams = Array.isArray(source.beams) ? source.beams : [];
+            const slabs = Array.isArray(source.slabs) ? source.slabs : [];
+            const levels = Array.isArray(source.levels) ? source.levels : [];
+            const grid = source.gridDefinition || {};
+            const nodes = new Set();
+            const addNode = (x, y, z) => {
+                if ([x, y, z].every(value => Number.isFinite(Number(value)))) {
+                    nodes.add([Number(x), Number(y), Number(z)].map(value => value.toFixed(6)).join('|'));
+                }
+            };
+            columns.forEach(column => {
+                addNode(column.x, column.y, column.z1);
+                addNode(column.x, column.y, column.z2);
+            });
+            beams.forEach(beam => {
+                addNode(beam.x1, beam.y1, beam.z);
+                addNode(beam.x2, beam.y2, beam.z);
+            });
+            const offsetMembers = beams.filter(beam => {
+                const offsets = beam.jointOffsets?.sharedSolverPlan;
+                if (!offsets) return false;
+                return [offsets.start, offsets.end].some(point => point &&
+                    Math.hypot(Number(point.dx) || 0, Number(point.dy) || 0) > 1e-9);
+            }).length;
+            const topologyBlocked = Number(source.topologyValidation?.summary?.blocked || 0);
+            const checks = {
+                centroidNodes: geometry.beamEndpointPolicy === 'column-centroid-joints',
+                columnCardinal: Number(geometry.columnCardinalPoint) === 5,
+                beamCardinal: Number(geometry.beamCardinalPoint) === 8,
+                governedLevels: levels.length > 0,
+                finiteGrid: (grid.xLines || []).every(line => Number.isFinite(Number(line.coordinateM))) &&
+                    (grid.yLines || []).every(line => Number.isFinite(Number(line.coordinateM))),
+                topology: topologyBlocked === 0
+            };
+            return {
+                counts: { columns: columns.length, beams: beams.length, slabs: slabs.length, nodes: nodes.size, levels: levels.length, offsetMembers },
+                checks,
+                status: Object.values(checks).every(Boolean) ? 'READY_FOR_SOLVER_REVIEW' : 'BLOCKED_OR_REVIEW_REQUIRED',
+                policies: {
+                    node: geometry.nodePolicy || 'missing',
+                    physical: geometry.physicalGeometryPolicy || 'missing',
+                    offsets: geometry.jointOffsetPolicy || 'missing'
+                }
+            };
+        }
+
+        function renderCanonicalAnalyticalAudit(model) {
+            const target = document.getElementById('canonicalAnalyticalAudit');
+            if (!target) return;
+            const audit = buildCanonicalAnalyticalAudit(model);
+            const pass = value => value ? 'PASS' : 'REVIEW';
+            target.className = `analysis-workbench-status ${audit.status === 'READY_FOR_SOLVER_REVIEW' ? 'ready' : 'blocked'}`;
+            target.textContent = [
+                `Canonical / analytical contract: ${audit.status}`,
+                `Canonical inventory: ${audit.counts.columns} columns | ${audit.counts.beams} beams | ${audit.counts.slabs} slabs | ${audit.counts.levels} governed levels`,
+                `Analytical registry: ${audit.counts.nodes} unique joints | ${audit.counts.offsetMembers} beam member(s) with physical-to-analytical offsets`,
+                `Rules: centroid joints ${pass(audit.checks.centroidNodes)} | column cardinal 5 ${pass(audit.checks.columnCardinal)} | beam top-center cardinal 8 ${pass(audit.checks.beamCardinal)}`,
+                `Integrity: levels ${pass(audit.checks.governedLevels)} | grid ordinates ${pass(audit.checks.finiteGrid)} | topology blockers ${audit.checks.topology ? '0' : 'present'}`,
+                `Physical view: ${audit.policies.physical}`,
+                `Solver view: ${audit.policies.node}; offsets ${audit.policies.offsets}`
+            ].join('\n');
+            target.dataset.auditStatus = audit.status;
+        }
+
         function renderAnalysisOptimizationModelSummary(model) {
             const target = document.getElementById('analysisOptimizationModelSummary');
             if (!target || !window.FSAnalysisOptimization) return;
             const summary = window.FSAnalysisOptimization.summarizeModel(model);
+            renderCanonicalAnalyticalAudit(model);
             target.className = 'analysis-workbench-status';
             target.textContent = [
                 `Project: ${summary.provenance.projectName || 'Untitled project'}`,
@@ -8746,16 +8970,26 @@
         function updateLoadSummary() {
             let sumSlabDL = 0, sumLL = 0, sumBeamDL = 0, sumColDL = 0, sumTieBeamDL = 0, sumFootingDL = 0;
 
-            // Calculate slab area and loads
-            const numFloors = state.floors.length;
-            const slabArea = getActiveSlabAreaSummary().netArea;
-
-            // Slab DL = area × thickness × concrete density × floors × 1.2 factor
-            const slabThickM = (state.slabThickness || 150) / 1000;
-            sumSlabDL = slabArea * slabThickM * (state.concreteDensity || 24) * numFloors * 1.2;
-
-            // LL = area × LL intensity × floors × 1.6 factor
-            sumLL = slabArea * (state.LL || 2.0) * numFloors * 1.6;
+            // Use each floor's governed geometry and load inputs; never multiply
+            // the currently displayed floor by the number of floors.
+            const floorGeometry = typeof collect3DFloorGeometry === 'function'
+                ? collect3DFloorGeometry()
+                : new Map();
+            const loadFloors = (state.floors || []).filter(floor =>
+                !(floor.id === 'GF' && !state.gfSuspended));
+            const density = Number.isFinite(Number(state.concreteDensity))
+                ? Number(state.concreteDensity)
+                : 24;
+            loadFloors.forEach(floor => {
+                const geometry = floorGeometry.get(floor.id) || { beams: [], slabs: [] };
+                const slabArea = (geometry.slabs || []).reduce((sum, slab) =>
+                    sum + getSlabAreaValue(slab, true), 0);
+                const slabThicknessM = Math.max(0, Number(floor.slabThickness) || 0) / 1000;
+                sumSlabDL += slabArea * slabThicknessM * density * 1.2;
+                sumLL += slabArea * (Number.isFinite(Number(floor.liveLoad)) ? Number(floor.liveLoad) : 0) * 1.6;
+                sumBeamDL += (geometry.beams || []).reduce((sum, beam) =>
+                    sum + (Number(beam.selfWeight) || 0), 0) * 1.2;
+            });
 
             // Sum from columns
             state.columns.forEach(col => {
@@ -8764,9 +8998,6 @@
                 sumTieBeamDL += (col.tieBeamDL || 0);
                 sumFootingDL += (col.footingDL || 0);
             });
-
-            // Sum beam DL
-            sumBeamDL = (state.totalBeamSelfWeight || 0) * numFloors * 1.2;
 
             // Update UI - don't add ' kN' suffix since HTML table has a kN column
             const fmt = (v) => v > 0 ? v.toFixed(0) : '-';
@@ -9563,9 +9794,10 @@
             const currentSlabWeight = 24 * (currentFloor.slabThickness / 1000);
             const puDisplay = 1.2 * (currentFloor.dlSuper + currentSlabWeight) + 1.6 * currentFloor.liveLoad;
 
-            // v2.5: Read footing parameters (with fallbacks for removed UI elements)
+            // v2.5/v3.18: Read governed footing parameters from the dedicated panel.
             state.footingDepth = parseFloat(document.getElementById('footingDepth')?.value) || 1.5;
-            state.soilBearing = parseFloat(document.getElementById('soilBearing')?.value) || 150;  // v3.10: Default 150kPa if element removed
+            syncSoilBearingStateFromUI();
+            syncSoilBearingUI();
 
             // v3.0: Size all columns and beams FIRST (needed for self-weight calc)
             sizeMembers(state.floors[state.floors.length - 1]?.id);
@@ -15398,34 +15630,7 @@
 
 
         function exportResults() {
-            const data = {
-                parameters: {
-                    xSpans: state.xSpans,
-                    ySpans: state.ySpans,
-                    dlSuper: state.dlSuper,
-                    liveLoad: state.liveLoad,
-                    slabThickness: state.slabThickness,
-                    numFloors: state.numFloors
-                },
-                columns: state.columns.map(c => ({
-                    id: c.id,
-                    type: c.type,
-                    loadPerFloor: c.loadPerFloor,
-                    totalLoad: c.totalLoad
-                })),
-                beams: state.beams.map(b => ({
-                    id: b.id,
-                    w: b.w,
-                    R: b.Rleft
-                }))
-            };
-
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'FutolStructure_v2_results.json';
-            a.click();
+            return generatePDFReport();
         }
 
         // ========== v2.4: THREE.JS 3D VIEW ==========
@@ -17722,6 +17927,8 @@
                 gfSuspended: state.gfSuspended,
                 fc: state.fc,
                 fy: state.fy,
+                assumedSoilBearing: state.assumedSoilBearing,
+                finalSoilBearing: state.finalSoilBearing,
                 soilBearing: state.soilBearing,
                 concreteDensity: state.concreteDensity,
                 defaultColumnB: state.defaultColumnB,
@@ -18245,7 +18452,13 @@
             syncGovernedFloorElevations();
             if (projectData.fc != null) state.fc = projectData.fc;
             if (projectData.fy != null) state.fy = projectData.fy;
-            if (projectData.soilBearing != null) state.soilBearing = projectData.soilBearing;
+            const persistedAssumedSbc = Number(projectData.assumedSoilBearing ?? projectData.soilBearing);
+            state.assumedSoilBearing = Number.isFinite(persistedAssumedSbc) && persistedAssumedSbc > 0
+                ? persistedAssumedSbc
+                : 150;
+            const persistedFinalSbc = parseOptionalSoilBearing(projectData.finalSoilBearing);
+            state.finalSoilBearing = persistedFinalSbc;
+            state.soilBearing = getEffectiveSoilBearing();
             if (projectData.concreteDensity != null) state.concreteDensity = projectData.concreteDensity;
             if (projectData.defaultColumnB != null) state.defaultColumnB = normalizeDefaultMemberSizeMm(projectData.defaultColumnB, 0, 1200);
             if (projectData.defaultColumnH != null) state.defaultColumnH = normalizeDefaultMemberSizeMm(projectData.defaultColumnH, 0, 1200);
@@ -18301,8 +18514,7 @@
             if (fcInput) fcInput.value = String(state.fc);
             const fyInput = document.getElementById('fyInput');
             if (fyInput) fyInput.value = String(state.fy);
-            const soilBearingInput = document.getElementById('soilBearing');
-            if (soilBearingInput) soilBearingInput.value = String(state.soilBearing);
+            syncSoilBearingUI();
             const columnWidthInput = document.getElementById('columnWidthInput');
             if (columnWidthInput) columnWidthInput.value = String(state.defaultColumnB);
             const columnDepthInput = document.getElementById('columnDepthInput');
@@ -18650,6 +18862,9 @@
             state.nominalFootingThickness = RESIDENTIAL_FOOTING_THICKNESS_MM / 1000;
             state.footingElevationMode = 'derived';
             state.verticalDatums = null;
+            state.assumedSoilBearing = 150;
+            state.finalSoilBearing = null;
+            state.soilBearing = 150;
             currentProjectFileHandle = null;
             currentProjectFileName = '';
             currentProjectId = createProjectIdentifier('project');
@@ -18695,10 +18910,12 @@
             document.getElementById('edgeBeamWidthInput').value = '150';
             document.getElementById('edgeBeamDepthInput').value = '0';
             document.getElementById('footingDepth').value = '1.5';
+            document.getElementById('assumedSoilBearing').value = '150';
+            document.getElementById('finalSoilBearing').value = '';
             document.getElementById('gradeElevation').value = '0';
             document.getElementById('baseSupportElevation').value = '0';
             document.getElementById('elevationHeight').value = '1.2';
-            document.getElementById('soilBearing').value = '150';
+            syncSoilBearingUI();
             const tieBeamWidthInput = document.getElementById('tieBeamWidth');
             const tieBeamDepthInput = document.getElementById('tieBeamDepth');
             if (tieBeamWidthInput) tieBeamWidthInput.value = '200';
@@ -18805,7 +19022,7 @@
 
         function roundTripStatusColor(status) {
             if (status === 'MATCH') return '#34d399';
-            if (status === 'DIFF' || status === 'REVIEW') return '#fbbf24';
+            if (status === 'DIFF' || status === 'REVIEW' || status === 'INCOMPLETE') return '#fbbf24';
             return '#94a3b8';
         }
 
@@ -18817,10 +19034,11 @@
             const messages = document.getElementById('solverRoundTripMessages');
             const counts = document.getElementById('solverRoundTripCounts');
             const levels = document.getElementById('solverRoundTripLevels');
+            const geometry = document.getElementById('solverRoundTripGeometry');
             const foundation = document.getElementById('solverRoundTripFoundation');
-            if (!statusBox || !source || !messages || !counts || !levels || !foundation) return;
+            if (!statusBox || !source || !messages || !counts || !levels || !geometry || !foundation) return;
 
-            statusBox.textContent = `${status === 'MATCH' ? 'MATCH' : 'REVIEW REQUIRED'} | Imported ETABS comparison`;
+            statusBox.textContent = `${status === 'MATCH' ? 'MATCH' : status === 'INCOMPLETE' ? 'INCOMPLETE EVIDENCE' : 'REVIEW REQUIRED'} | Imported ETABS comparison`;
             statusBox.style.color = roundTripStatusColor(status);
             statusBox.style.background = status === 'MATCH' ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)';
             statusBox.style.border = `1px solid ${roundTripStatusColor(status)}`;
@@ -18850,6 +19068,28 @@
                 <div style="font:700 0.76rem Arial,sans-serif; color:#cbd5e1; margin-bottom:6px;">LEVEL ELEVATIONS <span style="color:${roundTripStatusColor(comparison.levels?.status)}">${escapeRecoveryHtml(comparison.levels?.status || 'NOT_REPORTED')}</span></div>
                 ${comparison.levels?.message ? `<div style="font:0.74rem Arial,sans-serif; color:#94a3b8;">${escapeRecoveryHtml(comparison.levels.message)}</div>` : ''}
                 ${levelItems.length ? `<div style="display:grid; gap:4px; font:0.74rem Arial,sans-serif;">${levelItems.map(item => `<div style="display:flex; justify-content:space-between; gap:12px; padding:5px 8px; background:#1f2937;"><span>${escapeRecoveryHtml(item.name || item.id || '')}</span><span style="color:${roundTripStatusColor(item.status)}">FS ${escapeRecoveryHtml(roundTripDisplayValue(item.fs))} | ETABS ${escapeRecoveryHtml(roundTripDisplayValue(item.solver))} | ${escapeRecoveryHtml(item.status || '')}</span></div>`).join('')}</div>` : ''}
+            `;
+
+            const gridRows = comparison.grid?.rows || [];
+            const gridFailures = comparison.grid?.failures || [];
+            const gridPanel = document.getElementById('solverRoundTripGrid');
+            if (gridPanel) {
+                gridPanel.innerHTML = `
+                    <div style="font:700 0.76rem Arial,sans-serif; color:#cbd5e1; margin-bottom:6px;">GRID AXES / BUBBLES <span style="color:${roundTripStatusColor(comparison.grid?.status)}">${escapeRecoveryHtml(comparison.grid?.status || 'NOT_REPORTED')}</span></div>
+                    <div style="font:0.74rem/1.45 Arial,sans-serif; color:#94a3b8; margin-bottom:6px;">The return audit must retain every FS X/Y axis, ordinate, bubble location, and visibility flag. A1-only native grids are not accepted.</div>
+                    ${comparison.grid?.message ? `<div style="padding:7px 9px; border-left:3px solid ${roundTripStatusColor(comparison.grid?.status)}; background:#1f2937; color:#cbd5e1; font:0.74rem/1.45 Arial,sans-serif;">${escapeRecoveryHtml(comparison.grid.message)}</div>` : ''}
+                    ${gridRows.length ? `<div style="display:grid; gap:4px; margin-top:6px; font:0.73rem Arial,sans-serif;">${gridRows.map(item => `<div style="display:flex; justify-content:space-between; gap:10px; padding:5px 8px; background:#1f2937;"><span>${escapeRecoveryHtml(item.lineType || '')} ${escapeRecoveryHtml(item.id || '')}</span><span style="color:${roundTripStatusColor(item.status)}">FS ${escapeRecoveryHtml(roundTripDisplayValue(item.expected?.coordinateM))} | ETABS ${escapeRecoveryHtml(roundTripDisplayValue(item.native?.coordinateM))} | ${escapeRecoveryHtml(item.status || '')}</span></div>`).join('')}</div>` : ''}
+                    ${gridFailures.length ? `<div style="margin-top:6px; font:0.73rem Arial,sans-serif; color:#fbbf24;">${gridFailures.slice(0, 20).map(item => `${escapeRecoveryHtml(item.lineType || '')}/${escapeRecoveryHtml(item.id || '')}`).join(', ')}</div>` : ''}
+                `;
+            }
+
+            const geometryComparison = comparison.geometry || { status: 'NOT_REPORTED', failures: [], message: '' };
+            const geometryFailures = geometryComparison.failures || [];
+            geometry.innerHTML = `
+                <div style="font:700 0.76rem Arial,sans-serif; color:#cbd5e1; margin-bottom:6px;">NATIVE MEMBER GEOMETRY / COLUMNATION <span style="color:${roundTripStatusColor(geometryComparison.status)}">${escapeRecoveryHtml(geometryComparison.status || 'NOT_REPORTED')}</span></div>
+                <div style="font:0.74rem/1.45 Arial,sans-serif; color:#94a3b8; margin-bottom:6px;">Centroid joints, native frame endpoints, columnation, and solver-readback geometry are compared against the current FS analytical payload. This remains read-only.</div>
+                ${geometryComparison.message ? `<div style="padding:7px 9px; border-left:3px solid ${roundTripStatusColor(geometryComparison.status)}; background:#1f2937; color:#cbd5e1; font:0.74rem/1.45 Arial,sans-serif;">${escapeRecoveryHtml(geometryComparison.message)}</div>` : ''}
+                ${geometryFailures.length ? `<div style="display:grid; gap:4px; margin-top:6px; font:0.73rem Arial,sans-serif;">${geometryFailures.slice(0, 40).map(item => `<div style="display:flex; justify-content:space-between; gap:10px; padding:5px 8px; background:#1f2937;"><span>${escapeRecoveryHtml(item.kind || '')} ${escapeRecoveryHtml(item.id || item.name || '')}</span><span style="color:#fbbf24;">${escapeRecoveryHtml(item.status || 'DIFF')} | ${escapeRecoveryHtml((item.delta || []).filter(value => value != null).map(value => Number(value).toFixed(4)).join(', ') || 'not found')}</span></div>`).join('')}</div>` : ''}
             `;
 
             const foundationItems = Object.entries(comparison.foundation || {});
@@ -19243,7 +19483,9 @@ function getStructuralContext() {
     ctx += '- Y spans: [' + state.ySpans.join(', ') + '] m\n';
     ctx += '- Floors: ' + numFloors + ' @ ' + floorH + 'm height\n';
     ctx += "- f'c = " + fc + ' MPa, fy = ' + fy + ' MPa\n';
-    ctx += '- Soil bearing = ' + (state.soilBearing || 100) + ' kPa\n\n';
+    ctx += '- Assumed SBC = ' + (state.assumedSoilBearing || 150) + ' kPa\n';
+    ctx += '- Final / Verified SBC = ' + (state.finalSoilBearing || 'not entered') + ' kPa\n';
+    ctx += '- Effective SBC = ' + (state.soilBearing || 150) + ' kPa (' + (state.finalSoilBearing ? 'final input' : 'assumed preliminary') + ')\n\n';
 
     // Column summary
     ctx += 'COLUMNS (' + activeCols.length + ' total):\n';
@@ -19518,7 +19760,7 @@ function loadSettings() {
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
     set('settFc', state.fc || 21);
     set('settFy', state.fy || 415);
-    set('settSoilBearing', state.soilBearing || 100);
+    syncSoilBearingUI();
     const plotSettings = getPlotSettings();
     set('settPaperSize', plotSettings.paperSize);
     set('settPlotOrientation', plotSettings.orientation);
@@ -19529,7 +19771,6 @@ function applySettings() {
     pushUndo();
     state.fc = parseFloat(document.getElementById('settFc')?.value || 21);
     state.fy = parseFloat(document.getElementById('settFy')?.value || 415);
-    state.soilBearing = parseFloat(document.getElementById('settSoilBearing')?.value || 100);
     state.plotSettings = normalizePlotSettings({
         paperSize: document.getElementById('settPaperSize')?.value,
         orientation: document.getElementById('settPlotOrientation')?.value,
@@ -20451,7 +20692,40 @@ function checkFdnStability() {
 }
 
 // --- PDF REPORT GENERATOR ---
-function generatePDFReport() {
+function getReportPdfFilename(reportKind) {
+    const project = String(currentProjectFileName || 'FutolStructure')
+        .replace(/\.(fstr|json)$/i, '')
+        .replace(/[^A-Za-z0-9._-]+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'FutolStructure';
+    const date = new Date().toISOString().slice(0, 10);
+    return `${project}_${reportKind}_${date}.pdf`;
+}
+
+async function deliverPdfReport(html, suggestedName, status, label) {
+    const desktopBridge = window.FutolStructureDesktop;
+    if (desktopBridge?.isDesktop && typeof desktopBridge.exportPdfReport === 'function') {
+        const result = await desktopBridge.exportPdfReport({ html, suggestedName });
+        if (result?.success) {
+            if (status) status.textContent = `${label} saved as PDF: ${result.filePath}`;
+            return result;
+        }
+        if (result?.canceled) {
+            if (status) status.textContent = 'PDF export cancelled.';
+            return result;
+        }
+        throw new Error(result?.message || 'Desktop PDF generation failed.');
+    }
+
+    const win = window.open('', '_blank');
+    if (!win) throw new Error('Popup blocked. Allow popups to open the printable report.');
+    win.document.write(html);
+    win.document.close();
+    win.addEventListener('load', () => win.print(), { once: true });
+    if (status) status.textContent = `${label} opened for browser PDF printing.`;
+    return { success: true, browserPrint: true };
+}
+
+async function generatePDFReport() {
     const status = document.getElementById('pdfReportStatus');
     if (status) status.textContent = 'Generating report...';
     const plotSettings = getPlotSettings();
@@ -20507,7 +20781,9 @@ function generatePDFReport() {
     report += '<tr><td>Floor Levels:</td><td>' + verticalDatums.floorLevels.map(level => escapeInfoText(level.id) + ' ' + level.elevation.toFixed(3) + ' m').join('; ') + '</td></tr>';
     report += '<tr><td>fc\':</td><td>' + (state.fc || 21) + ' MPa</td></tr>';
     report += '<tr><td>fy:</td><td>' + (state.fy || 415) + ' MPa</td></tr>';
-    report += '<tr><td>Soil Bearing:</td><td>' + (state.soilBearing || 100) + ' kPa</td></tr>';
+    report += '<tr><td>Assumed SBC:</td><td>' + (state.assumedSoilBearing || 150) + ' kPa</td></tr>';
+    report += '<tr><td>Final / Verified SBC:</td><td>' + (state.finalSoilBearing || 'Not entered') + (state.finalSoilBearing ? ' kPa' : '') + '</td></tr>';
+    report += '<tr><td>Effective SBC basis:</td><td>' + (state.soilBearing || 150) + ' kPa - ' + (state.finalSoilBearing ? 'final / verified input' : 'assumed / preliminary') + '</td></tr>';
     report += '</table>';
 
     const readinessWarnings = typeof collectModelReadinessWarnings === 'function'
@@ -20693,13 +20969,18 @@ function generatePDFReport() {
 
     report += '</body></html>';
 
-    // Open in new window for printing
-    const win = window.open('', '_blank');
-    win.document.write(report);
-    win.document.close();
-    win.print();
-
-    if (status) status.textContent = 'Report opened in new window. Use Ctrl+P to save as PDF.';
+    try {
+        return await deliverPdfReport(
+            report,
+            getReportPdfFilename('Structural_Computation_Report'),
+            status,
+            'Structural computation report'
+        );
+    } catch (error) {
+        console.error('PDF report generation failed:', error);
+        if (status) status.textContent = 'PDF generation failed: ' + (error?.message || error);
+        return { success: false, message: error?.message || String(error) };
+    }
 }
 
 // --- TAN: TECHNICAL ANALYSIS NOTEBOOK SCAFFOLD ---
@@ -20921,7 +21202,9 @@ function buildTANReportHtml() {
         ['Design code basis', 'NSCP 2015 / ACI 318-14 workflow basis, subject to engineer review'],
         ["Concrete f'c", tanNumber(state.fc || 21, 0) + ' MPa'],
         ['Steel fy', tanNumber(state.fy || 415, 0) + ' MPa'],
-        ['Soil bearing', tanNumber(state.soilBearing || 100, 0) + ' kPa'],
+        ['Assumed SBC', tanNumber(state.assumedSoilBearing || 150, 0) + ' kPa'],
+        ['Final / verified SBC', state.finalSoilBearing != null ? tanNumber(state.finalSoilBearing, 0) + ' kPa' : 'Not entered'],
+        ['Effective SBC basis', tanNumber(state.soilBearing || 150, 0) + ' kPa - ' + (state.finalSoilBearing != null ? 'final / verified input' : 'assumed / preliminary')],
         ['Concrete density', tanNumber(concreteDensity, 1) + ' kN/m3'],
         ['GF suspended', state.gfSuspended ? 'Yes' : 'No'],
         ['Grade elevation', tanNumber(verticalDatums.gradeElevation, 3) + ' m'],
@@ -21055,19 +21338,22 @@ function buildTANReportHtml() {
     return html;
 }
 
-function generateTANReport() {
+async function generateTANReport() {
     const status = document.getElementById('pdfReportStatus');
     if (status) status.textContent = 'Generating TAN notebook...';
     const report = buildTANReportHtml();
-    const win = window.open('', '_blank');
-    if (!win) {
-        if (status) status.textContent = 'Popup blocked. Allow popups to open the TAN notebook.';
-        return;
+    try {
+        return await deliverPdfReport(
+            report,
+            getReportPdfFilename('Technical_Analysis_Notebook'),
+            status,
+            'Technical analysis notebook'
+        );
+    } catch (error) {
+        console.error('TAN PDF generation failed:', error);
+        if (status) status.textContent = 'TAN PDF generation failed: ' + (error?.message || error);
+        return { success: false, message: error?.message || String(error) };
     }
-    win.document.write(report);
-    win.document.close();
-    win.print();
-    if (status) status.textContent = 'TAN notebook opened in new window. Use Ctrl+P to save as PDF.';
 }
 
 
@@ -22304,6 +22590,9 @@ function calculateWaterTank() {
 
 // --- BLOCKWALL DESIGN ---
         let wallEditorDraft = { start: null, end: null };
+        let wallEditorSelectedId = '';
+        let roofFrameDraft = { start: null, end: null };
+        let roofFrameSelectedId = '';
 
         function getWallEditorFloor() {
             const select = document.getElementById('wallEditorFloor');
@@ -22429,6 +22718,56 @@ function calculateWaterTank() {
             scheduleProjectAutosave('wall-remove');
         }
 
+        function editWallFromPlan(floorId, wallId) {
+            const floor = state.floors.find(item => item.id === floorId);
+            const wall = floor?.wallLoads?.find(item => item.id === wallId);
+            if (!floor || !wall) return;
+            const setValue = (id, value) => {
+                const input = document.getElementById(id);
+                if (input && value !== undefined && value !== null) input.value = value;
+            };
+            const setChecked = (id, value) => {
+                const input = document.getElementById(id);
+                if (input) input.checked = value === true;
+            };
+            const floorSelect = document.getElementById('wallEditorFloor');
+            if (floorSelect) floorSelect.value = floor.id;
+            setValue('wallEditorType', wall.type || 'external');
+            setValue('wallEditorHeight', wall.heightM);
+            setValue('wallEditorThickness', wall.thicknessMm || wall.chbThicknessMm);
+            setValue('wallEditorPlasterInside', wall.plasterInsideMm);
+            setValue('wallEditorPlasterOutside', wall.plasterOutsideMm);
+            const opening = wall.openings?.[0];
+            setValue('wallEditorOpeningType', opening?.type || 'none');
+            setValue('wallEditorOpeningWidth', opening?.widthM || 0.9);
+            setValue('wallEditorOpeningHeight', opening?.heightM || 2.1);
+            setValue('wallEditorOpeningSill', opening?.sillHeightM || 0);
+            setValue('wallEditorOpeningCount', opening?.count || 1);
+            setChecked('wallEditorLintel', !!wall.lintel);
+            setValue('wallEditorLintelWidth', wall.lintel?.widthMm || wall.thicknessMm || 150);
+            setValue('wallEditorLintelDepth', wall.lintel?.depthMm || 200);
+            setChecked('wallEditorSolver', false);
+            wallEditorSelectedId = wall.id;
+            wallEditorDraft = {
+                start: { x: Number(wall.x1), y: Number(wall.y1), snap: cloneSerializable(wall.startSnap || wall.endpoints?.start?.snap, {}) },
+                end: { x: Number(wall.x2), y: Number(wall.y2), snap: cloneSerializable(wall.endSnap || wall.endpoints?.end?.snap, {}) }
+            };
+            renderWallPlanEditor();
+            const status = document.getElementById('wallEditorStatus');
+            if (status) status.textContent = `${wall.id} loaded for editing. Update properties, then select Add wall line.`;
+        }
+
+        function getNextWallEditorId(floor) {
+            const prefix = `WL-${floor.id}-`;
+            const maximum = (floor.wallLoads || []).reduce((current, wall) => {
+                const id = String(wall?.id || '');
+                if (!id.startsWith(prefix)) return current;
+                const suffix = Number(id.slice(prefix.length));
+                return Number.isInteger(suffix) && suffix > current ? suffix : current;
+            }, 0);
+            return `${prefix}${maximum + 1}`;
+        }
+
         function addWallFromPlan() {
             const floor = getWallEditorFloor();
             if (!floor || !wallEditorDraft.start || !wallEditorDraft.end) {
@@ -22444,8 +22783,28 @@ function calculateWaterTank() {
             }
             saveStateSnapshot();
             floor.wallLoads = Array.isArray(floor.wallLoads) ? floor.wallLoads : [];
-            const id = `WL-${floor.id}-${floor.wallLoads.length + 1}`;
-            floor.wallLoads.push({
+            const selectedId = wallEditorSelectedId;
+            const existing = selectedId ? floor.wallLoads.find(wall => wall.id === selectedId) : null;
+            const id = existing?.id || getNextWallEditorId(floor);
+            const openingType = document.getElementById('wallEditorOpeningType')?.value || 'none';
+            const openingWidth = Math.max(0, Number(document.getElementById('wallEditorOpeningWidth')?.value) || 0);
+            const openingHeight = Math.max(0, Number(document.getElementById('wallEditorOpeningHeight')?.value) || 0);
+            const opening = openingType !== 'none' && openingWidth > 0 && openingHeight > 0 ? [{
+                id: existing?.openings?.[0]?.id || `OPEN-${id}-1`,
+                type: openingType,
+                widthM: openingWidth,
+                heightM: openingHeight,
+                sillHeightM: Math.max(0, Number(document.getElementById('wallEditorOpeningSill')?.value) || 0),
+                count: Math.max(1, Math.round(Number(document.getElementById('wallEditorOpeningCount')?.value) || 1))
+            }] : [];
+            const lintel = document.getElementById('wallEditorLintel')?.checked ? {
+                id: existing?.lintel?.id || `L-${id}`,
+                widthMm: Math.max(100, Number(document.getElementById('wallEditorLintelWidth')?.value) || 150),
+                depthMm: Math.max(100, Number(document.getElementById('wallEditorLintelDepth')?.value) || 200),
+                material: 'reinforced_concrete',
+                designStatus: 'preliminary'
+            } : null;
+            const wallData = {
                 id,
                 floorId: floor.id,
                 type: document.getElementById('wallEditorType')?.value || 'external',
@@ -22460,15 +22819,23 @@ function calculateWaterTank() {
                 plasterOutsideMm: Math.max(0, Number(document.getElementById('wallEditorPlasterOutside')?.value) || 0),
                 startSnap: cloneSerializable(wallEditorDraft.start.snap, {}),
                 endSnap: cloneSerializable(wallEditorDraft.end.snap, {}),
-                exportToSolvers: !!document.getElementById('wallEditorSolver')?.checked,
+                exportToSolvers: false,
                 exportToIFC: true,
+                openings: opening,
+                lintel,
                 source: 'manual-wall-line'
-            });
+            };
+            if (existing) Object.assign(existing, wallData);
+            else floor.wallLoads.push(wallData);
+            wallEditorSelectedId = '';
             clearWallEditorDraft();
             calculate();
             populateWallElevations();
             const status = document.getElementById('wallEditorStatus');
-            if (status) status.textContent = `${id} added to ${floor.id}; solver export is ${floor.wallLoads[floor.wallLoads.length - 1].exportToSolvers ? 'ON' : 'OFF'}.`;
+            const openingSummary = opening.length
+                ? `${opening[0].type} opening${lintel ? ' + lintel metadata' : ''}`
+                : 'no opening';
+            if (status) status.textContent = `${id} ${existing ? 'updated' : 'added'} on ${floor.id}; ${openingSummary}; solver export is ${wallData.exportToSolvers ? 'ON' : 'OFF'}.`;
             scheduleProjectAutosave('wall-create');
         }
 
@@ -22488,7 +22855,7 @@ function calculateWaterTank() {
                 const lintel = wall.lintel ? `${wall.lintel.widthMm}x${wall.lintel.depthMm}` : '-';
                 const solver = wall.exportToSolvers ? 'ON' : 'OFF';
                 const props = `${wall.chbThicknessMm} CHB / ${wall.plasterInsideMm}+${wall.plasterOutsideMm} plaster`;
-                return `<tr><td>${escapeInfoText(wall.id)}</td><td>${escapeInfoText(wall.floorId || '-')}</td><td>${Number(wall.elevationBaseM || 0).toFixed(3)}</td><td>${Number(wall.elevationTopM || 0).toFixed(3)}</td><td>${escapeInfoText(props)}</td><td>${(elevation.openings || []).map(opening => `${escapeInfoText(opening.type)} ${opening.widthM}x${opening.heightM} / head ${Number(opening.headElevationM || 0).toFixed(3)}`).join('<br>') || '-'}</td><td>${escapeInfoText(lintel)}</td><td>${solver}</td><td><button class="mini-action-btn remove" onclick="removeWallFromPlan('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}')">Remove</button></td></tr>`;
+                return `<tr><td>${escapeInfoText(wall.id)}</td><td>${escapeInfoText(wall.floorId || '-')}</td><td>${Number(wall.elevationBaseM || 0).toFixed(3)}</td><td>${Number(wall.elevationTopM || 0).toFixed(3)}</td><td>${escapeInfoText(props)}</td><td>${(elevation.openings || []).map(opening => `${escapeInfoText(opening.type)} ${opening.widthM}x${opening.heightM} / head ${Number(opening.headElevationM || 0).toFixed(3)}`).join('<br>') || '-'}</td><td>${escapeInfoText(lintel)}</td><td>${solver}</td><td><button class="mini-action-btn" onclick="editWallFromPlan('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}')">Edit</button> <button class="mini-action-btn remove" onclick="removeWallFromPlan('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}')">Remove</button></td></tr>`;
             });
             body.innerHTML = rows.join('') || '<tr><td colspan="9">No wall lines defined.</td></tr>';
             renderWallPlanEditor();
@@ -22501,6 +22868,11 @@ function calculateWaterTank() {
             const frame = globalThis.FSRoofFrame.build({ floors: state.floors, columns: state.columns, roofFrame: state.roofFrame });
             const supportSelect = document.getElementById('roofFrameSupportType');
             if (supportSelect) supportSelect.value = frame.supportPolicy || frame.supportType;
+            const roofElevation = getRoofFrameElevation();
+            ['roofFrameStartZ', 'roofFrameEndZ'].forEach(id => {
+                const input = document.getElementById(id);
+                if (input && input.value === '') input.value = roofElevation.toFixed(3);
+            });
             const advice = document.getElementById('roofFrameSupportAdvice');
             if (advice) {
                 advice.textContent = (frame.supportPlan?.recommendation || 'Support convention pending') +
@@ -22516,8 +22888,108 @@ function calculateWaterTank() {
                 ).join('') || '<tr><td colspan="4">No support assignments yet.</td></tr>';
             }
             if (summary) summary.textContent = `${frame.framingSystem} | ${frame.members.length} member(s) | ${frame.solverMembers.length} solver-enabled`;
-            body.innerHTML = frame.members.map(item => `<tr><td>${item.id}</td><td>${item.type}</td><td>${item.section}</td><td>${item.material} ${item.grade}</td><td>${item.exportToSolvers ? 'ON' : 'OFF'}</td></tr>`).join('') || '<tr><td colspan="5">No steel roof members defined.</td></tr>';
+            body.innerHTML = frame.members.map(item => `<tr><td>${escapeInfoText(item.id)}</td><td>${escapeInfoText(item.type)}</td><td>${escapeInfoText(item.section)}</td><td>${item.start.z.toFixed(2)} / ${item.end.z.toFixed(2)} m</td><td>${item.deadLoadKNm.toFixed(2)} / ${item.liveLoadKNm.toFixed(2)}</td><td>${item.exportToSolvers ? 'ON' : 'OFF'}</td><td><button class="mini-action-btn" onclick="editRoofFrameMember('${escapeInfoText(item.id)}')">Edit</button> <button class="mini-action-btn remove" onclick="removeRoofFrameMember('${escapeInfoText(item.id)}')">Remove</button></td></tr>`).join('') || '<tr><td colspan="7">No steel roof members defined.</td></tr>';
             renderRoofFrameViewport(frame);
+        }
+
+        function getRoofFrameElevation() {
+            const roofIndex = Math.max(0, (state.floors || []).findIndex(floor => floor.isRoof));
+            const datums = syncGovernedFloorElevations();
+            return Number(datums.storyElevations?.[roofIndex + 1]) || 0;
+        }
+
+        function getRoofFrameSnapTargets() {
+            const coordinates = getWallEditorCoordinates();
+            const roof = (state.floors || []).find(floor => floor.isRoof) || state.floors[state.floors.length - 1];
+            const targets = [];
+            coordinates.x.forEach((x, xIndex) => coordinates.y.forEach((y, yIndex) => {
+                targets.push({ x, y, kind: 'grid', id: `GRID-${String.fromCharCode(65 + xIndex)}${yIndex + 1}` });
+            }));
+            (state.columns || []).forEach(column => {
+                if (roof && !isColumnActiveOnFloor(column, roof.id)) return;
+                const point = getColumnPlanPosition(column);
+                targets.push({ x: point.x, y: point.y, kind: 'column', id: `COLUMN-${column.id}` });
+            });
+            return targets;
+        }
+
+        function clearRoofFrameDraft() {
+            roofFrameDraft = { start: null, end: null };
+            roofFrameSelectedId = '';
+            renderRoofFrameViewport();
+            const status = document.getElementById('roofFrameEditorStatus');
+            if (status) status.textContent = 'Click two roof-plan points to define a member.';
+        }
+
+        function nextRoofFrameMemberId() {
+            const maximum = (state.roofFrame?.members || []).reduce((current, item) => {
+                const match = String(item?.id || '').match(/^RF-(\d+)$/);
+                return match ? Math.max(current, Number(match[1])) : current;
+            }, 0);
+            return `RF-${maximum + 1}`;
+        }
+
+        function addRoofFrameMember() {
+            if (!roofFrameDraft.start || !roofFrameDraft.end) return;
+            if (Math.hypot(roofFrameDraft.end.x - roofFrameDraft.start.x, roofFrameDraft.end.y - roofFrameDraft.start.y) < 0.05) return;
+            if (!state.roofFrame) state.roofFrame = { enabled: false, members: [], supportType: 'auto' };
+            state.roofFrame.members = Array.isArray(state.roofFrame.members) ? state.roofFrame.members : [];
+            saveStateSnapshot();
+            const existing = state.roofFrame.members.find(item => item.id === roofFrameSelectedId);
+            const id = existing?.id || nextRoofFrameMemberId();
+            const baseElevation = getRoofFrameElevation();
+            const data = {
+                id,
+                type: document.getElementById('roofFrameMemberType')?.value || 'rafter',
+                section: document.getElementById('roofFrameSection')?.value?.trim() || 'RHS-100x50x3',
+                material: 'steel',
+                grade: 'Grade 350',
+                start: { x: roofFrameDraft.start.x, y: roofFrameDraft.start.y, z: Number(document.getElementById('roofFrameStartZ')?.value) || baseElevation },
+                end: { x: roofFrameDraft.end.x, y: roofFrameDraft.end.y, z: Number(document.getElementById('roofFrameEndZ')?.value) || baseElevation },
+                startSnap: cloneSerializable(roofFrameDraft.start.snap, {}),
+                endSnap: cloneSerializable(roofFrameDraft.end.snap, {}),
+                deadLoadKNm: Math.max(0, Number(document.getElementById('roofFrameDeadLoad')?.value) || 0),
+                liveLoadKNm: Math.max(0, Number(document.getElementById('roofFrameLiveLoad')?.value) || 0),
+                exportToSolvers: false,
+                exportToIFC: true
+            };
+            if (existing) Object.assign(existing, data); else state.roofFrame.members.push(data);
+            state.roofFrame.enabled = true;
+            roofFrameSelectedId = '';
+            roofFrameDraft = { start: null, end: null };
+            populateRoofFrame();
+            const status = document.getElementById('roofFrameEditorStatus');
+            if (status) status.textContent = `${id} ${existing ? 'updated' : 'added'}; solver intent ${data.exportToSolvers ? 'ON' : 'OFF'}.`;
+            scheduleProjectAutosave('roof-frame-member');
+        }
+
+        function editRoofFrameMember(id) {
+            const item = state.roofFrame?.members?.find(member => member.id === id);
+            if (!item) return;
+            const setValue = (controlId, value) => { const control = document.getElementById(controlId); if (control) control.value = value; };
+            setValue('roofFrameMemberType', item.type || 'rafter');
+            setValue('roofFrameSection', item.section || 'RHS-100x50x3');
+            setValue('roofFrameStartZ', item.start?.z ?? getRoofFrameElevation());
+            setValue('roofFrameEndZ', item.end?.z ?? getRoofFrameElevation());
+            setValue('roofFrameDeadLoad', item.deadLoadKNm || 0);
+            setValue('roofFrameLiveLoad', item.liveLoadKNm || 0);
+            const solver = document.getElementById('roofFrameSolver'); if (solver) solver.checked = false;
+            roofFrameSelectedId = item.id;
+            roofFrameDraft = {
+                start: { ...item.start, snap: cloneSerializable(item.startSnap || item.start?.snap, {}) },
+                end: { ...item.end, snap: cloneSerializable(item.endSnap || item.end?.snap, {}) }
+            };
+            renderRoofFrameViewport();
+        }
+
+        function removeRoofFrameMember(id) {
+            if (!state.roofFrame) return;
+            saveStateSnapshot();
+            state.roofFrame.members = (state.roofFrame.members || []).filter(item => item.id !== id);
+            state.roofFrame.enabled = state.roofFrame.members.length > 0;
+            if (roofFrameSelectedId === id) clearRoofFrameDraft();
+            populateRoofFrame();
+            scheduleProjectAutosave('roof-frame-remove');
         }
 
         function setRoofFrameSupportType(value) {
@@ -22546,6 +23018,13 @@ function calculateWaterTank() {
             yGrid.forEach(value => { context.beginPath(); context.moveTo(pad, sy(value)); context.lineTo(canvas.width - pad, sy(value)); context.stroke(); });
             context.strokeStyle = '#f59e0b'; context.lineWidth = 4;
             (model.members || []).forEach(item => { context.beginPath(); context.moveTo(sx(item.start.x), sy(item.start.y)); context.lineTo(sx(item.end.x), sy(item.end.y)); context.stroke(); });
+            if (roofFrameDraft.start) {
+                context.fillStyle = '#22c55e'; context.beginPath(); context.arc(sx(roofFrameDraft.start.x), sy(roofFrameDraft.start.y), 6, 0, Math.PI * 2); context.fill();
+            }
+            if (roofFrameDraft.start && roofFrameDraft.end) {
+                context.strokeStyle = '#22c55e'; context.lineWidth = 4; context.beginPath(); context.moveTo(sx(roofFrameDraft.start.x), sy(roofFrameDraft.start.y)); context.lineTo(sx(roofFrameDraft.end.x), sy(roofFrameDraft.end.y)); context.stroke();
+                context.fillStyle = '#22c55e'; context.beginPath(); context.arc(sx(roofFrameDraft.end.x), sy(roofFrameDraft.end.y), 6, 0, Math.PI * 2); context.fill();
+            }
             context.fillStyle = '#cbd5e1'; context.font = '13px Arial';
             const supportPlan = model.supportPlan || { assignments: [] };
             const fallbackSupportType = model.supportType === 'auto' ? 'hinge' : (model.supportType || 'hinge');
@@ -22562,6 +23041,29 @@ function calculateWaterTank() {
             });
             context.fillStyle = '#f8fafc';
             context.fillText('Roof plan | ' + (supportPlan.recommendation || ('supports: ' + fallbackSupportType)) + ' | members: ' + (model.members || []).length, 18, 24);
+            if (canvas.dataset.memberPlacementBound !== 'true') {
+                canvas.dataset.memberPlacementBound = 'true';
+                canvas.addEventListener('click', event => {
+                    const rect = canvas.getBoundingClientRect();
+                    const raw = {
+                        x: Math.min(maxX, Math.max(0, ((event.clientX - rect.left) * canvas.width / Math.max(1, rect.width) - pad) / Math.max(1, canvas.width - pad * 2) * maxX)),
+                        y: Math.min(maxY, Math.max(0, (canvas.height - pad - (event.clientY - rect.top) * canvas.height / Math.max(1, rect.height)) / Math.max(1, canvas.height - pad * 2) * maxY))
+                    };
+                    const mode = document.getElementById('roofFrameSnapMode')?.value || 'grid';
+                    const target = getRoofFrameSnapTargets().filter(item => item.kind === mode).reduce((nearest, item) => {
+                        const distance = Math.hypot(item.x - raw.x, item.y - raw.y);
+                        return !nearest || distance < nearest.distance ? { ...item, distance } : nearest;
+                    }, null);
+                    const point = target && target.distance <= 0.45
+                        ? { x: target.x, y: target.y, snap: { mode: target.kind, targetId: target.id, toleranceM: 0.45 } }
+                        : { ...raw, snap: { mode: 'free', targetId: '', toleranceM: 0.45 } };
+                    if (!roofFrameDraft.start || roofFrameDraft.end) roofFrameDraft = { start: point, end: null };
+                    else roofFrameDraft.end = point;
+                    renderRoofFrameViewport();
+                    const status = document.getElementById('roofFrameEditorStatus');
+                    if (status) status.textContent = roofFrameDraft.end ? 'Member ready. Review properties, then add.' : 'Start point selected.';
+                });
+            }
         }
 
         function calculateBlockwalls() {
@@ -23091,6 +23593,72 @@ function populateBOM() {
             document.body.appendChild(a);
             a.click();
             setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+        }
+
+        // Revit-native generation starts from the same governed CSI payload as
+        // ETABS and STAAD. The manifest is intentionally versioned so a Revit
+        // add-in can reject unsupported source contracts instead of guessing.
+        function buildRevitImportManifest(modelData = collectCSIExportModelData()) {
+            const model = modelData || {};
+            return {
+                contract: 'FutolStructure.RevitNativeImport.v1',
+                generatedAt: new Date().toISOString(),
+                source: {
+                    schema: model.schema || 'FutolStructure.CSIExportModel.v1',
+                    provenance: model.provenance || {},
+                    verticalDatums: model.verticalDatums || {},
+                    coordinateTransform: model.coordinateTransform || {},
+                    analyticalGeometry: model.analyticalGeometry || {},
+                    gridDefinition: model.gridDefinition || {},
+                    levels: model.levels || [],
+                    stories: model.stories || []
+                },
+                nativeRevitPolicy: {
+                    levels: 'create_or_match_by_governed_id_and_absolute_elevation',
+                    grids: 'create_or_match_by_governed_axis_id_and_coordinate',
+                    columns: 'Autodesk.Revit.DB.Structure.StructuralType.Column',
+                    beams: 'Structural Framing',
+                    slabs: 'Floors',
+                    footings: 'Structural Foundations / IfcFooting equivalent',
+                    pedestals: 'Structural Foundations with FutolStructure Pedestal metadata',
+                    tieBeams: 'Structural Framing',
+                    stairs: 'Native stairs/landings where supported; governed structural fallback otherwise',
+                    analyticalModel: 'preserve FS canonical coordinates, cardinal points, insertion points, and joint offsets',
+                    duplicateHandling: 'match by FutolStructure element ID and governed level ID',
+                    rebar: {
+                        status: 'PENDING_APPROVED_DESIGN_RESULTS',
+                        source: 'future reinforcement schedule or approved solver design result',
+                        policy: 'do not invent reinforcement from preliminary geometry'
+                    }
+                },
+                model,
+                rebar: {
+                    contract: 'FutolStructure.RebarHandoff.v1',
+                    status: 'PENDING_APPROVED_DESIGN_RESULTS',
+                    records: []
+                }
+            };
+        }
+
+        function exportToRevitPackage() {
+            try {
+                const manifest = buildRevitImportManifest();
+                const date = new Date().toISOString().slice(0, 10);
+                downloadBlob(
+                    JSON.stringify(manifest, null, 2),
+                    `FutolStructure_Revit_Import_${date}.json`,
+                    'application/json'
+                );
+                alert(
+                    `Revit native-import package manifest exported.\n\n` +
+                    `The manifest preserves governed levels, grids, physical/analytical geometry, ` +
+                    `cardinal points, joint offsets, foundations, stairs, walls, and roof framing.\n\n` +
+                    `Use the FutolStructure Revit add-in to create/update a native .rvt. ` +
+                    `Rebar remains gated until approved design results are available.`
+                );
+            } catch (err) {
+                alert('Revit package export failed: ' + err.message);
+            }
         }
 
         // ================================================================
@@ -24537,6 +25105,7 @@ function populateBOM() {
                             slabReferenceElevationM: zTop,
                             z: zTop,
                             section,
+                            thicknessMm,
                             points: solverPoints,
                             superDead: Math.max(0, Number(floor.dlSuper) || 0),
                             live: Math.max(0, Number(floor.liveLoad) || 0)
@@ -24596,6 +25165,7 @@ function populateBOM() {
                         type: slab.memberType,
                         source: slab.source,
                         section,
+                        thicknessMm: Number(slab.thicknessMm) || 150,
                         points: topPoints,
                         superDead: slab.surfaceAreaM2 > 0 ? stepAndFinishesKN / slab.surfaceAreaM2 : 0,
                         live: (Number(slab.loads?.liveKN) || 0) /
@@ -26066,7 +26636,7 @@ try {
                         const detail = [result?.message, result?.stderr].filter(Boolean).join('\n\n');
                         throw new Error(detail || 'The desktop ETABS builder did not create an .edb file.');
                     }
-                    alert(`ETABS model created and opened.\n\nEDB:\n${result.edbPath}\n\nBuilder audit script:\n${result.scriptPath}\n\nThe dated .e2k, mass/modal audit JSON, and modal participation CSV are in:\n${result.outputDirectory}\n\nStair handoff:\n- ${model.counts.stairBeams || 0} stair/landing frames\n- ${model.counts.stairSlabs || 0} explicit stair shells\n- FS_STAIR_DL / FS_STAIR_LL loads and ULS combinations\n\nFoundation policy:\n- governed base restraints: included in ETABS\n- footing, pedestal, and tie-beam solids: handed off through IFC / SAFE / STAAD Foundation`);
+                    alert(`ETABS model created and opened.\n\nEDB:\n${result.edbPath}\n\nNative E2K:\n${result.e2kPath || 'not reported'}\n\nFS audit JSON:\n${result.auditPath || 'not reported'}\n\nModal participation CSV:\n${result.modalParticipationCsvPath || 'not reported'}\n\nBuilder audit script:\n${result.scriptPath}\n\nStair handoff:\n- ${model.counts.stairBeams || 0} stair/landing frames\n- ${model.counts.stairSlabs || 0} explicit stair shells\n- FS_STAIR_DL / FS_STAIR_LL loads and ULS combinations\n\nFoundation policy:\n- governed base restraints: included in ETABS\n- footing, pedestal, and tie-beam solids: handed off through IFC / SAFE / STAAD Foundation`);
                     return result;
                 }
 

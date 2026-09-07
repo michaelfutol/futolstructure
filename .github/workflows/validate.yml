@@ -51,6 +51,9 @@ jobs:
       - name: Validate application source and engine
         run: node v3/tools/check-fs.js --no-browser
 
+      - name: Validate Audit v2 Phase 1A contracts
+        run: node v3/tools/check-super-improvement.cjs
+
       - name: Validate browser workflow and DXF round trip
         if: github.event_name != 'workflow_dispatch' || inputs.acceptance_scope != 'source-only'
         env:

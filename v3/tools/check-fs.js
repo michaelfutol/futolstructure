@@ -28,6 +28,7 @@ const DESKTOP_PACKAGE = path.join(ROOT, 'desktop', 'package.json');
 const DESKTOP_ICON = path.join(ROOT, 'desktop', 'assets', 'futolstructure.ico');
 const DXF_VALIDATOR = path.join(V3, 'tools', 'validate-dxf.py');
 const IFC_VALIDATOR = path.join(V3, 'tools', 'validate-ifc.py');
+const IFC_LITE_VALIDATOR = path.join(V3, 'tools', 'validate-ifc-lite.js');
 const DEFAULT_PORT = Number(process.env.FS_CDP_PORT || 9234);
 const CDP_TIMEOUT_MS = Math.max(15000, Number(process.env.FS_CDP_TIMEOUT_MS) || 15000);
 const KEEP_BROWSER = process.env.FS_KEEP_BROWSER === '1' || process.argv.includes('--keep-browser');
@@ -69,7 +70,7 @@ function checkReleaseManifest() {
     const html = fs.readFileSync(INDEX, 'utf8');
     const desktopPackage = JSON.parse(fs.readFileSync(DESKTOP_PACKAGE, 'utf8'));
     assert(manifest.appVersion === desktopPackage.version, 'Desktop and runtime versions differ', manifest);
-    assert(manifest.buildId === 'FS-124-RC1', 'Release manifest build ID is stale', manifest);
+    assert(manifest.buildId === 'FS-125-RC1', 'Release manifest build ID is stale', manifest);
     assert(manifest.releaseName === 'Desktop Workspaces Candidate', 'Release manifest name is stale', manifest);
     assert(manifest.fstrSchemaVersion === '0.2.0', 'Release manifest FSTR schema is stale', manifest);
     const allowUnstampedManifest = process.env.FS_ALLOW_UNSTAMPED_MANIFEST === '1';
@@ -291,6 +292,53 @@ function checkStairStructuralFixture() {
     };
 }
 
+function checkRevitImportSourceContract() {
+    const html = fs.readFileSync(INDEX, 'utf8');
+    const revitProjectPath = path.join(ROOT, 'revit', 'FutolStructure.Revit2027.csproj');
+    const revitCommandPath = path.join(ROOT, 'revit', 'FutolStructureCommand.cs');
+    assert(fs.existsSync(revitProjectPath), 'Revit 2027 add-in project is missing');
+    assert(fs.existsSync(revitCommandPath), 'Revit 2027 import command is missing');
+    const revitProject = fs.readFileSync(revitProjectPath, 'utf8');
+    const revitCommand = fs.readFileSync(revitCommandPath, 'utf8');
+    assert(html.includes("FutolStructure.RevitNativeImport.v1"), 'Native Revit import contract is missing');
+    assert(html.includes('function buildRevitImportManifest('), 'Revit import manifest builder is missing');
+    assert(html.includes('function exportToRevitPackage('), 'Revit package export action is missing');
+    assert(html.includes('columnCardinalPoint'), 'Revit manifest must preserve column cardinal point governance');
+    assert(html.includes('beamCardinalPoint'), 'Revit manifest must preserve beam cardinal point governance');
+    assert(html.includes('jointOffsetPolicy'), 'Revit manifest must preserve joint-offset policy');
+    assert(html.includes('PENDING_APPROVED_DESIGN_RESULTS'), 'Revit rebar gate is missing');
+    assert(html.includes('baseSupportElevation'), 'Revit manifest must carry the governed base support datum');
+    assert(revitProject.includes('<TargetFramework>net10.0-windows</TargetFramework>'), 'Revit 2027 add-in must target .NET 10 for Windows');
+    assert(revitProject.includes('RevitAPI.dll') && revitProject.includes('RevitAPIUI.dll'), 'Revit API references are incomplete');
+    assert(revitCommand.includes('Grid.Create('), 'Native Revit grid creation is missing');
+    assert(revitCommand.includes('Level.Create('), 'Native Revit level creation is missing');
+    assert(revitCommand.includes('exists at a different elevation and was not modified'), 'Level conflict blocking is missing');
+    assert(revitCommand.includes('exists at a different coordinate and was not modified'), 'Grid conflict blocking is missing');
+    assert(revitCommand.includes('revit-import-audit-'), 'Dated native Revit import audit is missing');
+    return {
+        contract: 'FutolStructure.RevitNativeImport.v1',
+        source: 'collectCSIExportModelData',
+        nativeRvt: 'Revit 2027 add-in compiled; levels/grids implemented; native acceptance pending',
+        rebar: 'PENDING_APPROVED_DESIGN_RESULTS'
+    };
+}
+
+function checkIfcSourceContract() {
+    const html = fs.readFileSync(INDEX, 'utf8');
+    assert(fs.existsSync(IFC_VALIDATOR), 'Strict IFC validator is missing', { path: IFC_VALIDATOR });
+    assert(fs.existsSync(IFC_LITE_VALIDATOR), 'Dependency-free IFC validator is missing', { path: IFC_LITE_VALIDATOR });
+    assert(html.includes('IFCFOOTING'), 'IFC footing export mapping is missing');
+    assert(html.includes('Foundation Tie Beam'), 'IFC foundation tie-beam metadata is missing');
+    assert(html.includes('Pedestal'), 'IFC pedestal metadata is missing');
+    assert(html.includes('BASE/FOUNDATION'), 'IFC foundation storey name is missing');
+    assert(html.includes('FS_BaseSupportElevation'), 'IFC base-support datum metadata is missing');
+    return {
+        strictValidator: path.relative(ROOT, IFC_VALIDATOR),
+        lightweightValidator: path.relative(ROOT, IFC_LITE_VALIDATOR),
+        foundationTypes: ['IfcFooting', 'IfcBeam/Foundation Tie Beam', 'IfcColumn/Pedestal metadata']
+    };
+}
+
 function checkVerticalDatumSourceContract() {
     const html = fs.readFileSync(INDEX, 'utf8');
     const enginePath = path.join(V3, 'engine', 'vertical-datums.js');
@@ -349,7 +397,11 @@ function checkSolverRoundTripSourceContract() {
     const source = fs.readFileSync(modulePath, 'utf8');
     assert(html.includes('solver-roundtrip.js'), 'Solver round-trip module is not loaded by the app');
     assert(html.includes('importETABSAudit') && html.includes('solverAuditInput'), 'ETABS audit import UI is missing');
+    assert(html.includes('solverRoundTripGeometry'), 'ETABS native geometry reconciliation UI is missing');
     assert(source.includes('FutolStructure.SolverRoundTrip.v1'), 'Solver round-trip contract is missing');
+    assert(source.includes('compareNativeGeometry'), 'Native ETABS geometry reconciliation is missing');
+    assert(source.includes('compareGridDefinition'), 'Native ETABS grid reconciliation is missing');
+    assert(source.includes('physicalEndpoints'), 'Offset-adjusted physical endpoint reconciliation is missing');
     assert(
         html.includes("roundTripContract = 'FutolStructure.SolverRoundTrip.v1'") &&
         html.includes('verticalDatums = $model.verticalDatums') &&
@@ -436,10 +488,12 @@ function checkAnalysisOptimizationSourceContract() {
     const modulePath = path.join(V3, 'analysis-optimization.js');
     const pyniteModulePath = path.join(V3, 'engine', 'pynite-adapter.js');
     const pyniteRunnerPath = path.join(V3, 'tools', 'run-pynite.py');
+    const gravityComparisonPath = path.join(V3, 'tools', 'compare-gravity-results.js');
     const pyniteRequirementsPath = path.join(V3, 'tools', 'requirements-pynite.txt');
     const source = fs.readFileSync(modulePath, 'utf8');
     const pyniteSource = fs.readFileSync(pyniteModulePath, 'utf8');
     const pyniteRunner = fs.readFileSync(pyniteRunnerPath, 'utf8');
+    const gravityComparison = fs.readFileSync(gravityComparisonPath, 'utf8');
     const pyniteRequirements = fs.readFileSync(pyniteRequirementsPath, 'utf8');
     assert(html.includes('analysis-optimization.js'), 'Analysis/optimization contract is not loaded by the app');
     assert(html.includes('engine/pynite-adapter.js'), 'PyNite adapter is not loaded by the app');
@@ -453,7 +507,11 @@ function checkAnalysisOptimizationSourceContract() {
     assert(pyniteSource.includes('FutolStructure.PyNiteAdapter.v1') && pyniteSource.includes('FutolStructure.PyNiteRunRequest.v1'), 'PyNite adapter contracts are missing');
     assert(pyniteSource.includes('No PyNite result may be applied') && pyniteSource.includes('run-pynite.py'), 'PyNite result/application safety boundary is missing');
     assert(pyniteRunner.includes('FutolStructure.PyNiteResult.v1') && pyniteRunner.includes('applyResults') && pyniteRunner.includes('add_member_self_weight'), 'PyNite runner mapping or result safety contract is missing');
+    assert(pyniteRunner.includes('FutolStructure.PyNiteExecutionLog.v1') && pyniteRunner.includes('--cancel-file') && pyniteRunner.includes('CANCELLED'), 'PyNite controlled logging/cancellation contract is missing');
+    assert(gravityComparison.includes('FutolStructure.GravitySolverComparison.v1') && gravityComparison.includes('dead-tolerance-percent'), 'PyNite/STAAD gravity comparison gate is missing');
     assert(pyniteRequirements.trim() === 'PyNiteFEA==3.0.0', 'PyNite dependency is not pinned to the governed version');
+    assert(html.includes('thicknessMm,\n                            points: solverPoints'), 'Canonical regular slabs must retain explicit thickness for solver self-weight');
+    assert(html.includes('thicknessMm: Number(slab.thicknessMm) || 150'), 'Canonical stair slabs must retain explicit thickness for solver self-weight');
 
     const api = require(modulePath);
     const pyniteApi = require(pyniteModulePath);
@@ -539,6 +597,9 @@ function checkWallInventorySourceContract() {
     assert(source.includes('chbThicknessMm') && source.includes('plasterInsideMm') && source.includes('plasterOutsideMm'), 'Wall masonry properties are missing');
     assert(source.includes('openings') && source.includes('lintel') && source.includes('exportToSolvers'), 'Wall opening/lintel or solver opt-in policy is missing');
     assert(source.includes('normalizeSnap') && source.includes('elevations'), 'Programmable wall snaps or elevation inventory is missing');
+    ['wallEditorOpeningType', 'wallEditorOpeningWidth', 'wallEditorOpeningHeight', 'wallEditorLintel', 'editWallFromPlan'].forEach(id => {
+        assert(html.includes(id), `Wall editor control ${id} is missing`);
+    });
     const api = require(modulePath);
     const inventory = api.build({ floors: [{ id: 'GF', height: 3, wallLoads: [{ id: 'W-GF-1', x1: 0, y1: 0, x2: 4, y2: 0, chbThicknessMm: 150, plasterInsideMm: 15, plasterOutsideMm: 10, openings: [{ id: 'D1', type: 'door', widthM: 0.9, heightM: 2.1 }], lintel: { depthMm: 200 }, exportToSolvers: true }] }] });
     assert(inventory.contract === 'FutolStructure.WallInventory.v1', 'Wall inventory API contract is not attached');
@@ -554,17 +615,19 @@ function checkRoofFrameSourceContract() {
     const source = fs.readFileSync(modulePath, 'utf8');
     assert(html.includes('engine/roof-frame.js') && html.includes('tabRoofFrame') && html.includes('panelRoofFrame'), 'Steel roof-frame workspace is not wired');
     assert(html.includes('roofFrameCanvas') && html.includes('setRoofFrameSupportType') && html.includes('renderRoofFrameViewport'), 'Roof-frame viewport or support controls are missing');
+    assert(html.includes('addRoofFrameMember') && html.includes('editRoofFrameMember') && html.includes('removeRoofFrameMember'), 'Roof-frame member editing controls are missing');
     assert(source.includes('FutolStructure.RoofFrameModel.v1') && source.includes('solverMembers'), 'Roof-frame analytical contract is missing');
     assert(source.includes('deriveSupportAssignments') && source.includes('supportPlan'), 'Roof-frame automatic support-assignment policy is missing');
     const api = require(modulePath);
     const frame = api.build({
         floors: [{ id: 'RF', isRoof: true }],
         columns: [{ id: 'C1', x: 0, y: 0, z: 6 }, { id: 'C2', x: 4, y: 0, z: 6 }],
-        roofFrame: { enabled: true, members: [{ id: 'R1', type: 'rafter', start: { x: 0, y: 0, z: 6 }, end: { x: 4, y: 0, z: 6.8 } }] }
+        roofFrame: { enabled: true, members: [{ id: 'R1', type: 'rafter', start: { x: 0, y: 0, z: 6 }, end: { x: 4, y: 0, z: 6.8 }, deadLoadKNm: 0.35, liveLoadKNm: 0.25, exportToSolvers: true }] }
     });
     assert(frame.contract === 'FutolStructure.RoofFrameModel.v1' && frame.members.length === 1 && frame.solverMembers.length === 1, 'Roof-frame fixture did not normalize');
     assert(frame.supportPolicy === 'auto' && frame.supportPlan.assignments.length === 2, 'Roof-frame AUTO support plan did not derive support nodes');
     assert(frame.supportPlan.assignments.some(item => item.supportType === 'hinge') && frame.supportPlan.assignments.some(item => item.supportType === 'roller'), 'Roof-frame AUTO support plan must include hinge and roller');
+    assert(frame.loads.length === 2 && frame.loads.some(item => item.caseId === 'FS_ROOF_DL') && frame.loads.some(item => item.caseId === 'FS_ROOF_LL'), 'Roof-frame explicit line loads did not normalize');
     const fixed = api.build({ columns: [{ id: 'C1', x: 0, y: 0 }, { id: 'C2', x: 4, y: 0 }], roofFrame: { supportType: 'fixed' } });
     assert(fixed.supportPlan.assignments.every(item => item.supportType === 'fixed'), 'Explicit fixed support override was not applied');
     return { contract: api.contract, members: frame.members.length, solverMembers: frame.solverMembers.length, supportAssignments: frame.supportPlan.assignments.length, autoSupportTypes: frame.supportPlan.assignments.map(item => item.supportType) };
@@ -577,8 +640,17 @@ function checkDesktopETABSBridge() {
     const packageJson = JSON.parse(fs.readFileSync(DESKTOP_PACKAGE, 'utf8'));
     assert(fs.existsSync(DESKTOP_ICON), 'Windows FutolStructure icon is missing', { path: DESKTOP_ICON });
     assert(main.includes("ipcMain.handle('run-etabs-export'"), 'Desktop ETABS IPC handler is missing');
+    assert(main.includes("ipcMain.handle('export-pdf-report'") && main.includes('printToPDF'), 'Desktop PDF generation bridge is missing');
     assert(main.includes('WindowsPowerShell'), 'Desktop ETABS bridge does not use Windows PowerShell');
     assert(main.includes('ETABS model created:'), 'Desktop ETABS bridge does not collect the generated EDB path');
+    assert(
+        main.includes("parseEtabsArtifactPath(result.stdout, 'Native E2K created'") &&
+        main.includes("parseEtabsArtifactPath(result.stdout, 'Audit created'") &&
+        main.includes("parseEtabsArtifactPath(result.stdout, 'Modal participation CSV created'") &&
+        main.includes('auditPath') &&
+        main.includes('modalParticipationCsvPath'),
+        'Desktop ETABS bridge does not return the native E2K, FS audit JSON, and modal CSV paths'
+    );
     assert(main.includes('FutolStructure ETABS Exports'), 'Desktop ETABS output directory is not governed');
     assert(
         main.includes("child.once('exit'") &&
@@ -589,7 +661,10 @@ function checkDesktopETABSBridge() {
     assert(main.includes('if (hasSingleInstanceLock) {') && main.includes('app.whenReady().then'), 'Desktop lifecycle does not guard duplicate instances');
     assert(main.includes('pathToFileURL(indexPath)'), 'Desktop startup does not use a space-safe file URL');
     assert(preload.includes('runEtabsBuilder'), 'Desktop preload does not expose the ETABS builder bridge');
+    assert(preload.includes('exportPdfReport'), 'Desktop preload does not expose the PDF generation bridge');
     assert(index.includes('desktopBridge.runEtabsBuilder'), 'ETABS UI is not connected to the desktop bridge');
+    assert(index.includes('desktopBridge.exportPdfReport') && index.includes('return generatePDFReport()'), 'Report UI is not connected to generated PDF output');
+    assert(index.includes('>Recalculate</button>') && !index.includes('>Run Analysis</button>'), 'The model recalculation action is still mislabeled as a solver analysis');
     assert(
         main.includes('const RECENT_PROJECT_LIMIT = 10') &&
         main.includes("'recent-projects.json'") &&
@@ -3202,7 +3277,7 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
         assert(!result.initial.initError && !result.initError, 'Init error shown in app', result);
         assert(result.initial.columns === 9, 'Default 2x2 model did not initialize 9 columns', result.initial);
         assert(
-            result.uiCleanupAudit.buildBadge === 'v3.16.124-rc.1' &&
+            result.uiCleanupAudit.buildBadge === 'v3.16.125-rc.1' &&
             result.uiCleanupAudit.rebuildButton === true &&
             result.uiCleanupAudit.etabsButton === true &&
             result.uiCleanupAudit.solverImportButton === true &&
@@ -3943,7 +4018,7 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
             result.dxfLayerAudit.crlfOnly === true &&
             result.dxfLayerAudit.packageAudit.dxfVersion === 'AC1009' &&
             result.dxfLayerAudit.packageAudit.lineEnding === 'CRLF' &&
-            result.dxfLayerAudit.packageAudit.build === 'FS-124-RC1' &&
+            result.dxfLayerAudit.packageAudit.build === 'FS-125-RC1' &&
             result.dxfLayerAudit.packageAudit.writerBuild === 'FS-119-DXF-1',
             'DXF envelope or app/writer provenance is inconsistent',
             result.dxfLayerAudit
@@ -4277,13 +4352,13 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
             revisionProtection.destructive.some(item => item.includes('voids')) &&
             revisionProtection.invalidHealth.valid === false &&
             revisionProtection.rowCount >= 1 &&
-            revisionProtection.releaseVersion === '3.16.124-rc.1' &&
-            revisionProtection.releaseBuildId === 'FS-124-RC1' &&
+            revisionProtection.releaseVersion === '3.16.125-rc.1' &&
+            revisionProtection.releaseBuildId === 'FS-125-RC1' &&
             revisionProtection.schemaVersion === '0.2.0' &&
             revisionProtection.normalSaveAudit.writtenBytes > 0 &&
             /^model-revision-/.test(revisionProtection.normalSaveAudit.revisionId) &&
             revisionProtection.normalSaveAudit.parentRevisionId === 'qa-protected-baseline' &&
-            revisionProtection.normalSaveAudit.releaseBuildId === 'FS-124-RC1' &&
+            revisionProtection.normalSaveAudit.releaseBuildId === 'FS-125-RC1' &&
             revisionProtection.normalSaveAudit.protectedCount >= 3 &&
             revisionProtection.normalSaveAudit.preOverwriteCount >= 2 &&
             revisionProtection.downloadAudit?.filename.endsWith('.fstr') &&
@@ -5686,7 +5761,57 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                 provenance: csiExportModel.provenance,
                 foundation: csiExportModel.foundationHandoff,
                 analysisReturn: 0,
-                modalModes: []
+                modalModes: [{ Mode: 1, SumUX: 1, SumUY: 1, SumRZ: 1 }],
+                gridDefinition: {
+                    nativeLines: {
+                        rows: [
+                            ...csiExportModel.gridDefinition.xLines.map(line => ({
+                                LineType: 'X (Cartesian)',
+                                ID: line.label,
+                                Ordinate: line.coordinateM,
+                                BubbleLoc: line.bubbleLoc,
+                                Visible: line.visible === false ? 'No' : 'Yes'
+                            })),
+                            ...csiExportModel.gridDefinition.yLines.map(line => ({
+                                LineType: 'Y (Cartesian)',
+                                ID: line.label,
+                                Ordinate: line.coordinateM,
+                                BubbleLoc: line.bubbleLoc,
+                                Visible: line.visible === false ? 'No' : 'Yes'
+                            }))
+                        ]
+                    }
+                },
+                analyticalGeometry: {
+                    nativeGeometryAudit: {
+                        status: 'PASS',
+                        toleranceM: 0.001,
+                        columns: csiExportModel.columns.map(column => ({
+                            name: 'C-' + column.id,
+                            start: [column.x, column.y, column.z1],
+                            end: [column.x, column.y, column.z2]
+                        })),
+                        beams: csiExportModel.beams.map(beam => ({
+                            name: 'B-' + beam.id,
+                            start: [beam.x1, beam.y1, beam.z],
+                            end: [beam.x2, beam.y2, beam.z]
+                        }))
+                    },
+                    nativeFrameAudit: {
+                        columns: csiExportModel.columns.map(column => ({
+                            name: 'C-' + column.id,
+                            jointOffset1Global: [0, 0, 0],
+                            jointOffset2Global: [0, 0, 0]
+                        })),
+                        beams: csiExportModel.beams.map(beam => ({
+                            name: 'B-' + beam.id,
+                            jointOffset1Global: [beam.jointOffsets?.sharedSolverPlan?.start?.dx || 0, beam.jointOffsets?.sharedSolverPlan?.start?.dy || 0, 0],
+                            jointOffset2Global: [beam.jointOffsets?.sharedSolverPlan?.end?.dx || 0, beam.jointOffsets?.sharedSolverPlan?.end?.dy || 0, 0]
+                        }))
+                    },
+                    nativeFrameParityAudit: { status: 'PASS' },
+                    columnationParity: { status: 'PASS' }
+                }
             }, 'qa-generated-etabs-audit.json');
             const solverRoundTripAudit = {
                 status: solverRoundTripRecord.comparison.status,
@@ -6194,7 +6319,6 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                 path.basename(resolvedDXFPath, path.extname(resolvedDXFPath))
             );
         }
-
         await tab.screenshot(screenshotPath);
         const relevantLogs = tab.logs.filter(log => ['error', 'warning', 'exception'].includes(log.type));
         return { projectPath: resolvedProjectPath, result, screenshotPath, relevantLogs };
@@ -6949,6 +7073,8 @@ async function main() {
         columnSegmentFixtures: checkColumnSegmentFixtures(),
         columnSegmentSourceContract: checkColumnSegmentSourceContract(),
         dxfSourceContract: checkDxfSourceContract(),
+        revitImportSourceContract: checkRevitImportSourceContract(),
+        ifcSourceContract: checkIfcSourceContract(),
         stairSourceContract: checkStairSourceContract(),
         stairStructuralFixture: checkStairStructuralFixture(),
         verticalDatumSourceContract: checkVerticalDatumSourceContract(),

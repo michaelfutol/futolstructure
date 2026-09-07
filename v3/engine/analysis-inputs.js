@@ -16,6 +16,13 @@
         return Number.isFinite(parsed) ? parsed : fallback;
     }
 
+    function finiteOrNull(value) {
+        if (value == null || typeof value === 'boolean') return null;
+        if (typeof value === 'string' && value.trim() === '') return null;
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
     function positive(value) {
         return Math.max(0, number(value));
     }
@@ -74,27 +81,37 @@
     }
 
     function buildSupports(model) {
-        const baseElevation = number(model.verticalDatums?.baseSupportElevation, NaN);
+        const baseElevation = finiteOrNull(model.verticalDatums?.baseSupportElevation);
         const registry = new Map();
+        const issues = [];
         (model.columns || []).forEach(column => {
-            if (baseElevation !== baseElevation || Math.abs(number(column.z1, NaN) - baseElevation) > 1e-6) return;
-            const key = `${number(column.x).toFixed(6)}:${number(column.y).toFixed(6)}`;
+            const x = finiteOrNull(column.x);
+            const y = finiteOrNull(column.y);
+            const z1 = finiteOrNull(column.z1);
+            if (baseElevation == null) return;
+            if (x == null || y == null || z1 == null) {
+                issues.push({ columnId: column.id || '', reason: 'invalid_base_column_coordinates' });
+                return;
+            }
+            if (Math.abs(z1 - baseElevation) > 1e-6) return;
+            const key = `${x.toFixed(6)}:${y.toFixed(6)}`;
             if (!registry.has(key)) registry.set(key, {
                 id: `SUP-${registry.size + 1}`,
-                nodeX: number(column.x),
-                nodeY: number(column.y),
+                nodeX: x,
+                nodeY: y,
                 elevation: baseElevation,
                 restraint: [true, true, true, true, true, true],
                 sourceColumnIds: []
             });
             registry.get(key).sourceColumnIds.push(column.id);
         });
-        return [...registry.values()];
+        return { supports: [...registry.values()], issues };
     }
 
     function validate(inputs) {
         const blockers = [];
         const warnings = [];
+        const supportIssues = Array.isArray(inputs.supportIssues) ? inputs.supportIssues : [];
         const selfWeightCases = inputs.loadCases.filter(item => item.selfWeightMultiplier > 0);
         if (selfWeightCases.length !== 1 || selfWeightCases[0].selfWeightMultiplier !== 1) {
             blockers.push('Element self-weight must be present exactly once in FS_DEAD.');
@@ -103,6 +120,9 @@
         if (!inputs.massSource.elementSelfMassOnce) blockers.push('Mass source does not explicitly govern element self-mass exactly once.');
         if (!inputs.massSource.includedCaseIds.includes('FS_SDL') || !inputs.massSource.includedCaseIds.includes('FS_WALL')) {
             blockers.push('Mass source must include superimposed dead and permanent wall load.');
+        }
+        if (supportIssues.length) {
+            blockers.push(`Invalid support source coordinates: ${supportIssues.map(item => item.columnId || 'unknown').join(', ')}.`);
         }
         if (!inputs.supports.length) blockers.push('No explicit base support assignments were resolved.');
         if (!inputs.combinations.length) blockers.push('No load combinations were defined.');
@@ -117,13 +137,15 @@
                 liveMassExcluded: inputs.massSource.includeLive === false,
                 sdlIncluded: inputs.massSource.includedCaseIds.includes('FS_SDL'),
                 wallIncluded: inputs.massSource.includedCaseIds.includes('FS_WALL'),
-                explicitSupports: inputs.supports.length > 0
+                explicitSupports: inputs.supports.length > 0,
+                finiteSupportSources: supportIssues.length === 0
             }
         };
     }
 
     function build(model) {
         const assignments = loadAssignments(model);
+        const supportResolution = buildSupports(model);
         const inputs = {
             contract: CONTRACT,
             units: { force: 'kN', length: 'm', areaLoad: 'kPa', lineLoad: 'kN/m' },
@@ -143,7 +165,8 @@
                 includeLive: false,
                 liveLoadDecision: 'excluded_pending_occupancy_decision'
             },
-            supports: buildSupports(model),
+            supports: supportResolution.supports,
+            supportIssues: supportResolution.issues,
             assignments,
             provenance: {
                 source: 'FutolStructure governed analytical-input policy',

@@ -173,6 +173,63 @@ async function chooseProjectFromDialog() {
   return readProjectPayload(result.filePaths[0]);
 }
 
+function safeReportFilename(value) {
+  const cleaned = String(value || 'FutolStructure_Report.pdf')
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const filename = cleaned || 'FutolStructure_Report.pdf';
+  return filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`;
+}
+
+async function exportPdfReport(event, payload) {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) {
+    return { success: false, message: 'PDF export request did not originate from the FutolStructure window.' };
+  }
+  const html = payload?.html;
+  if (typeof html !== 'string' || html.length < 200 || html.length > 10_000_000 || !/<html[\s>]/i.test(html)) {
+    return { success: false, message: 'The report HTML payload is missing or invalid.' };
+  }
+
+  const suggestedName = safeReportFilename(payload?.suggestedName);
+  const testOutputPath = !app.isPackaged && process.env.FS_PDF_TEST_OUTPUT
+    ? path.resolve(process.env.FS_PDF_TEST_OUTPUT)
+    : '';
+  const saveResult = testOutputPath
+    ? { canceled: false, filePath: testOutputPath }
+    : await dialog.showSaveDialog(mainWindow, {
+      title: 'Save FutolStructure PDF Report',
+      defaultPath: path.join(app.getPath('documents'), suggestedName),
+      filters: [{ name: 'PDF Document', extensions: ['pdf'] }]
+    });
+  if (saveResult.canceled || !saveResult.filePath) return { success: false, canceled: true };
+
+  const reportWindow = new BrowserWindow({
+    show: false,
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true }
+  });
+  const tempPath = path.join(app.getPath('temp'), `futolstructure-report-${process.pid}-${Date.now()}.html`);
+  try {
+    await fs.promises.mkdir(path.dirname(saveResult.filePath), { recursive: true });
+    await fs.promises.writeFile(tempPath, html, 'utf8');
+    await reportWindow.loadFile(tempPath);
+    await reportWindow.webContents.executeJavaScript('document.fonts && document.fonts.ready ? document.fonts.ready.then(() => true) : true');
+    const pdf = await reportWindow.webContents.printToPDF({
+      printBackground: true,
+      preferCSSPageSize: true,
+      displayHeaderFooter: false
+    });
+    await fs.promises.writeFile(saveResult.filePath, pdf);
+    return { success: true, filePath: saveResult.filePath, bytes: pdf.length };
+  } catch (error) {
+    console.error('FutolStructure PDF export failed:', error);
+    return { success: false, message: error.message };
+  } finally {
+    if (!reportWindow.isDestroyed()) reportWindow.destroy();
+    await fs.promises.unlink(tempPath).catch(() => {});
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1600,
@@ -250,6 +307,21 @@ function parseEtabsEdbPath(output, outputDirectory) {
   if (!match) return '';
   const value = match[1].trim().replace(/^"|"$/g, '');
   return path.isAbsolute(value) ? value : path.resolve(outputDirectory, value);
+}
+
+function parseEtabsArtifactPath(output, label, outputDirectory) {
+  const escapedLabel = String(label || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = String(output || '').match(new RegExp(`${escapedLabel}\\s*:\\s*(.+?)(?:\\r?\\n|$)`, 'i'));
+  if (!match) return '';
+  const value = match[1].trim().replace(/^"|"$/g, '');
+  return path.isAbsolute(value) ? value : path.resolve(outputDirectory, value);
+}
+
+function siblingEtabsArtifact(edbPath, suffix) {
+  if (!edbPath) return '';
+  const base = edbPath.replace(/\.edb$/i, '');
+  const candidate = `${base}${suffix}`;
+  return fs.existsSync(candidate) ? candidate : '';
 }
 
 function runPowerShellBuilder(scriptPath, outputDirectory) {
@@ -494,6 +566,8 @@ ipcMain.handle('open-recent-project', (_event, projectPath) => {
 
 ipcMain.handle('remember-project', (_event, projectPath) => rememberRecentProject(projectPath));
 
+ipcMain.handle('export-pdf-report', exportPdfReport);
+
 ipcMain.handle('open-external', async (_event, url) => {
   if (typeof url !== 'string' || !url.startsWith('https://')) return false;
   await shell.openExternal(url);
@@ -522,6 +596,12 @@ ipcMain.handle('run-etabs-export', async (_event, payload) => {
     const result = await runPowerShellBuilder(scriptPath, outputDirectory);
     const edbPath = parseEtabsEdbPath(result.stdout, outputDirectory) ||
       await findRecentEdb(outputDirectory, startedAt);
+    const e2kPath = parseEtabsArtifactPath(result.stdout, 'Native E2K created', outputDirectory) ||
+      siblingEtabsArtifact(edbPath, '.e2k');
+    const auditPath = parseEtabsArtifactPath(result.stdout, 'Audit created', outputDirectory) ||
+      siblingEtabsArtifact(edbPath, '_audit.json');
+    const modalParticipationCsvPath = parseEtabsArtifactPath(result.stdout, 'Modal participation CSV created', outputDirectory) ||
+      siblingEtabsArtifact(edbPath, '_modal_participation.csv');
     const edbExists = !!edbPath && fs.existsSync(edbPath);
     const success = result.code === 0 && edbExists;
     return {
@@ -531,6 +611,9 @@ ipcMain.handle('run-etabs-export', async (_event, payload) => {
       scriptPath,
       outputDirectory,
       edbPath,
+      e2kPath,
+      auditPath,
+      modalParticipationCsvPath,
       etabsSessionStarted: success,
       message: success
         ? 'ETABS created the dated .edb and left the generated model open.'

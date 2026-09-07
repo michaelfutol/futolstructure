@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('FutolStructureDesktop', Object.freeze({
   openProjectDialog: () => ipcRenderer.invoke('open-project-dialog'),
   openRecentProject: (projectPath) => ipcRenderer.invoke('open-recent-project', projectPath),
   rememberProject: (projectPath) => ipcRenderer.invoke('remember-project', projectPath),
+  exportPdfReport: (payload) => ipcRenderer.invoke('export-pdf-report', payload),
   runEtabsBuilder: (payload) => ipcRenderer.invoke('run-etabs-export', payload),
   onProjectOpen: (callback) => {
     if (typeof callback !== 'function') return () => {};

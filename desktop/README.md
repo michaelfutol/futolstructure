@@ -22,8 +22,8 @@ For a local development launch, use `npm start`. The script clears the `ELECTRON
 
 Outputs are written outside source control:
 
-- `output/desktop/FutolStructure-Setup-3.16.124-rc.1-x64.exe` is the release-candidate NSIS installer.
-- `output/desktop/FutolStructure-Portable-3.16.124-rc.1-x64.exe` is the matching portable build when the portable target is built.
+- `output/desktop/FutolStructure-Setup-3.16.125-rc.1-x64.exe` is the release-candidate NSIS installer.
+- `output/desktop/FutolStructure-Portable-3.16.125-rc.1-x64.exe` is the matching portable build when the portable target is built.
 
 The installer creates a Start Menu entry, a desktop shortcut, and an `.fstr` file association. It does not move or rewrite project files. User data remains in the location selected through FutolStructure's project save controls.
 

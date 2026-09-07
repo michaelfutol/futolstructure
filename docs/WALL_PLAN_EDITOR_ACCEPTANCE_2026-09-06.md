@@ -12,8 +12,12 @@
 - Added editable wall properties for height, CHB thickness, inside plaster, outside plaster, wall type, and solver opt-in.
 - Added explicit plan-line start/end snap metadata.
 - Added wall line removal from the inventory table.
+- Added per-wall opening controls for type, width, height, sill elevation, and count.
+- Added optional preliminary RC lintel controls for width and depth.
+- Added an Edit action that reloads an existing wall, opening, lintel, and solver-opt-in state into the editor.
+- Extended the legacy-compatible wall normalizer so `.fstr` serialization retains plan coordinates, endpoint snaps, plaster properties, openings, lintels, IFC intent, source, and explicit solver intent.
 - Preserved the existing `FutolStructure.WallInventory.v1` contract and solver opt-in default of `OFF`.
-- Kept openings and lintels as explicit inventory fields; this slice does not fabricate openings or preliminary lintel design.
+- Kept opening deduction and lintel records as explicit inventory fields; no final lintel design is implied.
 
 ## Browser evidence
 
@@ -35,9 +39,17 @@ Result: passed.
 | Start snap metadata | `grid` |
 | Solver export default | `false` |
 | Wall inventory count | Increased by one during test, then returned to baseline |
+| Opening create/readback | `window`, `1.2 x 1.0 m`, sill `0.9 m`, count `2` |
+| In-place wall edit | Passed; inventory remained at one wall instead of duplicating it |
+| Opening edit/readback | Count changed from `2` to `1`; computed head elevation `4.9 m` |
+| Lintel create/edit/readback | `150 x 250 mm` changed to `150 x 300 mm` |
+| `.fstr` JSON/schema round trip | Preserved `WL-2F-1`, start coordinate `0`, grid end snap, 15 mm inside plaster, one opening, 300 mm lintel depth, IFC `true`, solver `false` |
+| Editor state after update | Selected wall ID cleared and draft reset |
 | Physical model geometry during workspace navigation | Preserved |
 | Responsive workspaces | Passed at 1440, 768, and 390 px |
-| Page errors | None |
+| Page errors | None for the recorded editor regression |
+
+The opening/lintel controls are source-checked and covered by a focused browser create/edit/persist/readback regression. They are not yet included in the installed `3.16.124-rc.1` Windows candidate.
 
 Evidence output:
 
