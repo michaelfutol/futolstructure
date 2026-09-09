@@ -108,6 +108,10 @@ Native STAAD artifact hashes:
 - Physical drafting/3D face termination is preserved through shared joint
   offsets. ETABS uses global insertion offsets; STAAD uses global `MEMBER
   OFFSET` records.
+- Slab area points are part of the native parity contract. ETABS native area
+  points are compared against the exported solver polygon with cyclic/reverse-
+  order tolerance, including cantilever slabs; slabs do not use a frame-style
+  centroid/cardinal rewrite.
 - A future native readback must reproduce the same levels, grids, analytical
   nodes, orientations, cardinals, sections, and offset-adjusted physical axes.
 
@@ -118,3 +122,45 @@ is focused edge-beam/cantilever endpoint parity: physical face-terminated axes
 must remain distinct from analytical centroid joints in both solver payloads,
 with a representative native readback. Revit visual/property acceptance and
 the RC3 installed Windows smoke remain separate release gates.
+
+## Boundary Fidelity Extension - 2026-09-08
+
+The shared solver payload now retains canonical slab boundary metadata instead
+of treating slabs like frame members:
+
+- `canonicalPlanBoundary` stores the FSTR plan boundary in source coordinates.
+- `points` stores the same boundary after the governed solver coordinate transform.
+- `canonicalBoundaryRole` distinguishes `regular-slab` and `cantilever-slab`.
+- `canonicalCantileverEdge` records `top`, `bottom`, `left`, `right`, or `corner`.
+- ETABS native area readback compares the polygon with cyclic and reverse-order
+  tolerance and reports `slabBoundaryFailures` in the native geometry audit.
+- STAAD shell plates use the same shared `points` payload and retain the same
+  centroid-to-face member offsets used by the ETABS path. Each shell also
+  receives an `FS_CANONICAL_SLAB` comment carrying its source ID, role, edge,
+  and source-plan boundary for traceable downstream import.
+
+The edge/cantilever fixture generated on 2026-09-08 produced:
+
+| Check | Result |
+| --- | --- |
+| Columns / beams / slabs | 40 / 124 / 50 |
+| Canonical slab boundaries retained | 50 / 50 |
+| Cantilever slab boundaries retained | 26, across bottom/left/right/top edges |
+| Column analytical cardinal | 5 |
+| Beam analytical cardinal | 8 |
+| STAAD shell plates | 50 |
+| STAAD member offsets | Present |
+| STAAD canonical slab metadata comments | 50 / 50 |
+| ETABS slab polygon comparison code | Present, including `slabBoundaryFailures` |
+
+Generated evidence:
+
+```text
+output/playwright/canonical-edge-cantilever-v2.json
+output/playwright/canonical-edge-cantilever-v2.ps1
+output/playwright/canonical-edge-cantilever-v2.std
+```
+
+This extension proves shared payload fidelity and generated solver-input
+fidelity. A native ETABS/STAAD re-open of this larger cantilever artifact is
+still a separate acceptance action; no native solver result is claimed here.

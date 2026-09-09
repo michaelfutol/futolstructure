@@ -1963,6 +1963,143 @@
             cursor: crosshair;
         }
 
+        .wall-elevation-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            width: 100%;
+            max-height: 70vh;
+            overflow-y: auto;
+            padding-right: 6px;
+            margin-top: 10px;
+        }
+
+        .wall-elevation-card {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 12px;
+            border: 1px solid var(--border);
+            background: var(--panel-bg);
+            overflow: hidden;
+        }
+
+        .wall-elevation-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+
+        .wall-elevation-card-title {
+            color: var(--text-primary);
+            font: 800 0.82rem var(--font-main);
+            letter-spacing: 0.2px;
+        }
+
+        .wall-elevation-card-subtitle {
+            margin-top: 3px;
+            color: var(--text-muted);
+            font: 600 0.68rem var(--font-mono);
+        }
+
+        .wall-elevation-canvas {
+            display: block;
+            width: 100%;
+            height: 360px;
+            min-height: 280px;
+            border: 1px solid var(--border);
+            background: #101827;
+            touch-action: none;
+            cursor: grab;
+        }
+
+        .wall-elevation-canvas.dragging {
+            cursor: grabbing;
+        }
+
+        .wall-opening-panel {
+            display: grid;
+            gap: 8px;
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid var(--border);
+            background: rgba(15, 23, 42, 0.72);
+        }
+
+        .wall-opening-row {
+            display: grid;
+            grid-template-columns: minmax(100px, 1fr) repeat(4, minmax(84px, 0.7fr)) auto auto;
+            align-items: end;
+            gap: 7px;
+            padding: 8px;
+            border: 1px solid var(--border);
+            background: var(--panel-bg);
+        }
+
+        .wall-opening-row label {
+            display: grid;
+            gap: 3px;
+            color: var(--text-muted);
+            font: 700 0.58rem var(--font-main);
+            text-transform: uppercase;
+        }
+
+        .wall-opening-row input,
+        .wall-opening-row select {
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+            padding: 5px 6px;
+            border: 1px solid var(--border);
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font: 600 0.68rem var(--font-mono);
+        }
+
+        .wall-opening-row .wall-opening-id {
+            color: var(--text-primary);
+            font: 800 0.7rem var(--font-mono);
+            padding-bottom: 6px;
+        }
+
+        .wall-opening-row .wall-opening-actions {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            padding-bottom: 1px;
+        }
+
+        .wall-opening-help {
+            color: var(--text-muted);
+            font: 600 0.65rem/1.4 var(--font-mono);
+        }
+
+        .wall-elevation-meta {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(120px, 1fr));
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .wall-elevation-meta div {
+            min-width: 0;
+            padding: 7px 8px;
+            border: 1px solid var(--border);
+            background: var(--input-bg);
+            color: var(--text-secondary);
+            font: 600 0.66rem/1.35 var(--font-mono);
+        }
+
+        .wall-elevation-meta strong {
+            display: block;
+            color: var(--text-muted);
+            font: 700 0.58rem var(--font-main);
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+
         @media (max-width: 900px) {
             .stair-builder-layout {
                 grid-template-columns: 1fr;
@@ -1981,6 +2118,23 @@
 
             .wall-editor-controls {
                 grid-template-columns: repeat(2, minmax(120px, 1fr));
+            }
+
+            .wall-elevation-meta {
+                grid-template-columns: repeat(2, minmax(120px, 1fr));
+            }
+
+            .wall-elevation-canvas {
+                height: 320px;
+            }
+
+            .wall-opening-row {
+                grid-template-columns: repeat(2, minmax(120px, 1fr));
+            }
+
+            .wall-opening-row .wall-opening-id,
+            .wall-opening-row .wall-opening-actions {
+                grid-column: 1 / -1;
             }
         }
 
@@ -2253,7 +2407,7 @@
                 <button class="menu-item" onclick="exportResults(); toggleDropdown()">PDF Report</button>
                 <button class="menu-item" onclick="exportToDXF(); toggleDropdown()">AutoCAD DXF</button>
                 <button class="menu-item" onclick="exportToIFC(); toggleDropdown()">IFC (BIM)</button>
-                <button class="menu-item" onclick="exportToRevitPackage(); toggleDropdown()" title="Download the governed native-Revit import manifest">Revit Package</button>
+                <button class="menu-item" onclick="exportToRevitPackage(); toggleDropdown()" title="Import the governed FutolStructure model into Revit 2027">Import to Revit</button>
                 <button class="menu-item" onclick="exportToSTAAD(); toggleDropdown()">STAAD.Pro</button>
                 <button class="menu-item" onclick="exportToETABS(); toggleDropdown()" title="Create and open a dated ETABS 22 model through the validated CSI OAPI builder">ETABS 22</button>
                 <button class="menu-item" onclick="exportToSAFEViaETABS(); toggleDropdown()" title="Create the ETABS model used for CSI's supported SAFE V12 story export">SAFE via ETABS</button>
@@ -2281,7 +2435,7 @@
             <button class="tool-btn" onclick="exportResults()" title="Generate PDF Report">Report</button>
             <button class="tool-btn" onclick="exportToDXF()" title="Export to AutoCAD DXF">DXF</button>
             <button class="tool-btn" onclick="exportToIFC()" title="Export to IFC (BIM)">IFC</button>
-            <button class="tool-btn" onclick="exportToRevitPackage()" title="Download the governed native-Revit import manifest">Revit</button>
+            <button class="tool-btn" onclick="exportToRevitPackage()" title="Import the governed FutolStructure model into Revit 2027">Revit</button>
             <button class="tool-btn" onclick="exportToSTAAD()" title="Export to STAAD.Pro">STAAD</button>
             <button class="tool-btn" onclick="exportToETABS()" title="Create and open a dated ETABS 22 .edb model">ETABS</button>
             <button class="tool-btn" onclick="chooseETABSAuditFile()" title="Import a read-only ETABS audit and compare it with the current FS model">Import</button>
@@ -4446,14 +4600,15 @@
             <div id="panelWallElevations" class="schedule-panel" style="display:none;">
                 <div class="schedule-header"><h3>Wall Elevations <span class="capability-badge parked">Coordination draft</span></h3></div>
                 <div style="padding:12px;">
-                    <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Draw a wall line in plan, snap its endpoints to a governed beam, then assign CHB, plaster, alignment, openings, and lintels. Opted-in walls transfer as beam-associated line loads to ETABS/STAAD; unresolved lines remain coordination-only.</p>
+                    <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Draw a wall line in plan, use Xlines or governed snaps for accurate placement, then assign CHB, plaster, alignment, openings, and lintels. The wall remains FS coordination geometry; an opted-in, beam-resolved wall transfers only its net line load into the supporting beam tributary result. Unresolved or slab-only lines remain coordination-only.</p>
                     <div class="wall-editor-controls">
                         <label>Floor <select id="wallEditorFloor" onchange="renderWallPlanEditor()"></select></label>
-                        <label>Snap <select id="wallEditorSnapMode"><option value="grid">Grid</option><option value="column">Column</option><option value="beam">Beam</option><option value="free">Free</option></select></label>
+                        <label>Snap <select id="wallEditorSnapMode"><option value="grid">Grid</option><option value="column">Column</option><option value="beam">Beam</option><option value="xline-intersection">Xline intersection</option><option value="free">Free</option></select></label>
                         <label>Height (m) <input id="wallEditorHeight" type="number" value="3" min="0.1" max="20" step="0.1"></label>
                         <label>CHB <select id="wallEditorThickness"><option value="100">100 mm</option><option value="150" selected>150 mm</option><option value="200">200 mm</option></select></label>
                         <label>Plaster inside (mm) <input id="wallEditorPlasterInside" type="number" value="20" min="0" max="50" step="1"></label>
                         <label>Plaster outside (mm) <input id="wallEditorPlasterOutside" type="number" value="20" min="0" max="50" step="1"></label>
+                        <label>Support path <select id="wallEditorSupportMode" title="Beam support transfers line load; slab-only support remains a coordination review until a support strip/beam is resolved"><option value="on_beam">Directly on beam</option><option value="on_slab_support_strip">Above suspended slab</option></select></label>
                         <label>Wall / beam alignment <select id="wallEditorAlignment" title="Wall shell geometry is coordination-only; solver line load remains on the canonical beam"><option value="center">Center on beam</option><option value="flush-exterior">Flush exterior face</option><option value="flush-interior">Flush interior face</option></select></label>
                         <label>Type <select id="wallEditorType"><option value="external">External</option><option value="internal">Internal</option><option value="partition">Partition</option><option value="parapet">Parapet</option></select></label>
                         <label>Opening <select id="wallEditorOpeningType"><option value="none">None</option><option value="door">Door</option><option value="window">Window</option><option value="other">Other</option></select></label>
@@ -4464,14 +4619,31 @@
                         <label class="wall-editor-check"><input id="wallEditorLintel" type="checkbox"> RC lintel</label>
                         <label>Lintel W (mm) <input id="wallEditorLintelWidth" type="number" value="150" min="100" max="1000" step="25"></label>
                         <label>Lintel D (mm) <input id="wallEditorLintelDepth" type="number" value="200" min="100" max="1000" step="25"></label>
-                        <label class="wall-editor-check"><input id="wallEditorSolver" type="checkbox" title="Export this wall as a line load only when its endpoints resolve to a beam"> Export to ETABS/STAAD</label>
+                        <label class="wall-editor-check"><input id="wallEditorSolver" type="checkbox" checked title="Transfer only this wall's net line load to a resolved supporting beam; wall geometry is not exported"> Transfer line load to beam</label>
                     </div>
-                    <div class="wall-editor-actions"><button type="button" class="wall-editor-button" onclick="clearWallEditorDraft()">Clear points</button><button type="button" class="wall-editor-button wall-editor-primary" onclick="addWallFromPlan()">Add wall line</button><span id="wallEditorStatus">Click two plan points to define a wall line.</span></div>
-                    <canvas id="wallPlanCanvas" width="1100" height="420" aria-label="Wall plan line editor"></canvas>
-                    <table class="schedule-table" style="width:100%;">
-                        <thead><tr><th>Wall</th><th>Floor</th><th>Base</th><th>Top</th><th>Properties</th><th>Openings</th><th>Lintel</th><th>Solver</th><th>Action</th></tr></thead>
-                        <tbody id="wallElevationsBody"><tr><td colspan="9">No wall lines defined.</td></tr></tbody>
-                    </table>
+                    <div class="wall-editor-actions">
+                        <button type="button" id="wallEditorToolWall" class="wall-editor-button wall-editor-primary" onclick="setWallEditorConstructionMode('wall')">Wall endpoints</button>
+                        <button type="button" id="wallEditorToolXlineH" class="wall-editor-button" onclick="setWallEditorConstructionMode('xline-horizontal')">Add H Xline</button>
+                        <button type="button" id="wallEditorToolXlineV" class="wall-editor-button" onclick="setWallEditorConstructionMode('xline-vertical')">Add V Xline</button>
+                        <button type="button" id="wallEditorToolXlineSelect" class="wall-editor-button" onclick="setWallEditorConstructionMode('xline-select')">Select Xline</button>
+                        <button type="button" id="wallEditorToolOpening" class="wall-editor-button" onclick="setWallEditorConstructionMode('opening-xline')">Opening at Xline</button>
+                        <button type="button" class="wall-editor-button" onclick="clearWallEditorDraft()">Clear points</button>
+                        <button type="button" class="wall-editor-button wall-editor-primary" onclick="addWallFromPlan()">Add wall line</button>
+                        <span id="wallEditorStatus">Click two plan points to define a wall line.</span>
+                    </div>
+                    <div class="wall-editor-actions" style="margin-top:6px;">
+                        <strong style="font-size:0.72rem;color:var(--text-muted);">Selected Xline:</strong>
+                        <span id="wallEditorXlineStatus" style="font-size:0.72rem;color:var(--text-muted);">none</span>
+                        <label style="font-size:0.72rem;">Position (m) <input id="wallEditorXlinePosition" type="number" min="0" step="0.05" disabled onchange="setSelectedWallXlinePosition(this.value)"></label>
+                        <button type="button" class="wall-editor-button" onclick="moveSelectedWallXline(-0.05)">-5 cm</button>
+                        <button type="button" class="wall-editor-button" onclick="moveSelectedWallXline(0.05)">+5 cm</button>
+                        <button type="button" class="wall-editor-button" onclick="deleteSelectedWallXline()">Delete Xline</button>
+                        <button type="button" class="wall-editor-button" onclick="clearWallEditorXlines()">Clear floor Xlines</button>
+                    </div>
+                    <canvas id="wallPlanCanvas" width="1100" height="420" tabindex="0" aria-label="Wall plan line and Xline editor"></canvas>
+                    <div id="wallElevationsBody" class="wall-elevation-list" aria-label="Wall segment elevations">
+                        <div class="wall-elevation-card"><div class="wall-elevation-card-subtitle">No wall lines defined.</div></div>
+                    </div>
                 </div>
             </div>
 
@@ -4921,6 +5093,7 @@
                 floors: state.floors,
                 xSpans: state.xSpans,
                 ySpans: state.ySpans,
+                xlines: normalizeXlineList(state.xlines),
                 tieBeamWidth: state.tieBeamWidth,
                 tieBeamDepth: state.tieBeamDepth,
                 fixedFootingThicknessMm: RESIDENTIAL_FOOTING_THICKNESS_MM,
@@ -5043,6 +5216,9 @@
                 widthM: Math.max(0, Number(opening?.widthM ?? opening?.width) || 0),
                 heightM: Math.max(0, Number(opening?.heightM ?? opening?.height) || 0),
                 sillHeightM: Math.max(0, Number(opening?.sillHeightM ?? opening?.sillHeight) || 0),
+                offsetM: Number.isFinite(Number(opening?.offsetM ?? opening?.positionM))
+                    ? Math.max(0, Number((Math.round(Number(opening?.offsetM ?? opening?.positionM) / WALL_OPENING_SNAP_STEP_M) * WALL_OPENING_SNAP_STEP_M).toFixed(3)))
+                    : null,
                 count: Math.max(1, Math.round(Number(opening?.count) || 1)),
                 notes: opening?.notes || ''
             }));
@@ -5535,6 +5711,7 @@
             ],
             stairs: [],             // FS-113: inter-storey stair objects
             nextStairId: 1,
+            xlines: [],              // Temporary per-floor construction guides; never solver geometry
             roofFrame: { enabled: false, members: [], framingSystem: 'steel_rafters_and_purlins', supportType: 'auto' },
             currentFloorIndex: 0,    // Which floor is selected
 
@@ -7457,6 +7634,7 @@
                 floors: JSON.parse(JSON.stringify(state.floors)),
                 stairs: cloneSerializable(state.stairs, []),
                 nextStairId: state.nextStairId || 1,
+                xlines: normalizeXlineList(state.xlines),
                 xSpans: [...state.xSpans],
                 ySpans: [...state.ySpans],
                 cantilevers: JSON.parse(JSON.stringify(state.cantilevers)),
@@ -7489,6 +7667,7 @@
             state.ySpans = [...(snapshot.ySpans || state.ySpans || [])];
             state.floors = hydrateFloors(snapshot.floors, state.xSpans, state.ySpans, snapshot.cantilevers || null);
             state.stairs = normalizeStairList(snapshot.stairs);
+            state.xlines = normalizeXlineList(snapshot.xlines);
             state.roofFrame = cloneSerializable(snapshot.roofFrame, { enabled: false, members: [] });
             state.nextStairId = Math.max(Number(snapshot.nextStairId) || 1, getNextStairSequence(state.stairs));
             state.cantilevers = normalizeCantileverSet(snapshot.cantilevers, state.xSpans.length, state.ySpans.length);
@@ -11412,6 +11591,114 @@
         }
 
         /**
+         * Resolve modeled wall lines to generated supporting beams before
+         * tributary loads are finalized. Wall geometry remains a drafting /
+         * coordination object; only the derived line load is transferred.
+         */
+        function resolveWallLineLoadsForBeams(floor, floorBeams) {
+            const floorId = floor?.id || '';
+            const wallInventory = globalThis.FSWalls?.build?.({ floors: state.floors }) || { solverWalls: [] };
+            const assignments = [];
+            const byBeamId = new Map();
+            const pointToSegment = (point, start, end) => {
+                const dx = Number(end.x) - Number(start.x);
+                const dy = Number(end.y) - Number(start.y);
+                const lengthSquared = dx * dx + dy * dy;
+                const t = lengthSquared > 1e-12
+                    ? ((Number(point.x) - Number(start.x)) * dx + (Number(point.y) - Number(start.y)) * dy) / lengthSquared
+                    : 0;
+                const clamped = Math.max(0, Math.min(1, t));
+                const projection = { x: Number(start.x) + clamped * dx, y: Number(start.y) + clamped * dy };
+                return {
+                    distance: Math.hypot(Number(point.x) - projection.x, Number(point.y) - projection.y),
+                    t
+                };
+            };
+            const getWallReferencedBeamIds = wall => {
+                const ids = [];
+                const referenceId = wall?.reference?.beamId || wall?.beamId;
+                if (referenceId) ids.push(String(referenceId));
+                [wall?.endpoints?.start?.snap?.targetId, wall?.endpoints?.end?.snap?.targetId].forEach(targetId => {
+                    const match = /^BEAM-(.*)-(?:START|END)$/.exec(String(targetId || ''));
+                    if (match?.[1]) ids.push(match[1]);
+                });
+                return [...new Set(ids)];
+            };
+            const solverWalls = (wallInventory.solverWalls || []).filter(wall => wall.floorId === floorId);
+            solverWalls.forEach(wall => {
+                const wallStart = { x: Number(wall.x1), y: Number(wall.y1) };
+                const wallEnd = { x: Number(wall.x2), y: Number(wall.y2) };
+                const lineLoadKNm = Math.max(0, Number(wall.lineLoadKNm) || 0);
+                const wallTolerance = Math.max(
+                    0.05,
+                    Number(wall.endpoints?.start?.snap?.toleranceM) || 0,
+                    Number(wall.endpoints?.end?.snap?.toleranceM) || 0,
+                    0.20
+                );
+                const referencedIds = getWallReferencedBeamIds(wall);
+                const supportMode = String(wall.supportMode || 'on_beam');
+                if (supportMode !== 'on_beam') {
+                    assignments.push({
+                        wallId: wall.id,
+                        floorId,
+                        status: 'UNRESOLVED',
+                        targetBeamId: null,
+                        lineLoadKNm,
+                        matchErrorM: null,
+                        supportMode,
+                        alignmentMode: wall.alignmentMode || 'center',
+                        wallPlacement: getWallPlacementGeometry(wall, floorId, null),
+                        solverLoadPolicy: 'coordination-only; slab-supported wall needs an explicit support strip or beam'
+                    });
+                    return;
+                }
+                const candidates = (floorBeams || []).map(beam => {
+                    if (!beam || beam.deleted) return null;
+                    if (referencedIds.length && !referencedIds.includes(String(beam.id))) return null;
+                    const physical = getBeamAnalyticalPhysicalGeometry(beam, floorId, getBeamSizeMm(beam, floorId)).physical;
+                    const beamStart = { x: physical.x1, y: physical.y1 };
+                    const beamEnd = { x: physical.x2, y: physical.y2 };
+                    const startProjection = pointToSegment(wallStart, beamStart, beamEnd);
+                    const endProjection = pointToSegment(wallEnd, beamStart, beamEnd);
+                    const wallLineError = Math.max(startProjection.distance, endProjection.distance);
+                    const withinSegment = startProjection.t >= -0.05 && startProjection.t <= 1.05 &&
+                        endProjection.t >= -0.05 && endProjection.t <= 1.05;
+                    if (!withinSegment || wallLineError > wallTolerance) return null;
+                    return {
+                        beam,
+                        score: wallLineError + Math.abs(Math.hypot(wallEnd.x - wallStart.x, wallEnd.y - wallStart.y) - Math.hypot(beamEnd.x - beamStart.x, beamEnd.y - beamStart.y)) * 0.01
+                    };
+                }).filter(Boolean).sort((a, b) => a.score - b.score);
+                const candidate = candidates[0];
+                const placement = getWallPlacementGeometry(wall, floorId, candidate?.beam || null);
+                const assignment = {
+                    wallId: wall.id,
+                    floorId,
+                    status: candidate ? 'RESOLVED' : 'UNRESOLVED',
+                    targetBeamId: candidate?.beam?.id || null,
+                    lineLoadKNm,
+                    matchErrorM: candidate ? Number(candidate.score.toFixed(6)) : null,
+                    supportMode: wall.supportMode || 'on_beam',
+                    alignmentMode: wall.alignmentMode || 'center',
+                    wallTotalThicknessM: Number(placement.wallTotalThicknessM || 0),
+                    eccentricityM: Number(placement.eccentricityM || 0),
+                    eccentricityVector: { ...(placement.eccentricityVector || { dx: 0, dy: 0 }) },
+                    wallPlacement: placement,
+                    solverLoadPolicy: candidate
+                        ? 'line-load-on-canonical-beam; wall shell is not exported'
+                        : 'coordination-only; wall needs a resolved supporting beam'
+                };
+                if (candidate) {
+                    const list = byBeamId.get(candidate.beam.id) || [];
+                    list.push(assignment);
+                    byBeamId.set(candidate.beam.id, list);
+                }
+                assignments.push(assignment);
+            });
+            return { assignments, byBeamId };
+        }
+
+        /**
          * Step 3 & 4: Generate beams and calculate tributary widths
          * v2.2: Now creates slices per slab with proper 45° math
          * Short span direction gets MORE load (stiffer)
@@ -11854,12 +12141,27 @@
                 // resolved main support beam. Beam self-weight remains separate from slab area.
             }
 
+            // Resolve explicit wall lines after all regular, cantilever, and
+            // custom beams exist. If a floor has modeled wall records, they
+            // replace the coarse floor wall allowance to prevent double count.
+            const wallLineTransfer = resolveWallLineLoadsForBeams(floor, state.beams);
+            const hasExplicitWallRecords = Array.isArray(floor?.wallLoads) && floor.wallLoads.length > 0;
+
             // Finalize tributary widths and loads
             for (let beam of state.beams) {
-                const loadSummary = EngineTributary.calculateBeamLineLoad(beam, pu, wallLoad);
+                const wallLoadAssignments = wallLineTransfer.byBeamId.get(beam.id) || [];
+                const resolvedWallLineLoad = wallLoadAssignments.reduce((sum, item) => sum + Math.max(0, Number(item.lineLoadKNm) || 0), 0);
+                const serviceWallLineLoad = hasExplicitWallRecords ? resolvedWallLineLoad : Math.max(0, Number(wallLoad) || 0);
+                const wallLoadSource = wallLoadAssignments.length
+                    ? 'wall-line-to-beam-tributary'
+                    : (serviceWallLineLoad > 0 ? 'legacy-floor-wall-load' : 'none');
+                const loadSummary = EngineTributary.calculateBeamLineLoad(beam, pu, serviceWallLineLoad, { wallLoadSource });
                 beam.tributaryArea = loadSummary.tributaryArea;
                 beam.tributaryWidth = loadSummary.tributaryWidth;
                 beam.wallLoad = loadSummary.wallLoad;
+                beam.wallLineLoadService = serviceWallLineLoad;
+                beam.wallLoadSource = wallLoadSource;
+                beam.wallLoadAssignments = wallLoadAssignments.map(item => ({ ...item }));
                 beam.w = loadSummary.w;
             }
 
@@ -12916,6 +13218,80 @@
 
         // ========== v3.0: STRUCTURAL PLAN RENDERING (AutoCAD STYLE) ==========
         // Clean wireframe like real AutoCAD drawings
+        function drawWallLoadPlanOverlay() {
+            const currentFloor = state.floors[state.currentFloorIndex];
+            const mainCanvas = document.getElementById('mainCanvas');
+            const inventory = globalThis.FSWalls?.build?.({ floors: state.floors }) || { walls: [] };
+            const walls = (inventory.walls || []).filter(wall => wall.floorId === currentFloor?.id &&
+                [wall.x1, wall.y1, wall.x2, wall.y2].every(Number.isFinite));
+            if (mainCanvas) mainCanvas.dataset.wallOverlayCount = String(walls.length);
+            if (!ctx || !walls.length) return;
+
+            const dark = document.documentElement.getAttribute('data-workspace-theme') === 'dark';
+            const wallColor = dark ? '#fb923c' : '#c2410c';
+            const loadColor = dark ? '#fda4af' : '#be123c';
+            const textColor = dark ? '#fff7ed' : '#7f1d1d';
+            const labelBackground = dark ? 'rgba(15, 23, 42, 0.86)' : 'rgba(255, 247, 237, 0.92)';
+            const scaleFactor = Math.max(0.65, Math.min(1.5, state.scale / 50));
+
+            ctx.save();
+            ctx.lineCap = 'butt';
+            ctx.lineJoin = 'miter';
+            walls.forEach(wall => {
+                const x1 = Number(wall.x1) * state.scale + state.offsetX;
+                const y1 = Number(wall.y1) * state.scale + state.offsetY;
+                const x2 = Number(wall.x2) * state.scale + state.offsetX;
+                const y2 = Number(wall.y2) * state.scale + state.offsetY;
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+                const lengthPx = Math.hypot(dx, dy);
+                if (lengthPx < 2) return;
+                const ux = dx / lengthPx;
+                const uy = dy / lengthPx;
+                const nx = -uy;
+                const ny = ux;
+                const wallThicknessPx = Math.max(4, Number(wall.wallTotalThicknessMm || wall.chbThicknessMm || 150) / 1000 * state.scale);
+                const lineLoadKNm = Math.max(0, Number(wall.lineLoadKNm) || 0);
+
+                ctx.strokeStyle = wallColor;
+                ctx.lineWidth = Math.max(2, wallThicknessPx);
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+
+                // Openings remain visible as perpendicular ticks while the plan
+                // continues to show the governing equivalent beam line load.
+                (wall.openings || []).forEach(opening => {
+                    const offset = Math.max(0, Math.min(Number(wall.lengthM) || 0, Number(opening.offsetM) || 0));
+                    const openingWidth = Math.max(0.05, Number(opening.widthM) || 0.05);
+                    const center = Math.min(Number(wall.lengthM) || 0, offset + openingWidth / 2);
+                    const cx = x1 + ux * (center / Math.max(0.001, Number(wall.lengthM) || 0.001) * lengthPx);
+                    const cy = y1 + uy * (center / Math.max(0.001, Number(wall.lengthM) || 0.001) * lengthPx);
+                    const tick = Math.max(5, wallThicknessPx * 1.6);
+                    ctx.strokeStyle = loadColor;
+                    ctx.lineWidth = Math.max(1, 1.1 * scaleFactor);
+                    ctx.beginPath();
+                    ctx.moveTo(cx - nx * tick, cy - ny * tick);
+                    ctx.lineTo(cx + nx * tick, cy + ny * tick);
+                    ctx.stroke();
+                });
+
+                const labelX = (x1 + x2) / 2 + nx * Math.max(10, wallThicknessPx + 8);
+                const labelY = (y1 + y2) / 2 + ny * Math.max(10, wallThicknessPx + 8);
+                const label = `${wall.id} | ${lineLoadKNm.toFixed(2)} kN/m`;
+                ctx.font = `600 ${Math.max(8, Math.round(9 * scaleFactor))}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const labelWidth = ctx.measureText(label).width + 8;
+                ctx.fillStyle = labelBackground;
+                ctx.fillRect(labelX - labelWidth / 2, labelY - 8 * scaleFactor, labelWidth, 16 * scaleFactor);
+                ctx.fillStyle = textColor;
+                ctx.fillText(label, labelX, labelY);
+            });
+            ctx.restore();
+        }
+
         function drawStructuralPlan() {
             if (!ctx) return;
 
@@ -14000,6 +14376,10 @@
                     }
                 }
             }
+
+            // Wall drafting and the equivalent beam line-load model share the
+            // same floor.wallLoads records used by Wall Elevations.
+            drawWallLoadPlanOverlay();
         }
 
         function getFoundationPlanTotalX() {
@@ -17963,6 +18343,7 @@
                 savedAt,
                 xSpans: state.xSpans || [4.0, 4.0],
                 ySpans: state.ySpans || [5.0, 5.0],
+                xlines: normalizeXlineList(state.xlines),
                 gridBubbleOffsetPx: getGridBubbleOffsetPx(),
                 cantilevers: state.cantilevers || { top: [], bottom: [], left: [], right: [] },
                 stairs: persistedStairs,
@@ -18534,6 +18915,7 @@
                     ? Math.max(-20, Math.min(90, Number(projectData.gridBubbleOffsetPx)))
                     : 20;
                 state.cantilevers = normalizeCantileverSet(projectData.cantilevers || state.cantilevers, state.xSpans.length, state.ySpans.length);
+                state.xlines = normalizeXlineList(projectData.xlines);
 
                 if (projectData.floors) {
                     state.floors = hydrateFloors(projectData.floors, state.xSpans, state.ySpans, state.cantilevers);
@@ -18837,6 +19219,7 @@
                 console.error('Failed to load desktop project:', err);
                 alert('Failed to load project: ' + err.message);
             }
+
         }
 
         function hideDesktopRecentProjects() {
@@ -18989,6 +19372,7 @@
             ];
             state.stairs = [];
             state.nextStairId = 1;
+            state.xlines = [];
             state.currentFloorIndex = 0;
             state.gfSuspended = false;
             state.gradeElevation = 0;
@@ -22725,10 +23109,190 @@ function calculateWaterTank() {
 // ========== v3.11: NEW TAB FUNCTIONS ==========
 
 // --- BLOCKWALL DESIGN ---
+        const WALL_EDITOR_XLINE_SNAP_STEP_M = 0.05;
+        const WALL_OPENING_SNAP_STEP_M = 0.05;
         let wallEditorDraft = { start: null, end: null };
         let wallEditorSelectedId = '';
+        let wallEditorConstructionMode = 'wall';
+        let wallEditorSelectedXlineId = '';
+        let wallOpeningDrag = null;
         let roofFrameDraft = { start: null, end: null };
         let roofFrameSelectedId = '';
+
+        function snapXlineCoordinate(value) {
+            const raw = Number(value);
+            if (!Number.isFinite(raw)) return 0;
+            return Number((Math.round(raw / WALL_EDITOR_XLINE_SNAP_STEP_M) * WALL_EDITOR_XLINE_SNAP_STEP_M).toFixed(3));
+        }
+
+        function normalizeXlineList(xlines) {
+            const seen = new Set();
+            return (Array.isArray(xlines) ? xlines : []).map((raw, index) => {
+                const orientation = raw?.orientation === 'vertical' ? 'vertical' : raw?.orientation === 'horizontal' ? 'horizontal' : '';
+                const floorId = String(raw?.floorId || '').trim();
+                if (!orientation || !floorId) return null;
+                const fallbackId = `XL-${floorId}-${index + 1}`;
+                const id = String(raw?.id || fallbackId);
+                if (seen.has(id)) return null;
+                seen.add(id);
+                const startM = Math.max(0, Number(raw?.startM) || 0);
+                const endM = Math.max(startM, Number(raw?.endM) || 0);
+                return {
+                    id,
+                    floorId,
+                    orientation,
+                    positionM: snapXlineCoordinate(raw?.positionM),
+                    startM,
+                    endM,
+                    source: 'manual-xline',
+                    snapStepM: WALL_EDITOR_XLINE_SNAP_STEP_M
+                };
+            }).filter(Boolean);
+        }
+
+        function getWallEditorXlines(floorId) {
+            state.xlines = normalizeXlineList(state.xlines);
+            return state.xlines.filter(xline => xline.floorId === floorId);
+        }
+
+        function getNextWallEditorXlineId(floorId) {
+            const prefix = `XL-${floorId}-`;
+            const maximum = getWallEditorXlines(floorId).reduce((current, xline) => {
+                const suffix = Number(String(xline.id || '').slice(prefix.length));
+                return String(xline.id || '').startsWith(prefix) && Number.isInteger(suffix) && suffix > current ? suffix : current;
+            }, 0);
+            return `${prefix}${maximum + 1}`;
+        }
+
+        function updateWallEditorXlineControls() {
+            const floor = getWallEditorFloor();
+            const selected = state.xlines.find(xline => xline.id === wallEditorSelectedXlineId && xline.floorId === floor?.id);
+            const status = document.getElementById('wallEditorXlineStatus');
+            const position = document.getElementById('wallEditorXlinePosition');
+            if (position) {
+                position.disabled = !selected;
+                position.value = selected ? Number(selected.positionM).toFixed(2) : '';
+                const bounds = getPlanBounds();
+                position.max = selected?.orientation === 'vertical' ? String(bounds.totalX) : String(bounds.totalY);
+            }
+            if (status) {
+                status.textContent = selected
+                    ? `${selected.id} | ${selected.orientation === 'horizontal' ? 'H' : 'V'} @ ${Number(selected.positionM).toFixed(2)} m | 5 cm snap`
+                    : 'none';
+            }
+            ['wallEditorToolWall', 'wallEditorToolXlineH', 'wallEditorToolXlineV', 'wallEditorToolXlineSelect', 'wallEditorToolOpening'].forEach(id => {
+                const button = document.getElementById(id);
+                if (button) button.classList.toggle('wall-editor-primary',
+                    (id === 'wallEditorToolWall' && wallEditorConstructionMode === 'wall') ||
+                    (id === 'wallEditorToolXlineH' && wallEditorConstructionMode === 'xline-horizontal') ||
+                    (id === 'wallEditorToolXlineV' && wallEditorConstructionMode === 'xline-vertical') ||
+                    (id === 'wallEditorToolXlineSelect' && wallEditorConstructionMode === 'xline-select') ||
+                    (id === 'wallEditorToolOpening' && wallEditorConstructionMode === 'opening-xline')
+                );
+            });
+        }
+
+        function setWallEditorConstructionMode(mode) {
+            wallEditorConstructionMode = ['wall', 'xline-horizontal', 'xline-vertical', 'xline-select', 'opening-xline'].includes(mode) ? mode : 'wall';
+            if (wallEditorConstructionMode === 'wall') wallEditorDraft = { start: null, end: null };
+            const status = document.getElementById('wallEditorStatus');
+            if (status) {
+                status.textContent = wallEditorConstructionMode === 'wall'
+                    ? 'Click two plan points to define a wall line.'
+                    : wallEditorConstructionMode === 'xline-select'
+                        ? 'Click an Xline to select it, then move by 5 cm or delete it.'
+                        : wallEditorConstructionMode === 'opening-xline'
+                            ? 'Select a wall first, then click an Xline intersection to place its first opening.'
+                        : `Click the plan to add a ${wallEditorConstructionMode === 'xline-horizontal' ? 'horizontal' : 'vertical'} Xline at the nearest 5 cm.`;
+            }
+            updateWallEditorXlineControls();
+            renderWallPlanEditor();
+        }
+
+        function createWallEditorXline(floorId, orientation, positionM, options = {}) {
+            const floor = state.floors.find(item => item.id === floorId);
+            if (!floor || !['horizontal', 'vertical'].includes(orientation)) return null;
+            const { totalX, totalY } = getPlanBounds();
+            const maxPosition = orientation === 'vertical' ? totalX : totalY;
+            const position = Math.min(maxPosition, Math.max(0, snapXlineCoordinate(positionM)));
+            if (options.recordHistory !== false) saveStateSnapshot();
+            const xline = {
+                id: getNextWallEditorXlineId(floorId),
+                floorId,
+                orientation,
+                positionM: position,
+                startM: 0,
+                endM: orientation === 'vertical' ? totalY : totalX,
+                source: 'manual-xline',
+                snapStepM: WALL_EDITOR_XLINE_SNAP_STEP_M
+            };
+            state.xlines = normalizeXlineList([...(state.xlines || []), xline]);
+            wallEditorSelectedXlineId = xline.id;
+            if (options.schedule !== false) scheduleProjectAutosave('xline-create');
+            if (options.render !== false) renderWallPlanEditor();
+            return state.xlines.find(item => item.id === xline.id) || xline;
+        }
+
+        function findWallEditorXlineAt(floorId, point, toleranceM = 0.14) {
+            return getWallEditorXlines(floorId)
+                .map(xline => ({
+                    xline,
+                    distance: xline.orientation === 'horizontal'
+                        ? Math.abs(Number(point.y) - Number(xline.positionM))
+                        : Math.abs(Number(point.x) - Number(xline.positionM))
+                }))
+                .filter(item => item.distance <= toleranceM)
+                .sort((a, b) => a.distance - b.distance)[0]?.xline || null;
+        }
+
+        function moveSelectedWallXline(deltaM, options = {}) {
+            const floor = getWallEditorFloor();
+            const selected = state.xlines.find(xline => xline.id === wallEditorSelectedXlineId && xline.floorId === floor?.id);
+            if (!selected) return false;
+            const { totalX, totalY } = getPlanBounds();
+            const maxPosition = selected.orientation === 'vertical' ? totalX : totalY;
+            if (options.recordHistory !== false) saveStateSnapshot();
+            selected.positionM = Math.min(maxPosition, Math.max(0, snapXlineCoordinate(Number(selected.positionM) + Number(deltaM || 0))));
+            if (options.schedule !== false) scheduleProjectAutosave('xline-move');
+            if (options.render !== false) renderWallPlanEditor();
+            return true;
+        }
+
+        function setSelectedWallXlinePosition(value, options = {}) {
+            const floor = getWallEditorFloor();
+            const selected = state.xlines.find(xline => xline.id === wallEditorSelectedXlineId && xline.floorId === floor?.id);
+            if (!selected) return false;
+            const { totalX, totalY } = getPlanBounds();
+            const maxPosition = selected.orientation === 'vertical' ? totalX : totalY;
+            if (options.recordHistory !== false) saveStateSnapshot();
+            selected.positionM = Math.min(maxPosition, Math.max(0, snapXlineCoordinate(value)));
+            if (options.schedule !== false) scheduleProjectAutosave('xline-position');
+            if (options.render !== false) renderWallPlanEditor();
+            return true;
+        }
+
+        function deleteSelectedWallXline(options = {}) {
+            if (!wallEditorSelectedXlineId) return false;
+            const before = state.xlines.length;
+            if (options.recordHistory !== false) saveStateSnapshot();
+            state.xlines = state.xlines.filter(xline => xline.id !== wallEditorSelectedXlineId);
+            wallEditorSelectedXlineId = '';
+            if (options.schedule !== false) scheduleProjectAutosave('xline-delete');
+            if (options.render !== false) renderWallPlanEditor();
+            return state.xlines.length !== before;
+        }
+
+        function clearWallEditorXlines() {
+            const floor = getWallEditorFloor();
+            const current = getWallEditorXlines(floor?.id);
+            if (!current.length) return;
+            saveStateSnapshot();
+            const ids = new Set(current.map(xline => xline.id));
+            state.xlines = state.xlines.filter(xline => !ids.has(xline.id));
+            wallEditorSelectedXlineId = '';
+            scheduleProjectAutosave('xline-clear-floor');
+            renderWallPlanEditor();
+        }
 
         function getWallEditorFloor() {
             const select = document.getElementById('wallEditorFloor');
@@ -22763,7 +23327,104 @@ function calculateWaterTank() {
                     targets.push({ x: Number(point.x), y: Number(point.y), kind: 'beam', id: `BEAM-${beam.id}-${index ? 'END' : 'START'}` });
                 });
             });
+            getWallEditorXlineIntersections(floorId).forEach(intersection => targets.push(intersection));
             return targets;
+        }
+
+        function getWallEditorXlineIntersections(floorId) {
+            const xlines = getWallEditorXlines(floorId);
+            const horizontals = xlines.filter(xline => xline.orientation === 'horizontal');
+            const verticals = xlines.filter(xline => xline.orientation === 'vertical');
+            const intersections = [];
+            verticals.forEach(vertical => {
+                horizontals.forEach(horizontal => {
+                    const x = Number(vertical.positionM);
+                    const y = Number(horizontal.positionM);
+                    const horizontalStart = Math.min(Number(horizontal.startM) || 0, Number(horizontal.endM) || 0);
+                    const horizontalEnd = Math.max(Number(horizontal.startM) || 0, Number(horizontal.endM) || 0);
+                    const verticalStart = Math.min(Number(vertical.startM) || 0, Number(vertical.endM) || 0);
+                    const verticalEnd = Math.max(Number(vertical.startM) || 0, Number(vertical.endM) || 0);
+                    if (!Number.isFinite(x) || !Number.isFinite(y) ||
+                        x < horizontalStart - 1e-9 || x > horizontalEnd + 1e-9 ||
+                        y < verticalStart - 1e-9 || y > verticalEnd + 1e-9) return;
+                    intersections.push({
+                        x,
+                        y,
+                        kind: 'xline-intersection',
+                        id: `XINT-${vertical.id}-${horizontal.id}`,
+                        xlineIds: { vertical: vertical.id, horizontal: horizontal.id },
+                        snap: {
+                            mode: 'xline-intersection',
+                            targetId: `XINT-${vertical.id}-${horizontal.id}`,
+                            xlineIds: { vertical: vertical.id, horizontal: horizontal.id },
+                            toleranceM: 0.45
+                        }
+                    });
+                });
+            });
+            return intersections;
+        }
+
+        function resolveWallEditorSnapPoint(floorId, rawPoint, mode = 'grid') {
+            const raw = {
+                x: Number(rawPoint?.x) || 0,
+                y: Number(rawPoint?.y) || 0
+            };
+            const target = getWallEditorSnapTargets(floorId)
+                .filter(item => item.kind === mode)
+                .reduce((nearest, item) => {
+                    const distance = Math.hypot(Number(item.x) - raw.x, Number(item.y) - raw.y);
+                    return !nearest || distance < nearest.distance ? { ...item, distance } : nearest;
+                }, null);
+            return target && target.distance <= 0.45
+                ? {
+                    x: Number(target.x),
+                    y: Number(target.y),
+                    snap: cloneSerializable(target.snap || {
+                        mode: target.kind,
+                        targetId: target.id,
+                        toleranceM: 0.45
+                    }, {})
+                }
+                : { ...raw, snap: { mode: 'free', targetId: '', toleranceM: 0.45 } };
+        }
+
+        function setWallOpeningToXlineIntersection(floorId, wallId, intersectionId, options = {}) {
+            const floor = state.floors.find(item => item.id === floorId);
+            const wall = floor?.wallLoads?.find(item => item.id === wallId);
+            const intersection = getWallEditorXlineIntersections(floorId).find(item => item.id === intersectionId);
+            if (!floor || !wall || !intersection) return false;
+            const x1 = Number(wall.x1);
+            const y1 = Number(wall.y1);
+            const x2 = Number(wall.x2);
+            const y2 = Number(wall.y2);
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const lengthM = Math.hypot(dx, dy);
+            if (![x1, y1, x2, y2, lengthM].every(Number.isFinite) || lengthM <= 0.001) return false;
+            if (options.recordHistory !== false) saveStateSnapshot();
+            const openingType = document.getElementById('wallEditorOpeningType')?.value || 'window';
+            const openingWidth = Math.max(0.05, Number(document.getElementById('wallEditorOpeningWidth')?.value) || 0.9);
+            const openingHeight = Math.max(0.05, Number(document.getElementById('wallEditorOpeningHeight')?.value) || 2.1);
+            const opening = Array.isArray(wall.openings) && wall.openings[0]
+                ? wall.openings[0]
+                : {
+                    id: `OPEN-${wall.id}-1`,
+                    type: openingType === 'none' ? 'window' : openingType,
+                    widthM: openingWidth,
+                    heightM: openingHeight,
+                    sillHeightM: Math.max(0, Number(document.getElementById('wallEditorOpeningSill')?.value) || 0),
+                    count: 1
+                };
+            const projectionM = ((Number(intersection.x) - x1) * dx + (Number(intersection.y) - y1) * dy) / lengthM;
+            opening.widthM = Math.max(0.05, Number(opening.widthM) || openingWidth);
+            opening.offsetM = snapWallOpeningCoordinate(projectionM - opening.widthM / 2);
+            wall.openings = [opening, ...(Array.isArray(wall.openings) ? wall.openings.slice(1) : [])];
+            constrainWallOpeningRecord(wall, opening);
+            if (options.calculate !== false) calculate();
+            if (options.render !== false) populateWallElevations();
+            if (options.schedule !== false) scheduleProjectAutosave('wall-opening-xline-placement');
+            return true;
         }
 
         function getWallReferenceBeam(wall, floorId = null, beamList = state.beams || []) {
@@ -22864,6 +23525,44 @@ function calculateWaterTank() {
             context.strokeStyle = '#334155'; context.lineWidth = 1;
             coordinates.x.forEach(value => { context.beginPath(); context.moveTo(sx(value), pad); context.lineTo(sx(value), canvas.height - pad); context.stroke(); });
             coordinates.y.forEach(value => { context.beginPath(); context.moveTo(pad, sy(value)); context.lineTo(canvas.width - pad, sy(value)); context.stroke(); });
+            getWallEditorXlines(floor.id).forEach(xline => {
+                const selected = xline.id === wallEditorSelectedXlineId;
+                context.save();
+                context.setLineDash(selected ? [10, 5] : [7, 6]);
+                context.strokeStyle = selected ? '#fb7185' : '#f97316';
+                context.lineWidth = selected ? 3 : 1.75;
+                context.beginPath();
+                if (xline.orientation === 'horizontal') {
+                    context.moveTo(sx(xline.startM), sy(xline.positionM));
+                    context.lineTo(sx(xline.endM), sy(xline.positionM));
+                } else {
+                    context.moveTo(sx(xline.positionM), sy(xline.startM));
+                    context.lineTo(sx(xline.positionM), sy(xline.endM));
+                }
+                context.stroke();
+                context.setLineDash([]);
+                context.fillStyle = selected ? '#fecdd3' : '#fed7aa';
+                context.font = '11px Arial';
+                const label = `${xline.id} ${xline.orientation === 'horizontal' ? 'H' : 'V'} @ ${Number(xline.positionM).toFixed(2)}m`;
+                if (xline.orientation === 'horizontal') context.fillText(label, pad + 6, sy(xline.positionM) - 6);
+                else context.fillText(label, sx(xline.positionM) + 6, pad + 14);
+                context.restore();
+            });
+            getWallEditorXlineIntersections(floor.id).forEach(intersection => {
+                context.save();
+                context.fillStyle = '#22d3ee';
+                context.strokeStyle = '#082f49';
+                context.lineWidth = 1;
+                context.beginPath();
+                context.moveTo(sx(intersection.x), sy(intersection.y) - 5);
+                context.lineTo(sx(intersection.x) + 5, sy(intersection.y));
+                context.lineTo(sx(intersection.x), sy(intersection.y) + 5);
+                context.lineTo(sx(intersection.x) - 5, sy(intersection.y));
+                context.closePath();
+                context.fill();
+                context.stroke();
+                context.restore();
+            });
             (state.columns || []).filter(column => isColumnActiveOnFloor(column, floor.id)).forEach(column => {
                 const position = getColumnPlanPosition(column);
                 context.fillStyle = '#a78bfa'; context.fillRect(sx(position.x) - 5, sy(position.y) - 5, 10, 10);
@@ -22886,30 +23585,73 @@ function calculateWaterTank() {
             if (wallEditorDraft.start && wallEditorDraft.end) {
                 context.strokeStyle = '#22c55e'; context.lineWidth = 4; context.beginPath(); context.moveTo(sx(wallEditorDraft.start.x), sy(wallEditorDraft.start.y)); context.lineTo(sx(wallEditorDraft.end.x), sy(wallEditorDraft.end.y)); context.stroke();
             }
-            context.fillStyle = '#f8fafc'; context.font = '13px Arial'; context.fillText(`Wall plan | ${floor.id} | click two endpoints | snap: ${document.getElementById('wallEditorSnapMode')?.value || 'grid'}`, 16, 24);
+            context.fillStyle = '#f8fafc'; context.font = '13px Arial'; context.fillText(`Wall plan | ${floor.id} | ${wallEditorConstructionMode} | 5 cm Xline snap`, 16, 24);
+            updateWallEditorXlineControls();
             if (canvas.dataset.bound !== 'true') {
                 canvas.dataset.bound = 'true';
                 canvas.addEventListener('click', event => {
                     const activeFloor = getWallEditorFloor();
                     if (!activeFloor) return;
+                    const currentCoordinates = getWallEditorCoordinates();
+                    const currentMaxX = Math.max(1, currentCoordinates.x[currentCoordinates.x.length - 1]);
+                    const currentMaxY = Math.max(1, currentCoordinates.y[currentCoordinates.y.length - 1]);
                     const rect = canvas.getBoundingClientRect();
                     const px = (event.clientX - rect.left) * canvas.width / Math.max(1, rect.width);
                     const py = (event.clientY - rect.top) * canvas.height / Math.max(1, rect.height);
                     const raw = {
-                        x: Math.min(maxX, Math.max(0, ((px - pad) / Math.max(1, canvas.width - pad * 2)) * maxX)),
-                        y: Math.min(maxY, Math.max(0, ((canvas.height - pad - py) / Math.max(1, canvas.height - pad * 2)) * maxY))
+                        x: Math.min(currentMaxX, Math.max(0, ((px - pad) / Math.max(1, canvas.width - pad * 2)) * currentMaxX)),
+                        y: Math.min(currentMaxY, Math.max(0, ((canvas.height - pad - py) / Math.max(1, canvas.height - pad * 2)) * currentMaxY))
                     };
+                    if (wallEditorConstructionMode !== 'wall') {
+                        const hit = findWallEditorXlineAt(activeFloor.id, raw);
+                        if (wallEditorConstructionMode === 'xline-select') {
+                            if (hit) {
+                                wallEditorSelectedXlineId = hit.id;
+                                renderWallPlanEditor();
+                                const status = document.getElementById('wallEditorStatus');
+                                if (status) status.textContent = `${hit.id} selected. Move it by 5 cm, set Position, or delete it.`;
+                            }
+                            return;
+                        }
+                        if (wallEditorConstructionMode === 'opening-xline') {
+                            const intersection = getWallEditorXlineIntersections(activeFloor.id)
+                                .map(item => ({ ...item, distance: Math.hypot(item.x - raw.x, item.y - raw.y) }))
+                                .sort((a, b) => a.distance - b.distance)[0];
+                            const status = document.getElementById('wallEditorStatus');
+                            if (!wallEditorSelectedId) {
+                                if (status) status.textContent = 'Select a wall from the plan or elevation list before placing an opening.';
+                                return;
+                            }
+                            if (!intersection || intersection.distance > 0.45) {
+                                if (status) status.textContent = 'Click within 0.45 m of a cyan Xline intersection marker.';
+                                return;
+                            }
+                            const placed = setWallOpeningToXlineIntersection(activeFloor.id, wallEditorSelectedId, intersection.id);
+                            if (status) status.textContent = placed
+                                ? `${wallEditorSelectedId} opening placed at ${intersection.id}; review elevation and lintel.`
+                                : 'Opening placement failed; verify the selected wall and intersection.';
+                            renderWallPlanEditor();
+                            return;
+                        }
+                        const orientation = wallEditorConstructionMode === 'xline-vertical' ? 'vertical' : 'horizontal';
+                        const xline = createWallEditorXline(activeFloor.id, orientation, orientation === 'vertical' ? raw.x : raw.y);
+                        const status = document.getElementById('wallEditorStatus');
+                        if (status && xline) status.textContent = `${xline.id} added at ${Number(xline.positionM).toFixed(2)} m. Select it to move or delete.`;
+                        return;
+                    }
                     const mode = document.getElementById('wallEditorSnapMode')?.value || 'grid';
-                    const target = getWallEditorSnapTargets(activeFloor.id).filter(item => item.kind === mode).reduce((nearest, item) => {
-                        const distance = Math.hypot(item.x - raw.x, item.y - raw.y);
-                        return !nearest || distance < nearest.distance ? { ...item, distance } : nearest;
-                    }, null);
-                    const point = target && target.distance <= 0.45 ? { x: target.x, y: target.y, snap: { mode: target.kind, targetId: target.id, toleranceM: 0.45 } } : { ...raw, snap: { mode: 'free', targetId: '', toleranceM: 0.45 } };
+                    const point = resolveWallEditorSnapPoint(activeFloor.id, raw, mode);
                     if (!wallEditorDraft.start || wallEditorDraft.end) wallEditorDraft = { start: point, end: null };
                     else wallEditorDraft.end = point;
                     renderWallPlanEditor();
                     const status = document.getElementById('wallEditorStatus');
                     if (status) status.textContent = wallEditorDraft.end ? 'Wall line ready. Review properties, then select Add wall line.' : 'Start point selected. Click the second endpoint.';
+                });
+                canvas.addEventListener('keydown', event => {
+                    if (event.key === 'Delete' && wallEditorSelectedXlineId) {
+                        event.preventDefault();
+                        deleteSelectedWallXline();
+                    }
                 });
             }
         }
@@ -22950,6 +23692,7 @@ function calculateWaterTank() {
             setValue('wallEditorThickness', wall.thicknessMm || wall.chbThicknessMm);
             setValue('wallEditorPlasterInside', wall.plasterInsideMm ?? 20);
             setValue('wallEditorPlasterOutside', wall.plasterOutsideMm ?? 20);
+            setValue('wallEditorSupportMode', wall.supportMode || 'on_beam');
             setValue('wallEditorAlignment', wall.alignmentMode || wall.placementMode || 'center');
             const opening = wall.openings?.[0];
             setValue('wallEditorOpeningType', opening?.type || 'none');
@@ -23003,12 +23746,14 @@ function calculateWaterTank() {
             const openingType = document.getElementById('wallEditorOpeningType')?.value || 'none';
             const openingWidth = Math.max(0, Number(document.getElementById('wallEditorOpeningWidth')?.value) || 0);
             const openingHeight = Math.max(0, Number(document.getElementById('wallEditorOpeningHeight')?.value) || 0);
+            const openingOffset = existing?.openings?.[0]?.offsetM ?? snapWallOpeningCoordinate(Math.max(0, (lengthM - openingWidth) / 2));
             const opening = openingType !== 'none' && openingWidth > 0 && openingHeight > 0 ? [{
                 id: existing?.openings?.[0]?.id || `OPEN-${id}-1`,
                 type: openingType,
                 widthM: openingWidth,
                 heightM: openingHeight,
                 sillHeightM: Math.max(0, Number(document.getElementById('wallEditorOpeningSill')?.value) || 0),
+                offsetM: openingOffset,
                 count: Math.max(1, Math.round(Number(document.getElementById('wallEditorOpeningCount')?.value) || 1))
             }] : [];
             const lintel = document.getElementById('wallEditorLintel')?.checked ? {
@@ -23024,7 +23769,7 @@ function calculateWaterTank() {
                 id,
                 floorId: floor.id,
                 type: document.getElementById('wallEditorType')?.value || 'external',
-                supportMode: 'on_beam',
+                supportMode: document.getElementById('wallEditorSupportMode')?.value || 'on_beam',
                 x1: wallEditorDraft.start.x,
                 y1: wallEditorDraft.start.y,
                 x2: wallEditorDraft.end.x,
@@ -23052,8 +23797,351 @@ function calculateWaterTank() {
             const openingSummary = opening.length
                 ? `${opening[0].type} opening${lintel ? ' + lintel metadata' : ''}`
                 : 'no opening';
-            if (status) status.textContent = `${id} ${existing ? 'updated' : 'added'} on ${floor.id}; ${openingSummary}; solver export is ${wallData.exportToSolvers ? 'ON' : 'OFF'}.`;
+            const supportSummary = wallData.supportMode === 'on_beam' ? 'beam-supported' : 'slab-supported / review';
+            if (status) status.textContent = `${id} ${existing ? 'updated' : 'added'} on ${floor.id}; ${openingSummary}; ${supportSummary}; beam line-load transfer is ${wallData.exportToSolvers ? 'ON' : 'OFF'}.`;
             scheduleProjectAutosave('wall-create');
+        }
+
+        function getWallElevationCanvasId(wallId) {
+            return `wall-elevation-${String(wallId || 'wall').replace(/[^a-z0-9_-]/gi, '_')}`;
+        }
+
+        function snapWallOpeningCoordinate(value) {
+            const raw = Number(value);
+            if (!Number.isFinite(raw)) return 0;
+            return Number((Math.round(raw / WALL_OPENING_SNAP_STEP_M) * WALL_OPENING_SNAP_STEP_M).toFixed(3));
+        }
+
+        function getWallOpeningInstances(wall) {
+            const lengthM = Math.max(0.05, Number(wall?.lengthM) || 0.05);
+            const wallHeightM = Math.max(0.05, Number(wall?.heightM) || 0.05);
+            return (Array.isArray(wall?.openings) ? wall.openings : []).flatMap((opening, openingIndex) => {
+                const count = Math.max(1, Math.round(Number(opening?.count) || 1));
+                const openingWidth = Math.min(lengthM, Math.max(0.05, Number(opening?.widthM) || 0.9));
+                const openingHeight = Math.min(wallHeightM, Math.max(0.05, Number(opening?.heightM) || 2.1));
+                const sillHeightM = Math.min(Math.max(0, Number(opening?.sillHeightM) || 0), Math.max(0, wallHeightM - openingHeight));
+                const explicitOffset = Number(opening?.offsetM);
+                const offsets = Number.isFinite(explicitOffset)
+                    ? [Math.min(Math.max(0, snapWallOpeningCoordinate(explicitOffset)), Math.max(0, lengthM - openingWidth))]
+                    : Array.from({ length: count }, (_, index) => {
+                        const center = lengthM * (index + 1) / (count + 1);
+                        return Math.min(Math.max(0, center - openingWidth / 2), Math.max(0, lengthM - openingWidth));
+                    });
+                return offsets.map((offsetM, instanceIndex) => ({
+                    opening,
+                    openingIndex,
+                    instanceIndex,
+                    offsetM,
+                    widthM: openingWidth,
+                    heightM: openingHeight,
+                    sillHeightM
+                }));
+            });
+        }
+
+        function getRawWallRecord(floorId, wallId) {
+            return state.floors.find(floor => floor.id === floorId)?.wallLoads?.find(wall => wall.id === wallId) || null;
+        }
+
+        function getRawWallOpening(floorId, wallId, openingId) {
+            const wall = getRawWallRecord(floorId, wallId);
+            return { wall, opening: wall?.openings?.find(item => item.id === openingId) || null };
+        }
+
+        function constrainWallOpeningRecord(wall, opening) {
+            if (!wall || !opening) return null;
+            const lengthM = Math.max(0.05, Math.hypot(Number(wall.x2) - Number(wall.x1), Number(wall.y2) - Number(wall.y1)) || Number(wall.lengthM) || 0.05);
+            const wallHeightM = Math.max(0.05, Number(wall.heightM) || 0.05);
+            const widthM = Math.min(lengthM, Math.max(0.05, Number(opening.widthM) || 0.9));
+            const heightM = Math.min(wallHeightM, Math.max(0.05, Number(opening.heightM) || 2.1));
+            opening.widthM = Number(widthM.toFixed(3));
+            opening.heightM = Number(heightM.toFixed(3));
+            opening.sillHeightM = Number(Math.min(Math.max(0, snapWallOpeningCoordinate(opening.sillHeightM)), Math.max(0, wallHeightM - heightM)).toFixed(3));
+            const defaultOffsetM = Math.max(0, (lengthM - widthM) / 2);
+            const rawOffsetM = Number(opening.offsetM);
+            opening.offsetM = Number(Math.min(Math.max(0, snapWallOpeningCoordinate(Number.isFinite(rawOffsetM) ? rawOffsetM : defaultOffsetM)), Math.max(0, lengthM - widthM)).toFixed(3));
+            opening.count = Math.max(1, Math.round(Number(opening.count) || 1));
+            return opening;
+        }
+
+        function renderWallElevationCardCanvas(floorId, wallId) {
+            const inventory = globalThis.FSWalls?.build?.({ floors: state.floors }) || { elevations: [], walls: [] };
+            const wall = inventory.walls?.find(item => item.id === wallId && item.floorId === floorId);
+            const elevation = inventory.elevations?.find(item => item.wallId === wallId) || {};
+            const canvas = document.getElementById(getWallElevationCanvasId(wallId));
+            if (wall && canvas) renderWallElevationCanvas(canvas, wall, elevation);
+        }
+
+        function updateWallOpeningField(floorId, wallId, openingId, field, value, options = {}) {
+            const { wall, opening } = getRawWallOpening(floorId, wallId, openingId);
+            if (!wall || !opening) return false;
+            if (options.recordHistory !== false) saveStateSnapshot();
+            if (field === 'type') {
+                opening.type = ['door', 'window', 'other'].includes(String(value).toLowerCase()) ? String(value).toLowerCase() : 'window';
+            } else if (['widthM', 'heightM', 'sillHeightM', 'offsetM'].includes(field)) {
+                opening[field] = Math.max(0, Number(value) || 0);
+            }
+            constrainWallOpeningRecord(wall, opening);
+            if (options.calculate !== false) calculate();
+            if (options.render !== false) populateWallElevations();
+            if (options.schedule !== false) scheduleProjectAutosave('wall-opening-update');
+            return true;
+        }
+
+        function setWallOpeningPlacement(floorId, wallId, openingId, offsetM, sillHeightM, options = {}) {
+            const { wall, opening } = getRawWallOpening(floorId, wallId, openingId);
+            if (!wall || !opening) return false;
+            if (options.recordHistory !== false) saveStateSnapshot();
+            opening.offsetM = Number(offsetM) || 0;
+            opening.sillHeightM = Number(sillHeightM) || 0;
+            constrainWallOpeningRecord(wall, opening);
+            if (options.calculate !== false) calculate();
+            if (options.render !== false) populateWallElevations();
+            if (options.schedule !== false) scheduleProjectAutosave('wall-opening-move');
+            return true;
+        }
+
+        function nudgeWallOpening(floorId, wallId, openingId, deltaM) {
+            const { opening } = getRawWallOpening(floorId, wallId, openingId);
+            if (!opening) return false;
+            return updateWallOpeningField(floorId, wallId, openingId, 'offsetM', Number(opening.offsetM || 0) + Number(deltaM || 0));
+        }
+
+        function addWallOpening(floorId, wallId, type = 'window') {
+            const wall = getRawWallRecord(floorId, wallId);
+            if (!wall) return false;
+            saveStateSnapshot();
+            wall.openings = Array.isArray(wall.openings) ? wall.openings : [];
+            const prefix = `OPEN-${wallId}-`;
+            const maximum = wall.openings.reduce((current, item) => {
+                const suffix = Number(String(item?.id || '').slice(prefix.length));
+                return String(item?.id || '').startsWith(prefix) && Number.isInteger(suffix) && suffix > current ? suffix : current;
+            }, 0);
+            const widthM = type === 'door' ? 0.9 : 1.2;
+            const lengthM = Math.max(0.05, Math.hypot(Number(wall.x2) - Number(wall.x1), Number(wall.y2) - Number(wall.y1)) || Number(wall.lengthM) || 0.05);
+            const opening = {
+                id: `${prefix}${maximum + 1}`,
+                type: ['door', 'window', 'other'].includes(type) ? type : 'window',
+                widthM,
+                heightM: type === 'door' ? 2.1 : 1.2,
+                sillHeightM: type === 'door' ? 0 : 0.9,
+                offsetM: snapWallOpeningCoordinate(Math.max(0, (lengthM - widthM) / 2)),
+                count: 1
+            };
+            wall.openings.push(opening);
+            constrainWallOpeningRecord(wall, opening);
+            calculate();
+            populateWallElevations();
+            scheduleProjectAutosave('wall-opening-add');
+            return true;
+        }
+
+        function removeWallOpening(floorId, wallId, openingId) {
+            const wall = getRawWallRecord(floorId, wallId);
+            if (!wall) return false;
+            const before = (wall.openings || []).length;
+            if (!before) return false;
+            saveStateSnapshot();
+            wall.openings = wall.openings.filter(opening => opening.id !== openingId);
+            calculate();
+            populateWallElevations();
+            scheduleProjectAutosave('wall-opening-remove');
+            return wall.openings.length !== before;
+        }
+
+        function getWallElevationCanvasMetrics(canvas, wall) {
+            const width = canvas?.width || 1600;
+            const height = canvas?.height || 420;
+            const pad = { left: 76, right: 32, top: 38, bottom: 54 };
+            const lengthM = Math.max(0.1, Number(wall?.lengthM) || 1);
+            const wallHeightM = Math.max(0.1, Number(wall?.heightM) || 1);
+            return { width, height, pad, lengthM, wallHeightM };
+        }
+
+        function getWallElevationPointerPosition(canvas, wall, event) {
+            const metrics = getWallElevationCanvasMetrics(canvas, wall);
+            const rect = canvas.getBoundingClientRect();
+            const px = (event.clientX - rect.left) * metrics.width / Math.max(1, rect.width);
+            const py = (event.clientY - rect.top) * metrics.height / Math.max(1, rect.height);
+            return {
+                xM: Math.min(metrics.lengthM, Math.max(0, (px - metrics.pad.left) / Math.max(1, metrics.width - metrics.pad.left - metrics.pad.right) * metrics.lengthM)),
+                yM: Math.min(metrics.wallHeightM, Math.max(0, (metrics.height - metrics.pad.bottom - py) / Math.max(1, metrics.height - metrics.pad.top - metrics.pad.bottom) * metrics.wallHeightM))
+            };
+        }
+
+        function findWallOpeningAtElevationPointer(wall, point) {
+            return getWallOpeningInstances(wall).slice().reverse().find(instance =>
+                point.xM >= instance.offsetM && point.xM <= instance.offsetM + instance.widthM &&
+                point.yM >= instance.sillHeightM && point.yM <= instance.sillHeightM + instance.heightM
+            ) || null;
+        }
+
+        function beginWallOpeningDrag(event) {
+            const canvas = event.currentTarget;
+            const floorId = canvas.dataset.floorId;
+            const wallId = canvas.dataset.wallId;
+            const inventory = globalThis.FSWalls?.build?.({ floors: state.floors }) || { walls: [] };
+            const wall = inventory.walls?.find(item => item.id === wallId && item.floorId === floorId);
+            if (!wall) return;
+            const point = getWallElevationPointerPosition(canvas, wall, event);
+            const hit = findWallOpeningAtElevationPointer(wall, point);
+            if (!hit) return;
+            const openingId = hit.opening?.id;
+            if (!openingId || !getRawWallOpening(floorId, wallId, openingId).opening) return;
+            saveStateSnapshot();
+            wallOpeningDrag = {
+                floorId,
+                wallId,
+                openingId,
+                grabX: point.xM - hit.offsetM,
+                grabY: point.yM - hit.sillHeightM,
+                moved: false
+            };
+            canvas.classList.add('dragging');
+            canvas.setPointerCapture?.(event.pointerId);
+            event.preventDefault();
+        }
+
+        function continueWallOpeningDrag(event) {
+            if (!wallOpeningDrag) return;
+            const canvas = event.currentTarget;
+            const inventory = globalThis.FSWalls?.build?.({ floors: state.floors }) || { walls: [] };
+            const wall = inventory.walls?.find(item => item.id === wallOpeningDrag.wallId && item.floorId === wallOpeningDrag.floorId);
+            if (!wall) return;
+            const point = getWallElevationPointerPosition(canvas, wall, event);
+            setWallOpeningPlacement(
+                wallOpeningDrag.floorId,
+                wallOpeningDrag.wallId,
+                wallOpeningDrag.openingId,
+                point.xM - wallOpeningDrag.grabX,
+                point.yM - wallOpeningDrag.grabY,
+                { recordHistory: false, calculate: false, render: false, schedule: false }
+            );
+            wallOpeningDrag.moved = true;
+            renderWallElevationCardCanvas(wallOpeningDrag.floorId, wallOpeningDrag.wallId);
+            event.preventDefault();
+        }
+
+        function endWallOpeningDrag(event) {
+            if (!wallOpeningDrag) return;
+            const canvas = event.currentTarget;
+            canvas.classList.remove('dragging');
+            canvas.releasePointerCapture?.(event.pointerId);
+            const moved = wallOpeningDrag.moved;
+            wallOpeningDrag = null;
+            if (moved) {
+                calculate();
+                populateWallElevations();
+                scheduleProjectAutosave('wall-opening-drag');
+            }
+        }
+
+        function renderWallElevationCanvas(canvas, wall, elevation = {}) {
+            if (!canvas || !wall) return;
+            const context = canvas.getContext('2d');
+            if (!context) return;
+            const width = canvas.width || 1600;
+            const height = canvas.height || 420;
+            const pad = { left: 76, right: 32, top: 38, bottom: 54 };
+            const lengthM = Math.max(0.1, Number(wall.lengthM) || 1);
+            const wallHeightM = Math.max(0.1, Number(wall.heightM) || 1);
+            const sx = value => pad.left + Number(value || 0) / lengthM * (width - pad.left - pad.right);
+            const sy = value => height - pad.bottom - Number(value || 0) / wallHeightM * (height - pad.top - pad.bottom);
+            const wallLeft = sx(0);
+            const wallRight = sx(lengthM);
+            const wallTop = sy(wallHeightM);
+            const wallBottom = sy(0);
+            const lineLoadKNm = Math.max(0, Number(wall.lineLoadKNm) || 0);
+            const openingAreaM2 = Math.max(0, Number(wall.openingAreaM2) || 0);
+            const arrowCount = lineLoadKNm > 0 ? Math.max(3, Math.min(11, Math.round(lengthM) + 2)) : 0;
+            canvas.dataset.loadArrowCount = String(arrowCount);
+            canvas.dataset.lineLoadKNm = lineLoadKNm.toFixed(3);
+            canvas.dataset.openingAreaM2 = openingAreaM2.toFixed(3);
+
+            context.clearRect(0, 0, width, height);
+            context.fillStyle = '#101827';
+            context.fillRect(0, 0, width, height);
+            context.strokeStyle = '#334155';
+            context.lineWidth = 1;
+            context.setLineDash([5, 5]);
+            context.beginPath();
+            context.moveTo(pad.left, wallBottom);
+            context.lineTo(width - pad.right, wallBottom);
+            context.stroke();
+            context.setLineDash([]);
+
+            context.fillStyle = 'rgba(56, 189, 248, 0.36)';
+            context.fillRect(wallLeft, wallTop, wallRight - wallLeft, wallBottom - wallTop);
+            context.strokeStyle = '#38bdf8';
+            context.lineWidth = 2;
+            context.strokeRect(wallLeft, wallTop, wallRight - wallLeft, wallBottom - wallTop);
+
+            // The wall is transferred to solvers as one equivalent downward
+            // beam line load. Keep arrows distributed across the elevation even
+            // when openings reduce the net load; opening deductions remain in
+            // the displayed value and inventory metadata.
+            if (arrowCount > 0) {
+                const arrowStartY = wallTop - 16;
+                const arrowEndY = wallTop + 7;
+                context.strokeStyle = '#fb7185';
+                context.fillStyle = '#fb7185';
+                context.lineWidth = 1.8;
+                for (let index = 0; index < arrowCount; index++) {
+                    const ratio = (index + 1) / (arrowCount + 1);
+                    const x = wallLeft + (wallRight - wallLeft) * ratio;
+                    context.beginPath();
+                    context.moveTo(x, arrowStartY);
+                    context.lineTo(x, arrowEndY);
+                    context.moveTo(x, arrowEndY);
+                    context.lineTo(x - 4, arrowEndY - 6);
+                    context.moveTo(x, arrowEndY);
+                    context.lineTo(x + 4, arrowEndY - 6);
+                    context.stroke();
+                }
+            }
+
+            getWallOpeningInstances(wall).forEach(instance => {
+                const opening = instance.opening || {};
+                const left = instance.offsetM;
+                const right = Math.min(lengthM, left + instance.widthM);
+                const top = instance.sillHeightM + instance.heightM;
+                context.fillStyle = '#101827';
+                context.fillRect(sx(left), sy(top), sx(right) - sx(left), sy(instance.sillHeightM) - sy(top));
+                context.strokeStyle = '#fbbf24';
+                context.lineWidth = 2;
+                context.strokeRect(sx(left), sy(top), sx(right) - sx(left), sy(instance.sillHeightM) - sy(top));
+                if (wall.lintel) {
+                    const lintelDepthM = Math.min(wallHeightM, Math.max(0.05, Number(wall.lintel.depthMm || 200) / 1000));
+                    const lintelTop = Math.min(wallHeightM, top + lintelDepthM);
+                    context.fillStyle = '#f59e0b';
+                    context.fillRect(sx(left), sy(lintelTop), sx(right) - sx(left), sy(top) - sy(lintelTop));
+                }
+                context.fillStyle = '#fde68a';
+                context.font = '12px Arial';
+                context.fillText(`${opening.id || opening.type || 'opening'} ${instance.widthM.toFixed(2)}x${instance.heightM.toFixed(2)}m @ ${instance.offsetM.toFixed(2)}m`, sx(left) + 6, sy(top) - 8);
+            });
+
+            context.fillStyle = '#f8fafc';
+            context.font = '700 15px Arial';
+            context.fillText(`${wall.id} | ${wall.floorId} | wall elevation`, 18, 22);
+            context.fillStyle = '#fda4af';
+            context.font = '700 13px Arial';
+            context.fillText(`Equivalent wall line load: ${lineLoadKNm.toFixed(2)} kN/m down`, width - 360, 22);
+            context.fillStyle = '#cbd5e1';
+            context.font = '12px Arial';
+            context.fillText(`Base ${Number(elevation.baseElevationM ?? wall.elevationBaseM ?? 0).toFixed(3)} m`, 18, height - 18);
+            context.fillText(`Top ${Number(elevation.topElevationM ?? wall.elevationTopM ?? 0).toFixed(3)} m`, 150, height - 18);
+            context.fillText(`Length ${lengthM.toFixed(3)} m`, width / 2 - 44, height - 18);
+            context.fillText(`Height ${wallHeightM.toFixed(3)} m`, width - 160, height - 18);
+            context.fillText(`Opening deduction ${openingAreaM2.toFixed(2)} m²`, width / 2 - 72, height - 18);
+            context.strokeStyle = '#94a3b8';
+            context.lineWidth = 1;
+            context.beginPath();
+            context.moveTo(wallLeft, wallBottom + 12);
+            context.lineTo(wallRight, wallBottom + 12);
+            context.moveTo(wallLeft - 12, wallBottom);
+            context.lineTo(wallLeft - 12, wallTop);
+            context.stroke();
         }
 
         function populateWallElevations() {
@@ -23067,7 +24155,7 @@ function calculateWaterTank() {
                 floorSelect.value = (state.floors || []).some(floor => floor.id === previousFloor) ? previousFloor : (state.floors[state.currentFloorIndex]?.id || state.floors[0]?.id || '');
             }
             const elevationByWall = new Map((inventory.elevations || []).map(elevation => [elevation.wallId, elevation]));
-            const rows = (inventory.walls || []).map(wall => {
+            const cards = (inventory.walls || []).map(wall => {
                 const elevation = elevationByWall.get(wall.id) || {};
                 const lintel = wall.lintel ? `${wall.lintel.widthMm}x${wall.lintel.depthMm}` : '-';
                 const solver = wall.exportToSolvers ? 'ON' : 'OFF';
@@ -23076,9 +24164,54 @@ function calculateWaterTank() {
                     ? 'flush exterior'
                     : wall.alignmentMode === 'flush-interior' ? 'flush interior' : 'center';
                 const props = `${wall.chbThicknessMm} CHB / ${wall.plasterInsideMm}+${wall.plasterOutsideMm} plaster / ${alignmentLabel} / e=${Number(placement.eccentricityM || 0).toFixed(3)}m`;
-                return `<tr><td>${escapeInfoText(wall.id)}</td><td>${escapeInfoText(wall.floorId || '-')}</td><td>${Number(wall.elevationBaseM || 0).toFixed(3)}</td><td>${Number(wall.elevationTopM || 0).toFixed(3)}</td><td>${escapeInfoText(props)}</td><td>${(elevation.openings || []).map(opening => `${escapeInfoText(opening.type)} ${opening.widthM}x${opening.heightM} / head ${Number(opening.headElevationM || 0).toFixed(3)}`).join('<br>') || '-'}</td><td>${escapeInfoText(lintel)}</td><td>${solver}</td><td><button class="mini-action-btn" onclick="editWallFromPlan('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}')">Edit</button> <button class="mini-action-btn remove" onclick="removeWallFromPlan('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}')">Remove</button></td></tr>`;
+                const canvasId = getWallElevationCanvasId(wall.id);
+                const openingInstances = getWallOpeningInstances(wall);
+                const openingControls = (wall.openings || []).map((opening, index) => {
+                    const instance = openingInstances.find(item => item.opening?.id === opening.id) || {};
+                    const offsetM = Number.isFinite(Number(opening.offsetM)) ? Number(opening.offsetM) : Number(instance.offsetM || 0);
+                    const headElevationM = Number(wall.elevationBaseM || 0) + Number(opening.sillHeightM || 0) + Number(opening.heightM || 0);
+                    return `<div class="wall-opening-row" data-opening-id="${escapeInfoText(opening.id)}">
+                        <div class="wall-opening-id">${escapeInfoText(opening.id)}<div class="wall-opening-help">drag on elevation to move</div></div>
+                        <label>Type<select onchange="updateWallOpeningField('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}','${escapeInfoText(opening.id)}','type',this.value)"><option value="door" ${opening.type === 'door' ? 'selected' : ''}>Door</option><option value="window" ${opening.type === 'window' ? 'selected' : ''}>Window</option><option value="other" ${opening.type === 'other' ? 'selected' : ''}>Other</option></select></label>
+                        <label>Width (m)<input type="number" min="0.05" max="${Math.max(0.05, Number(wall.lengthM || 0.05)).toFixed(2)}" step="0.05" value="${Number(opening.widthM || 0).toFixed(2)}" onchange="updateWallOpeningField('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}','${escapeInfoText(opening.id)}','widthM',this.value)"></label>
+                        <label>Height (m)<input type="number" min="0.05" max="${Math.max(0.05, Number(wall.heightM || 0.05)).toFixed(2)}" step="0.05" value="${Number(opening.heightM || 0).toFixed(2)}" onchange="updateWallOpeningField('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}','${escapeInfoText(opening.id)}','heightM',this.value)"></label>
+                        <label>Sill (m)<input type="number" min="0" max="${Math.max(0, Number(wall.heightM || 0)).toFixed(2)}" step="0.05" value="${Number(opening.sillHeightM || 0).toFixed(2)}" onchange="updateWallOpeningField('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}','${escapeInfoText(opening.id)}','sillHeightM',this.value)"></label>
+                        <label>Left offset (m)<input type="number" min="0" max="${Math.max(0, Number(wall.lengthM || 0)).toFixed(2)}" step="0.05" value="${offsetM.toFixed(2)}" onchange="updateWallOpeningField('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}','${escapeInfoText(opening.id)}','offsetM',this.value)"></label>
+                        <div class="wall-opening-actions"><button class="mini-action-btn" title="Move opening left by 5 cm" onclick="nudgeWallOpening('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}','${escapeInfoText(opening.id)}',-0.05)">-5</button><button class="mini-action-btn" title="Move opening right by 5 cm" onclick="nudgeWallOpening('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}','${escapeInfoText(opening.id)}',0.05)">+5</button></div>
+                        <div class="wall-opening-actions"><button class="mini-action-btn remove" onclick="removeWallOpening('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}','${escapeInfoText(opening.id)}')">Remove</button></div>
+                    </div>`;
+                }).join('');
+                const openingSummary = (elevation.openings || []).map(opening => `${escapeInfoText(opening.type)} ${Number(opening.widthM || 0).toFixed(2)}x${Number(opening.heightM || 0).toFixed(2)}m @ ${Number(opening.offsetM ?? 0).toFixed(2)}m / head ${Number(opening.headElevationM || 0).toFixed(3)}m`).join('<br>') || 'None';
+                return `<article class="wall-elevation-card" data-wall-id="${escapeInfoText(wall.id)}">
+                    <div class="wall-elevation-card-header">
+                        <div><div class="wall-elevation-card-title">${escapeInfoText(wall.id)} | ${escapeInfoText(wall.floorId || '-')}</div><div class="wall-elevation-card-subtitle">${escapeInfoText(props)} | net line-load: ${Number(wall.lineLoadKNm || 0).toFixed(2)} kN/m downward | solver: ${solver}</div></div>
+                        <div><button class="mini-action-btn" onclick="editWallFromPlan('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}')">Edit</button> <button class="mini-action-btn" onclick="addWallOpening('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}','window')">+ Opening</button> <button class="mini-action-btn remove" onclick="removeWallFromPlan('${escapeInfoText(wall.floorId)}','${escapeInfoText(wall.id)}')">Remove</button></div>
+                    </div>
+                    <canvas id="${canvasId}" class="wall-elevation-canvas" width="1600" height="420" aria-label="${escapeInfoText(wall.id)} wall elevation"></canvas>
+                    <div class="wall-opening-panel">
+                        <div class="wall-opening-help">Opening deductions are based on actual W x H area. Position and sill elevation snap to 0.05 m. Drag the highlighted opening in the elevation or edit the values below.</div>
+                        ${openingControls || '<div class="wall-opening-help">No door or window openings. Select + Opening to add one.</div>'}
+                    </div>
+                    <div class="wall-elevation-meta">
+                        <div><strong>Base / Top</strong>${Number(wall.elevationBaseM || 0).toFixed(3)} / ${Number(wall.elevationTopM || 0).toFixed(3)} m</div>
+                        <div><strong>Segment</strong>${Number(wall.lengthM || 0).toFixed(3)} m x ${Number(wall.heightM || 0).toFixed(3)} m</div>
+                        <div><strong>Opening deduction</strong>${Number(wall.openingAreaM2 || 0).toFixed(2)} m²${openingSummary !== 'None' ? `<br>${openingSummary}` : ''}</div>
+                        <div><strong>Lintel</strong>${escapeInfoText(lintel)} mm | ${solver}</div>
+                    </div>
+                </article>`;
             });
-            body.innerHTML = rows.join('') || '<tr><td colspan="9">No wall lines defined.</td></tr>';
+            body.innerHTML = cards.join('') || '<div class="wall-elevation-card"><div class="wall-elevation-card-subtitle">No wall lines defined.</div></div>';
+            (inventory.walls || []).forEach(wall => {
+                const canvas = document.getElementById(getWallElevationCanvasId(wall.id));
+                if (!canvas) return;
+                canvas.dataset.floorId = wall.floorId || '';
+                canvas.dataset.wallId = wall.id || '';
+                renderWallElevationCanvas(canvas, wall, elevationByWall.get(wall.id) || {});
+                canvas.addEventListener('pointerdown', beginWallOpeningDrag);
+                canvas.addEventListener('pointermove', continueWallOpeningDrag);
+                canvas.addEventListener('pointerup', endWallOpeningDrag);
+                canvas.addEventListener('pointercancel', endWallOpeningDrag);
+            });
             renderWallPlanEditor();
         }
 
@@ -23861,9 +24994,21 @@ function populateBOM() {
             };
         }
 
-        function exportToRevitPackage() {
+        async function exportToRevitPackage() {
             try {
                 const manifest = buildRevitImportManifest();
+                if (window.FutolStructureDesktop?.runRevitImport) {
+                    const result = await window.FutolStructureDesktop.runRevitImport({ manifest });
+                    if (!result?.success) throw new Error(result?.message || 'The Revit automation job could not be started.');
+                    alert(
+                        `Revit 2027 automation started.\n\n` +
+                        `FS will create/open the neutral host and import this model automatically.\n\n` +
+                        `Manifest: ${result.manifestPath}\n` +
+                        `Host: ${result.hostPath}\n\n` +
+                        `The Revit add-in will write the audit beside the manifest after import.`
+                    );
+                    return;
+                }
                 const date = new Date().toISOString().slice(0, 10);
                 downloadBlob(
                     JSON.stringify(manifest, null, 2),
@@ -24047,6 +25192,11 @@ function populateBOM() {
                     nodeIds,
                     section: slab.section,
                     sourceId: slab.id,
+                    canonicalBoundaryRole: slab.canonicalBoundaryRole || 'regular-slab',
+                    canonicalCantileverEdge: slab.canonicalCantileverEdge || '',
+                    canonicalPlanBoundary: Array.isArray(slab.canonicalPlanBoundary)
+                        ? slab.canonicalPlanBoundary.map(point => ({ x: Number(point.x) || 0, y: Number(point.y) || 0 }))
+                        : [],
                     superDead: Number(slab.superDead) || 0,
                     live: Number(slab.live) || 0
                 });
@@ -24146,6 +25296,12 @@ function populateBOM() {
             if (plates.length) {
                 std += '\nELEMENT INCIDENCES SHELL\n';
                 plates.forEach(plate => {
+                    if (plate.canonicalPlanBoundary.length) {
+                        const boundary = plate.canonicalPlanBoundary
+                            .map(point => `${point.x.toFixed(6)},${point.y.toFixed(6)}`)
+                            .join(';');
+                        std += `* FS_CANONICAL_SLAB ${plate.id} SOURCE_ID ${plate.sourceId} ROLE ${plate.canonicalBoundaryRole} EDGE ${plate.canonicalCantileverEdge || '-'} SOURCE_BOUNDARY ${boundary}\n`;
+                    }
                     std += `${plate.id} ${plate.nodeIds.join(' ')}\n`;
                 });
             }
@@ -24302,6 +25458,13 @@ function populateBOM() {
                     stairBeams: (model.stairBeams || []).map(item => item.id),
                     stairSlabs: (model.stairSlabs || []).map(item => item.id)
                 },
+                canonicalSlabBoundaryPolicy: model.analyticalGeometry?.slabBoundaryPolicy || 'canonical-boundary-retained',
+                canonicalSlabBoundaries: model.slabs.map(item => ({
+                    id: item.id,
+                    role: item.canonicalBoundaryRole || 'regular-slab',
+                    cantileverEdge: item.canonicalCantileverEdge || null,
+                    points: Array.isArray(item.canonicalPlanBoundary) ? item.canonicalPlanBoundary : []
+                })),
                 concreteDesign: {
                     code: 'ACI 318-14',
                     loadList: [3, 4],
@@ -24487,7 +25650,7 @@ function populateBOM() {
 
             // Loads
             e2k += '$ LOAD PATTERNS\n';
-            e2k += '  LOADPATTERN  "DEAD"  "Dead"  1.0\n';
+            e2k += '  LOADPATTERN  "DEAD"  "Dead"  0.0\n';
             e2k += '  LOADPATTERN  "SDL"  "Super Dead"  0.0\n';
             e2k += '  LOADPATTERN  "LIVE"  "Live"  0.0\n';
             e2k += '  LOADPATTERN  "WALL"  "Other"  0.0\n\n';
@@ -25212,6 +26375,23 @@ function populateBOM() {
                 return solverWalls.map(wall => {
                     const wallStart = { x: Number(wall.x1), y: Number(wall.y1) };
                     const wallEnd = { x: Number(wall.x2), y: Number(wall.y2) };
+                    const supportMode = String(wall.supportMode || 'on_beam');
+                    if (supportMode !== 'on_beam') {
+                        const lineLoadKNm = Math.max(0, Number(wall.lineLoadKNm) || 0);
+                        const placement = getWallPlacementGeometry(wall, floorId, null);
+                        wallPlacementById.set(wall.id, placement);
+                        return {
+                            wallId: wall.id,
+                            floorId,
+                            status: 'UNRESOLVED',
+                            targetBeamId: null,
+                            lineLoadKNm,
+                            supportMode,
+                            alignmentMode: wall.alignmentMode || 'center',
+                            wallPlacement: placement,
+                            reason: 'Slab-supported wall needs an explicit support strip or beam before line-load transfer.'
+                        };
+                    }
                     const wallTolerance = Math.max(
                         0.05,
                         Number(wall.endpoints?.start?.snap?.toleranceM) || 0,
@@ -25337,7 +26517,7 @@ function populateBOM() {
                         const verticalInsertionOffsetM = -Math.max(0, (size.h - slabThicknessMm) / 2000);
                         const section = registerFrameSection('B', 'beam', size.b, size.h);
                         const governanceType = getBeamGovernanceType(beam);
-                        const explicitWallLoads = wallLoadByBeamKey.get(`${floorId}|${beam.id}`) || [];
+                        const explicitWallLoads = wallLoadByBeamKey.get(`${floorId}|${beam.id}`) || beam.wallLoadAssignments || [];
                         const explicitWallLoad = explicitWallLoads.reduce((sum, item) => sum + Math.max(0, Number(item.lineLoadKNm) || 0), 0);
                         const rawFloorWallLoad = explicitWallFloors.has(floorId)
                             ? 0
@@ -25345,9 +26525,11 @@ function populateBOM() {
                         // Tributary design stores beam.wallLoad at 1.2W. Solver load
                         // patterns must receive the unfactored permanent line load;
                         // strength combinations apply the 1.2 factor separately.
-                        const solverWallLoad = explicitWallLoad > 0
+                        const solverWallLoad = explicitWallLoads.length
                             ? explicitWallLoad
-                            : (Number(beam.wallLoad) > 0 ? rawFloorWallLoad : 0);
+                            : (Number(beam.wallLineLoadService) > 0
+                                ? Number(beam.wallLineLoadService)
+                                : (Number(beam.wallLoad) > 0 ? rawFloorWallLoad : 0));
                         const beamGeometry = getBeamAnalyticalPhysicalGeometry(beam, floorId, size);
                         const drawingAxis = beamGeometry.physical;
                         const analyticalAxis = beamGeometry.analytical;
@@ -25412,7 +26594,10 @@ function populateBOM() {
                             slabThicknessMm,
                             verticalInsertionOffsetM,
                             wallLoad: solverWallLoad,
-                            wallLoadSource: explicitWallLoads.length ? 'explicit-wall-line' : (solverWallLoad > 0 ? 'legacy-floor-wall-load' : 'none'),
+                            wallLineLoadService: solverWallLoad,
+                            wallLoadSource: explicitWallLoads.length
+                                ? 'wall-line-to-beam-tributary'
+                                : (solverWallLoad > 0 ? 'legacy-floor-wall-load' : 'none'),
                             wallLoadAssignments: explicitWallLoads.map(item => ({ ...item }))
                         });
                     });
@@ -25444,6 +26629,14 @@ function populateBOM() {
                             z: zTop,
                             section,
                             thicknessMm,
+                            canonicalPlanBoundary: [
+                                { x: x1, y: y1 },
+                                { x: x2, y: y1 },
+                                { x: x2, y: y2 },
+                                { x: x1, y: y2 }
+                            ],
+                            canonicalBoundaryRole: slab.isCantilever ? 'cantilever-slab' : 'regular-slab',
+                            canonicalCantileverEdge: slab.isCantilever ? (slab.cantileverEdge || null) : null,
                             points: solverPoints,
                             superDead: Math.max(0, Number(floor.dlSuper) || 0),
                             live: Math.max(0, Number(floor.liveLoad) || 0)
@@ -25593,6 +26786,8 @@ function populateBOM() {
                     jointOffsetPolicy: 'shared solver-plan offsets from analytical column-centroid joints to physical beam faces; ETABS global insertion offsets and STAAD global MEMBER OFFSET',
                     physicalAxisFields: ['physicalPlanAxis', 'drawingAxis'],
                     analyticalAxisFields: ['analyticalPlanAxis', 'x1', 'y1', 'x2', 'y2'],
+                    slabBoundaryPolicy: 'canonical FSTR slab boundary is retained as the solver area polygon; no centroid/cardinal rewrite is applied to slabs, including cantilever slabs',
+                    slabBoundaryFields: ['canonicalPlanBoundary', 'canonicalBoundaryRole', 'canonicalCantileverEdge', 'points'],
                     columnLocalAxisPolicy: 'ETABS angle = negative source plan angle after Y reflection',
                     columnSectionAxisPolicy: 'vertical column: ETABS T3 depth along local 2=FS B/X; T2 width along local 3=FS H/Y',
                     beamSectionAxisPolicy: 'horizontal frame: ETABS T3 depth along local 2=FS H/vertical; T2 width along local 3=FS B/transverse'
@@ -25629,7 +26824,9 @@ function populateBOM() {
                 wallPlacements: [...wallPlacementById.values()],
                 wallSolverAssignments,
                 wallLoadTransfer: {
-                    policy: 'explicit-wall-lines-replace-coarse-floor-wall-load-on-opted-in floors',
+                    policy: 'resolved wall line loads are folded into supporting beam tributary line-load results; wall geometry is not exported to ETABS/STAAD',
+                    geometryExportedToSolvers: false,
+                    lineLoadAppliedToBeam: true,
                     explicitWallCount: wallSolverAssignments.filter(item => item.status === 'RESOLVED').length,
                     resolvedAssignmentCount: wallSolverAssignments.filter(item => item.status === 'RESOLVED').length,
                     unresolvedAssignmentCount: wallSolverAssignments.filter(item => item.status !== 'RESOLVED').length,
@@ -25883,6 +27080,16 @@ try {
     $sap.SetProjectInfo('Company Name', 'FutolTech') | Out-Null
     $sap.SetProjectInfo('Model Description', 'Generated by FutolStructure') | Out-Null
 
+    # ETABS seeds a default "Dead" pattern during NewBlank. FutolStructure
+    # owns self-weight through FS_DEAD, so keep the seeded pattern at zero
+    # self-weight to prevent later combinations from double-counting it.
+    $defaultPatternCount = 0
+    $defaultPatternNames = [string[]]@()
+    Assert-CSI ($sap.LoadPatterns.GetNameList([ref]$defaultPatternCount, [ref]$defaultPatternNames)) 'Default load-pattern list'
+    if ($defaultPatternNames -contains 'Dead') {
+        Assert-CSI ($sap.LoadPatterns.SetSelfWTMultiplier('Dead', 0.0)) 'Disable ETABS default Dead self-weight'
+    }
+
     # Create every analytical frame joint once, keyed by exact coordinates.
     # Frames are then added by point name so columns and beams cannot acquire
     # duplicate joints from separate AddByCoord calls.
@@ -26052,6 +27259,41 @@ try {
         return [Math]::Abs([double]$Actual[0] - $X) -le 0.001 -and
             [Math]::Abs([double]$Actual[1] - $Y) -le 0.001 -and
             [Math]::Abs([double]$Actual[2] - $Z) -le 0.001
+    }
+
+    function Compare-FutolPolygon([object[]]$Actual, [object[]]$Expected, [double]$ExpectedZ = 0.0) {
+        $actualPoints = @($Actual)
+        $expectedPoints = @($Expected)
+        if ($actualPoints.Count -ne $expectedPoints.Count -or $actualPoints.Count -lt 3) {
+            return $false
+        }
+        for ($start = 0; $start -lt $expectedPoints.Count; $start++) {
+            $forwardMatch = $true
+            for ($index = 0; $index -lt $expectedPoints.Count; $index++) {
+                $expected = $expectedPoints[$index]
+                $actual = $actualPoints[($start + $index) % $actualPoints.Count]
+                $expectedZValue = if ($null -ne $expected.z) { [double]$expected.z } else { $ExpectedZ }
+                if (-not (Compare-FutolPoint $actual ([double]$expected.x) ([double]$expected.y) $expectedZValue)) {
+                    $forwardMatch = $false
+                    break
+                }
+            }
+            if ($forwardMatch) { return $true }
+            $reverseMatch = $true
+            for ($index = 0; $index -lt $expectedPoints.Count; $index++) {
+                $expected = $expectedPoints[$index]
+                $actualIndex = ($start - $index) % $actualPoints.Count
+                if ($actualIndex -lt 0) { $actualIndex += $actualPoints.Count }
+                $actual = $actualPoints[$actualIndex]
+                $expectedZValue = if ($null -ne $expected.z) { [double]$expected.z } else { $ExpectedZ }
+                if (-not (Compare-FutolPoint $actual ([double]$expected.x) ([double]$expected.y) $expectedZValue)) {
+                    $reverseMatch = $false
+                    break
+                }
+            }
+            if ($reverseMatch) { return $true }
+        }
+        return $false
     }
 
     function Compare-FutolFrameGeometry([object]$Actual, [double]$X1, [double]$Y1, [double]$Z1, [double]$X2, [double]$Y2, [double]$Z2) {
@@ -26617,7 +27859,26 @@ try {
             points = $nativeSlab.points
         }
     }
-    $geometryFailures = @()
+    $nativeSlabGeometryFailures = @($model.slabs | ForEach-Object {
+        $slab = $_
+        $actual = $nativeSlabGeometry | Where-Object { [string]$_.id -eq [string]$slab.id } | Select-Object -First 1
+        $expectedPoints = @($slab.points)
+        $valid = $null -ne $actual -and
+            [int]$actual.pointCount -eq $expectedPoints.Count -and
+            (Compare-FutolPolygon @($actual.points) $expectedPoints ([double]$slab.z))
+        if (-not $valid) {
+            [pscustomobject][ordered]@{
+                type = 'slab'
+                id = [string]$slab.id
+                floorId = [string]$slab.floorId
+                canonicalBoundaryRole = [string]$slab.canonicalBoundaryRole
+                canonicalCantileverEdge = [string]$slab.canonicalCantileverEdge
+                expectedPoints = $expectedPoints
+                actual = $actual
+            }
+        }
+    })
+    $geometryFailures = @($nativeSlabGeometryFailures)
     foreach ($column in $model.columns) {
         $expectedName = 'C-' + [string]$column.id
         $actual = $nativeColumnGeometry | Where-Object { [string]$_.name -eq $expectedName } | Select-Object -First 1
@@ -26651,6 +27912,7 @@ try {
         frameNamePolicy = 'C-{floor}-{FS column id} and B-{floor}-{FS beam id}'
         columns = $nativeColumnGeometry
         beams = $nativeBeamGeometry
+        slabBoundaryFailures = $nativeSlabGeometryFailures
         failures = $geometryFailures
     }
     if ($geometryFailures.Count -gt 0) {

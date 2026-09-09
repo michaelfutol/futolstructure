@@ -24,6 +24,7 @@ The canonical model remains the source of truth for floor IDs, absolute elevatio
 - Beam analytical joints meet the governed column-centroid nodes and use top-center cardinal point 8 at the FutolStructure floor elevation.
 - Physical drafting/3D axes may terminate at member faces and retain the actual member arrangement.
 - The physical-to-analytical difference is represented explicitly as shared joint/member offsets, with ETABS insertion offsets and STAAD `MEMBER OFFSET` generated from the same payload.
+- Slabs remain canonical area geometry: their FSTR boundary points, regular/cantilever role, and cantilever edge are retained as metadata while the solver area polygon uses the same boundary after the governed coordinate transform. Slabs do not receive a frame-style centroid/cardinal rewrite.
 - Storey levels and grids are exported from the same canonical coordinates; no solver adapter may reconstruct them independently.
 - ETABS and STAAD exports remain blocked when canonical topology, member sizes, levels, or supports are unresolved.
 

@@ -203,6 +203,12 @@ function checkStairSourceContract() {
     assert(html.includes("assertSolverStairTopologyReady('ETABS'"), 'ETABS stair integration gate is missing');
     assert(html.includes('stairPlan2DCanvas') && html.includes('stairElevation2DCanvas') && html.includes('renderStairBuilder2DViews'), '2D stair plan/elevation workspace is missing');
     assert(html.includes("'FS_STAIR_DL pattern'") && html.includes("'FS_STAIR_LL pattern'"), 'ETABS stair load patterns are missing');
+    assert(
+        html.includes("SetSelfWTMultiplier('Dead', 0.0)") &&
+        html.includes("LoadPatterns.Add('FS_DEAD', [ETABSv1.eLoadPatternType]::Dead, 1.0") &&
+        !html.includes('LOADPATTERN  "DEAD"  "Dead"  1.0'),
+        'ETABS self-weight ownership must be FS_DEAD=1 with default Dead=0'
+    );
     assert(html.includes('$createdStairBeams') && html.includes('$createdStairSlabs'), 'ETABS stair frame and shell creation path is missing');
     assert(html.includes('FS_AUDIT_STAIR_COMPONENTS') && html.includes('stairLoadPolicy'), 'STAAD stair export audit path is missing');
     assert(html.includes('data-tab-group="model"') && html.includes('data-tab-group="design"'), 'Workflow-grouped tab controls are missing');
@@ -303,10 +309,20 @@ function checkRevitImportSourceContract() {
     const html = fs.readFileSync(INDEX, 'utf8');
     const revitProjectPath = path.join(ROOT, 'revit', 'FutolStructure.Revit2027.csproj');
     const revitCommandPath = path.join(ROOT, 'revit', 'FutolStructureCommand.cs');
+    const revitStartupPath = path.join(ROOT, 'revit', 'FutolStructureStartup.cs');
+    const revitHostAutomationPath = path.join(ROOT, 'revit', 'FutolStructureHostAutomationCommand.cs');
+    const revitAddinTemplatePath = path.join(ROOT, 'revit', 'FutolStructure.Revit2027.addin.template');
+    const revitInstallerPath = path.join(ROOT, 'revit', 'install-revit2027-addin.ps1');
     assert(fs.existsSync(revitProjectPath), 'Revit 2027 add-in project is missing');
     assert(fs.existsSync(revitCommandPath), 'Revit 2027 import command is missing');
+    assert(fs.existsSync(revitStartupPath), 'Revit 2027 startup automation entry is missing');
+    assert(fs.existsSync(revitHostAutomationPath), 'Revit 2027 automated host creator is missing');
     const revitProject = fs.readFileSync(revitProjectPath, 'utf8');
     const revitCommand = fs.readFileSync(revitCommandPath, 'utf8');
+    const revitStartup = fs.readFileSync(revitStartupPath, 'utf8');
+    const revitHostAutomation = fs.readFileSync(revitHostAutomationPath, 'utf8');
+    const revitAddinTemplate = fs.readFileSync(revitAddinTemplatePath, 'utf8');
+    const revitInstaller = fs.readFileSync(revitInstallerPath, 'utf8');
     assert(html.includes("FutolStructure.RevitNativeImport.v1"), 'Native Revit import contract is missing');
     assert(html.includes('function buildRevitImportManifest('), 'Revit import manifest builder is missing');
     assert(html.includes('function exportToRevitPackage('), 'Revit package export action is missing');
@@ -322,10 +338,41 @@ function checkRevitImportSourceContract() {
     assert(revitCommand.includes('exists at a different elevation and was not modified'), 'Level conflict blocking is missing');
     assert(revitCommand.includes('exists at a different coordinate and was not modified'), 'Grid conflict blocking is missing');
     assert(revitCommand.includes('revit-import-audit-'), 'Dated native Revit import audit is missing');
+    assert(revitCommand.includes('RevitAutomationPaths.PendingJobPath') && revitCommand.includes('CompleteJob'), 'Revit command does not consume the queued import job');
+    assert(
+        revitStartup.includes('IExternalApplication') &&
+        revitStartup.includes('application.Idling += OnIdling') &&
+        revitStartup.includes('RevitImportJob.v1') &&
+        revitStartup.includes('File.Exists(hostPath)') &&
+        revitStartup.includes('OpenAndActivateDocument') &&
+        revitStartup.includes('LookupCommandId') &&
+        revitStartup.includes('PostCommand'),
+        'Revit startup automation does not post the registered import command'
+    );
+    assert(
+        revitHostAutomation.includes('NewProjectDocument(UnitSystem.Metric)') &&
+        revitHostAutomation.includes('SaveAs(hostPath)') &&
+        revitHostAutomation.includes('OpenAndActivateDocument(hostPath)'),
+        'Revit host automation does not create and open a valid native .rvt project'
+    );
+    assert(
+        revitStartup.includes('TryQuarantineInvalidHost') &&
+        revitStartup.includes('RevitAutomationPaths.HostDirectory') &&
+        revitStartup.includes('.invalid-'),
+        'Revit startup automation does not quarantine a stale invalid managed host'
+    );
+    assert(
+        revitAddinTemplate.includes('FutolStructure.Revit2027.FutolStructureStartup') &&
+        revitInstaller.includes('FutolStructure.Revit2027.FutolStructureStartup') &&
+        revitAddinTemplate.includes('FutolStructure.Revit2027.FutolStructureHostAutomationCommand') &&
+        revitInstaller.includes('FutolStructure.Revit2027.FutolStructureHostAutomationCommand'),
+        'Revit startup automation is not registered for development installation'
+    );
     return {
         contract: 'FutolStructure.RevitNativeImport.v1',
         source: 'collectCSIExportModelData',
         nativeRvt: 'Revit 2027 add-in compiled; levels/grids implemented; native acceptance pending',
+        oneClickAutomation: 'Desktop bridge queues job; Revit API creates a valid metric .rvt host; startup add-in opens it and posts import command; completion receipt is written',
         rebar: 'PENDING_APPROVED_DESIGN_RESULTS'
     };
 }
@@ -546,7 +593,8 @@ function checkAnalysisOptimizationSourceContract() {
     assert(pyniteRunner.includes('FutolStructure.PyNiteExecutionLog.v1') && pyniteRunner.includes('--cancel-file') && pyniteRunner.includes('CANCELLED'), 'PyNite controlled logging/cancellation contract is missing');
     assert(gravityComparison.includes('FutolStructure.GravitySolverComparison.v1') && gravityComparison.includes('dead-tolerance-percent'), 'PyNite/STAAD gravity comparison gate is missing');
     assert(pyniteRequirements.trim() === 'PyNiteFEA==3.0.0', 'PyNite dependency is not pinned to the governed version');
-    assert(html.includes('thicknessMm,\n                            points: solverPoints'), 'Canonical regular slabs must retain explicit thickness for solver self-weight');
+    assert(html.includes('thicknessMm,') && html.includes('points: solverPoints'), 'Canonical regular slabs must retain explicit thickness for solver self-weight');
+    assert(html.includes('canonicalPlanBoundary') && html.includes('canonicalBoundaryRole') && html.includes('slabBoundaryPolicy'), 'Canonical slab boundary contract is missing');
     assert(html.includes('thicknessMm: Number(slab.thicknessMm) || 150'), 'Canonical stair slabs must retain explicit thickness for solver self-weight');
 
     const api = require(modulePath);
@@ -634,18 +682,26 @@ function checkWallInventorySourceContract() {
     assert(source.includes('CHB_THICKNESS_OPTIONS_MM') && source.includes('normalizeChbThickness'), 'Governed 100/150/200 mm CHB options are missing');
     assert(source.includes('alignmentMode') && source.includes('flush-exterior') && source.includes('flush-interior'), 'Wall placement alignment modes are missing');
     assert(source.includes('plasterUnitWeightKNM3') && source.includes('wallTotalThicknessMm'), 'Wall finish weight or total thickness metadata is missing');
-    assert(source.includes('openings') && source.includes('lintel') && source.includes('exportToSolvers'), 'Wall opening/lintel or solver opt-in policy is missing');
+    assert(source.includes('openings') && source.includes('offsetM') && source.includes('lintel') && source.includes('exportToSolvers'), 'Wall opening placement, lintel, or solver opt-in policy is missing');
     assert(source.includes('normalizeSnap') && source.includes('elevations'), 'Programmable wall snaps or elevation inventory is missing');
-    ['wallEditorOpeningType', 'wallEditorOpeningWidth', 'wallEditorOpeningHeight', 'wallEditorLintel', 'wallEditorAlignment', 'editWallFromPlan'].forEach(id => {
+    ['wallEditorOpeningType', 'wallEditorOpeningWidth', 'wallEditorOpeningHeight', 'wallEditorLintel', 'wallEditorAlignment', 'addWallOpening', 'updateWallOpeningField', 'beginWallOpeningDrag', 'wall-opening-row', 'editWallFromPlan'].forEach(id => {
         assert(html.includes(id), `Wall editor control ${id} is missing`);
     });
+    ['wallEditorToolXlineH', 'wallEditorToolXlineV', 'wallEditorToolXlineSelect', 'wallEditorToolOpening', 'wallEditorXlinePosition', 'moveSelectedWallXline', 'deleteSelectedWallXline', 'normalizeXlineList', 'snapXlineCoordinate', 'getWallEditorXlineIntersections', 'resolveWallEditorSnapPoint', 'setWallOpeningToXlineIntersection', 'xline-intersection', 'opening-xline', 'state.xlines'].forEach(marker => {
+        assert(html.includes(marker), `Wall Xline construction control or persistence marker ${marker} is missing`);
+    });
+    assert(html.includes("WALL_EDITOR_XLINE_SNAP_STEP_M = 0.05"), 'Wall Xline snap increment is not governed at 5 cm');
+    assert(html.includes('drawWallLoadPlanOverlay') && html.includes('wallOverlayCount'), 'Main Layout wall overlay is not connected to the wall inventory');
+    assert(html.includes('loadArrowCount') && html.includes('Equivalent wall line load'), 'Wall elevation distributed-load diagram is missing');
+    assert(!html.includes('xlines: state.xlines') || html.includes('xlines: normalizeXlineList(state.xlines)'), 'Wall Xlines are not normalized before persistence');
     const api = require(modulePath);
-    const inventory = api.build({ floors: [{ id: 'GF', height: 3, wallLoads: [{ id: 'W-GF-1', x1: 0, y1: 0, x2: 4, y2: 0, chbThicknessMm: 150, plasterInsideMm: 20, plasterOutsideMm: 20, alignmentMode: 'flush-exterior', openings: [{ id: 'D1', type: 'door', widthM: 0.9, heightM: 2.1 }], lintel: { depthMm: 200 }, exportToSolvers: true }] }] });
+    const inventory = api.build({ floors: [{ id: 'GF', height: 3, wallLoads: [{ id: 'W-GF-1', x1: 0, y1: 0, x2: 4, y2: 0, chbThicknessMm: 150, plasterInsideMm: 20, plasterOutsideMm: 20, alignmentMode: 'flush-exterior', openings: [{ id: 'D1', type: 'door', widthM: 0.9, heightM: 2.1, offsetM: 1.03 }], lintel: { depthMm: 200 }, exportToSolvers: true }] }] });
     assert(inventory.contract === 'FutolStructure.WallInventory.v1', 'Wall inventory API contract is not attached');
     assert(inventory.walls.length === 1 && inventory.openings.length === 1 && inventory.lintels.length === 1, 'Wall opening/lintel inventory did not normalize');
     assert(inventory.solverWalls.length === 1 && inventory.walls[0].lineLoadKNm > 0, 'Opted-in wall line load was not derived');
     assert(inventory.walls[0].alignmentMode === 'flush-exterior' && inventory.walls[0].wallTotalThicknessMm === 190, 'Wall alignment or total thickness did not normalize');
     assert(inventory.walls[0].plasterInsideMm === 20 && inventory.walls[0].plasterOutsideMm === 20, 'Wall plaster defaults did not normalize to 20 mm each side');
+    assert(inventory.openings[0].offsetM === 1.05, 'Wall opening offset did not normalize to the governed 5 cm snap');
     assert(inventory.elevations[0].openings[0].headElevationM > 0, 'Wall elevation opening head was not derived');
     return { contract: api.contract, walls: inventory.walls.length, openings: inventory.openings.length, lintels: inventory.lintels.length, elevations: inventory.elevations.length };
 }
@@ -653,13 +709,13 @@ function checkWallInventorySourceContract() {
 function checkWallSolverTransferSourceContract() {
     const html = fs.readFileSync(INDEX, 'utf8');
     assert(html.includes('resolveFloorWallAssignments') && html.includes('wallSolverAssignments'), 'Canonical wall-to-beam solver resolver is missing');
-    assert(html.includes('explicit-wall-line') && html.includes('wallLoadTransfer'), 'Per-beam explicit wall line-load transfer metadata is missing');
+    assert(html.includes('wall-line-to-beam-tributary') && html.includes('wallLoadTransfer'), 'Per-beam wall line-load transfer metadata is missing');
     assert(html.includes('wall.exportToSolvers === true'), 'Wall solver export is not persisted as an explicit opt-in');
     assert(html.includes('id="wallEditorSolver" type="checkbox"') && !html.includes('id="wallEditorSolver" type="checkbox" disabled'), 'Wall solver opt-in control is still disabled');
     assert(html.includes('wall endpoints resolve to a canonical beam axis'), 'Wall solver connectivity warning policy is missing');
     return {
         contract: 'FutolStructure.WallSolverTransfer.v1',
-        policy: 'explicit-opt-in-to-canonical-beam-line-load',
+        policy: 'explicit-opt-in-to-canonical-beam-tributary-line-load',
         unresolvedPolicy: 'coordination-only-with-warning'
     };
 }
@@ -754,6 +810,11 @@ function checkDesktopETABSBridge() {
         'Desktop file-association loading can block behind a success alert'
     );
     assert(packageJson.build?.win?.icon === 'assets/futolstructure.ico', 'Windows packaging is not using the FutolStructure ICO');
+    assert(main.includes("ipcMain.handle('run-revit-import'"), 'Desktop Revit import IPC handler is missing');
+    assert(main.includes('pending-revit-import.json') && main.includes('RevitImportJob.v1'), 'Desktop Revit bridge does not write the queued job contract');
+    assert(main.includes('hostCreatedByRevitApi') && main.includes('spawn(revitExecutable, hostExists ? [hostPath] : []'), 'Desktop Revit bridge does not defer valid .rvt host creation to Revit');
+    assert(preload.includes('runRevitImport'), 'Desktop preload does not expose the Revit import bridge');
+    assert(index.includes('FutolStructureDesktop.runRevitImport') && index.includes('Revit 2027 automation started'), 'Revit import UI is not connected to one-click desktop automation');
     return {
         windowsIcon: path.relative(ROOT, DESKTOP_ICON),
         powershellBridge: true,
@@ -764,6 +825,10 @@ function checkDesktopETABSBridge() {
         recentProjectsStartupSurface: true,
         nonBlockingFileAssociationLoad: true,
         etabsBuilderSettlesOnPowerShellExit: true,
+        etabsSelfWeightOwner: 'FS_DEAD=1; Dead=0',
+        revitOneClickImport: true,
+        revitNativeHostCreation: true,
+        revitStartupCommandPost: true,
         outputDirectory: 'Documents/FutolStructure ETABS Exports'
     };
 }
@@ -5626,7 +5691,7 @@ async function writeWallSolverArtifacts(etabsScriptPath = null, staadPath = null
                 plasterOutsideMm: 20,
                 alignmentMode: 'flush-exterior',
                 exportToSolvers: true,
-                openings: [{ id: 'OPEN-W-2F-BEAM-1', type: 'door', widthM: 0.9, heightM: 2.1, count: 1 }],
+                openings: [{ id: 'OPEN-W-2F-BEAM-1', type: 'door', widthM: 0.9, heightM: 2.1, offsetM: 1.03, count: 1 }],
                 lintel: { id: 'L-W-2F-BEAM-1', widthMm: 150, depthMm: 200, designStatus: 'preliminary' },
                 startSnap: { mode: 'beam', targetId: 'BEAM-BX-1-1-START', toleranceM: 0.45 },
                 endSnap: { mode: 'beam', targetId: 'BEAM-BX-1-1-END', toleranceM: 0.45 }
@@ -5634,9 +5699,43 @@ async function writeWallSolverArtifacts(etabsScriptPath = null, staadPath = null
             state.floors[0].wallLoads = [wall];
             calculate();
             refreshInputPanelsAfterStateRestore();
+            setPlanTab('structural');
+            draw();
+            const layoutWallOverlayCount = Number(document.getElementById('mainCanvas')?.dataset.wallOverlayCount || 0);
+            setPlanTab('wallElevations');
+            populateWallElevations();
+            const wallElevationCards = [...document.querySelectorAll('.wall-elevation-card[data-wall-id]')];
+            const wallElevationCanvases = [...document.querySelectorAll('.wall-elevation-canvas')];
+            const wallElevationCanvas = wallElevationCanvases[0];
+            const loadArrowCount = Number(wallElevationCanvas?.dataset.loadArrowCount || 0);
+            const loadArrowValueKNm = Number(wallElevationCanvas?.dataset.lineLoadKNm || 0);
+            updateWallOpeningField('2F', wall.id, 'OPEN-W-2F-BEAM-1', 'offsetM', 1.03, { recordHistory: false, calculate: false, render: false, schedule: false });
+            const openingOffsetM = Number(state.floors[0].wallLoads[0].openings[0].offsetM);
+            const xline = createWallEditorXline('2F', 'horizontal', 1.03, { recordHistory: false, render: false, schedule: false });
+            const xlineCreatedPositionM = Number(state.xlines.find(item => item.id === xline?.id)?.positionM);
+            moveSelectedWallXline(0.05, { recordHistory: false, render: false, schedule: false });
+            const xlineMovedPositionM = Number(state.xlines.find(item => item.id === xline?.id)?.positionM);
+            const verticalXline = createWallEditorXline('2F', 'vertical', 1.1, { recordHistory: false, render: false, schedule: false });
+            const xlineIntersectionTargets = getWallEditorXlineIntersections('2F');
+            const xlineIntersection = xlineIntersectionTargets.find(item =>
+                item.xlineIds?.horizontal === xline?.id && item.xlineIds?.vertical === verticalXline?.id
+            );
+            const xlineIntersectionPoint = resolveWallEditorSnapPoint('2F', { x: 1.12, y: 1.08 }, 'xline-intersection');
+            const openingTargetApplied = setWallOpeningToXlineIntersection('2F', wall.id, xlineIntersection?.id, { recordHistory: false, calculate: false, render: false, schedule: false });
+            const openingTargetOffsetM = Number(state.floors[0].wallLoads[0].openings[0].offsetM);
+            const xlineProjectData = buildProjectData();
+            const xlineSavedPositionM = Number(xlineProjectData.xlines?.find(item => item.id === xline?.id)?.positionM);
+            state.xlines = [];
+            applyLoadedProject(xlineProjectData, 'xline acceptance fixture', { silent: true, skipAutosave: true });
+            const xlineRestoredPositionM = Number(state.xlines.find(item => item.id === xline?.id)?.positionM);
+            wallEditorSelectedXlineId = verticalXline?.id || '';
+            const verticalXlineDeleted = deleteSelectedWallXline({ recordHistory: false, render: false, schedule: false });
+            wallEditorSelectedXlineId = xline?.id || '';
+            const xlineDeleted = deleteSelectedWallXline({ recordHistory: false, render: false, schedule: false });
             const model = collectCSIExportModelData();
             const explicitAssignments = model.wallSolverAssignments.filter(item => item.status === 'RESOLVED');
-            const explicitBeams = model.beams.filter(beam => beam.wallLoadSource === 'explicit-wall-line');
+            const explicitBeams = model.beams.filter(beam => beam.wallLoadSource === 'wall-line-to-beam-tributary');
+            const runtimeBeam = state.beams.find(beam => beam.id === explicitAssignments[0]?.targetBeamId) || null;
             return {
                 model,
                 etabs: generateETABSOAPIScript(model),
@@ -5663,11 +5762,52 @@ async function writeWallSolverArtifacts(etabsScriptPath = null, staadPath = null
                         id: explicitBeams[0].id,
                         sourceId: explicitBeams[0].sourceId,
                         wallLoad: explicitBeams[0].wallLoad,
+                        wallLineLoadService: explicitBeams[0].wallLineLoadService,
                         wallLoadSource: explicitBeams[0].wallLoadSource,
                         wallLoadAssignments: explicitBeams[0].wallLoadAssignments
                     } : null,
+                    tributaryTransfer: runtimeBeam ? {
+                        sourceId: runtimeBeam.id,
+                        wallLineLoadService: Number(runtimeBeam.wallLineLoadService || 0),
+                        factoredWallLoad: Number(runtimeBeam.wallLoad || 0),
+                        totalFactoredLineLoad: Number(runtimeBeam.w || 0),
+                        geometricTributaryAreaM2: Number(runtimeBeam.tributaryArea || 0),
+                        wallLoadSource: runtimeBeam.wallLoadSource || 'none'
+                    } : null,
                     etabsHasWallLoad: generateETABSOAPIScript(model).includes('FS_WALL'),
-                    staadHasWallLoad: generateSTAADContent(model).includes('MEMBER LOAD') && generateSTAADContent(model).includes('UNI GY')
+                    staadHasWallLoad: generateSTAADContent(model).includes('MEMBER LOAD') && generateSTAADContent(model).includes('UNI GY'),
+                    wallElevationAcceptance: {
+                        cardCount: wallElevationCards.length,
+                        canvasCount: wallElevationCanvases.length,
+                        fullWidthCards: wallElevationCards.every(card => card.clientWidth >= 900),
+                        scrollableList: document.getElementById('wallElevationsBody')?.classList.contains('wall-elevation-list') === true,
+                        layoutWallOverlayCount,
+                        loadArrowCount,
+                        loadArrowValueKNm,
+                        openingOffsetM,
+                        openingAreaM2: Number(model.wallInventory.openings[0]?.widthM || 0) * Number(model.wallInventory.openings[0]?.heightM || 0)
+                    },
+                    xlineAcceptance: {
+                        createdId: xline?.id || null,
+                        createdPositionM: xlineCreatedPositionM,
+                        movedPositionM: xlineMovedPositionM,
+                        intersectionId: xlineIntersection?.id || null,
+                        intersectionPoint: xlineIntersection ? { x: xlineIntersection.x, y: xlineIntersection.y } : null,
+                        intersectionSnap: xlineIntersectionPoint?.snap || null,
+                        openingTargetApplied,
+                        openingTargetOffsetM,
+                        savedPositionM: xlineSavedPositionM,
+                        restoredPositionM: xlineRestoredPositionM,
+                        snapStepM: 0.05,
+                        movedByFiveCm: Math.abs(xlineMovedPositionM - xlineCreatedPositionM - 0.05) < 1e-9,
+                        saveLoadRetained: xlineSavedPositionM === 1.1 && xlineRestoredPositionM === 1.1,
+                        intersectionResolved: xlineIntersectionPoint?.snap?.mode === 'xline-intersection' &&
+                            xlineIntersectionPoint.snap.targetId === xlineIntersection?.id &&
+                            xlineIntersectionPoint.x === 1.1 && xlineIntersectionPoint.y === 1.1,
+                        openingPlacedAtIntersection: openingTargetApplied && openingTargetOffsetM === 0.35,
+                        deleted: verticalXlineDeleted && xlineDeleted && !state.xlines.some(item => item.id === xline?.id || item.id === verticalXline?.id),
+                        excludedFromSolverModel: !model.xlines && !model.constructionLines
+                    }
                 }
             };
         })()`);
@@ -5696,10 +5836,31 @@ async function writeWallSolverArtifacts(etabsScriptPath = null, staadPath = null
             payload.wallAcceptance.unresolvedAssignmentCount === 0 &&
             payload.wallAcceptance.explicitBeamCount === 1 &&
             payload.wallAcceptance.explicitLineLoadKNm > 0 &&
+            payload.wallAcceptance.tributaryTransfer?.wallLineLoadService > 0 &&
+            payload.wallAcceptance.tributaryTransfer?.factoredWallLoad > 0 &&
+            payload.wallAcceptance.tributaryTransfer?.totalFactoredLineLoad >= payload.wallAcceptance.tributaryTransfer?.factoredWallLoad &&
+            payload.wallAcceptance.tributaryTransfer?.geometricTributaryAreaM2 > 0 &&
+            payload.wallAcceptance.tributaryTransfer?.wallLoadSource === 'wall-line-to-beam-tributary' &&
             payload.wallAcceptance.alignmentMode === 'flush-exterior' &&
             payload.wallAcceptance.eccentricityM > 0 &&
             payload.wallAcceptance.etabsHasWallLoad &&
-            payload.wallAcceptance.staadHasWallLoad,
+            payload.wallAcceptance.staadHasWallLoad &&
+            payload.wallAcceptance.wallElevationAcceptance?.cardCount === 1 &&
+            payload.wallAcceptance.wallElevationAcceptance?.canvasCount === 1 &&
+            payload.wallAcceptance.wallElevationAcceptance?.scrollableList &&
+            payload.wallAcceptance.wallElevationAcceptance?.layoutWallOverlayCount === 1 &&
+            payload.wallAcceptance.wallElevationAcceptance?.loadArrowCount >= 3 &&
+            payload.wallAcceptance.wallElevationAcceptance?.loadArrowValueKNm > 0 &&
+            payload.wallAcceptance.wallElevationAcceptance?.openingOffsetM === 1.05 &&
+            Math.abs(payload.wallAcceptance.wallElevationAcceptance?.openingAreaM2 - 1.89) < 1e-9 &&
+            payload.wallAcceptance.xlineAcceptance?.createdPositionM === 1.05 &&
+            payload.wallAcceptance.xlineAcceptance?.movedPositionM === 1.1 &&
+            payload.wallAcceptance.xlineAcceptance?.movedByFiveCm &&
+            payload.wallAcceptance.xlineAcceptance?.saveLoadRetained &&
+            payload.wallAcceptance.xlineAcceptance?.intersectionResolved &&
+            payload.wallAcceptance.xlineAcceptance?.openingPlacedAtIntersection &&
+            payload.wallAcceptance.xlineAcceptance?.deleted &&
+            payload.wallAcceptance.xlineAcceptance?.excludedFromSolverModel,
         'Wall solver transfer fixture did not resolve an opted-in wall to a beam', payload.wallAcceptance);
         return {
             ...paths,
@@ -5966,6 +6127,18 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                 Math.abs(Number(slab.floorElevationM) - storyElevationByFloor.get(slab.floorId)) <= 0.000001 &&
                 Math.abs(Number(slab.slabReferenceElevationM) - storyElevationByFloor.get(slab.floorId)) <= 0.000001
             );
+            const slabCanonicalBoundaryAudit = {
+                count: csiExportModel.slabs.length,
+                allRetained: csiExportModel.slabs.every(slab =>
+                    Array.isArray(slab.canonicalPlanBoundary) && slab.canonicalPlanBoundary.length === 4 &&
+                    Array.isArray(slab.points) && slab.points.length === 4 &&
+                    ['regular-slab', 'cantilever-slab'].includes(slab.canonicalBoundaryRole)
+                ),
+                cantileverCount: csiExportModel.slabs.filter(slab => slab.canonicalBoundaryRole === 'cantilever-slab').length,
+                cantileverEdges: [...new Set(csiExportModel.slabs
+                    .filter(slab => slab.canonicalBoundaryRole === 'cantilever-slab')
+                    .map(slab => slab.canonicalCantileverEdge || 'unspecified'))]
+            };
             const csiExportAudit = {
                 counts: csiExportModel.counts,
                 verticalDatums: csiExportModel.verticalDatums,
@@ -5995,6 +6168,7 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                     counts[slab.floorId] = (counts[slab.floorId] || 0) + 1;
                     return counts;
                 }, {}),
+                slabCanonicalBoundaryAudit,
                 edgeBeamAnalyticalJunctions: (() => {
                     const samePoint = (a, b) => Math.abs(Number(a?.x) - Number(b?.x)) <= 0.001 &&
                         Math.abs(Number(a?.y) - Number(b?.y)) <= 0.001;
@@ -6079,6 +6253,10 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                     etabsScript.includes('Get-FutolNativeFrameGeometry') &&
                     etabsScript.includes('Compare-FutolFrameGeometry') &&
                     etabsScript.includes('$nativeGeometryAudit'),
+                hasNativeSlabBoundaryParity:
+                    etabsScript.includes('Compare-FutolPolygon') &&
+                    etabsScript.includes('$nativeSlabGeometryFailures') &&
+                    etabsScript.includes('slabBoundaryFailures'),
                 hasNativeFrameParity:
                     etabsScript.includes('Compare-FutolAngle') &&
                     etabsScript.includes('Compare-FutolJointOffset') &&
@@ -6277,7 +6455,9 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
                     staadContent.includes(' START ') && staadContent.includes(' END '),
                 hasCentroidToPhysicalMemberOffsets:
                     Number(window.lastSTAADExportAudit?.beamInsertion?.jointOffsetMembers || 0) ===
-                    Number(csiExportAudit?.beamInsertion?.jointOffsetCount || 0)
+                    Number(csiExportAudit?.beamInsertion?.jointOffsetCount || 0),
+                hasCanonicalSlabMetadata: staadContent.includes('* FS_CANONICAL_SLAB') &&
+                    Number(window.lastSTAADExportAudit?.canonicalSlabBoundaries?.length || 0) === csiExportModel.slabs.length
             };
             const ifcExportAudit = {
                 ...window.lastIFCExportAudit,
@@ -6477,6 +6657,7 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
             result.csiExportAudit.hasStableNativeFrameNames &&
             result.csiExportAudit.hasNativeAreaReconciliation &&
             result.csiExportAudit.hasNativeGeometryReadback &&
+            result.csiExportAudit.hasNativeSlabBoundaryParity &&
             result.csiExportAudit.hasNativeFrameParity &&
             result.csiExportAudit.hasUnifiedColumnationParity &&
             result.csiExportAudit.hasBeamTopCenterCardinalPoint &&
@@ -6486,6 +6667,7 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
             result.csiExportAudit.levelAlignment?.beamsAtFSTRLevel &&
             result.csiExportAudit.levelAlignment?.slabsAtFSTRLevel &&
             result.csiExportAudit.levelAlignment?.beamSlabLevelsSynchronized &&
+            result.csiExportAudit.slabCanonicalBoundaryAudit?.allRetained &&
             result.csiExportAudit.gridDefinition?.xLines?.length === expectedGrid[0] + 1 &&
             result.csiExportAudit.gridDefinition?.yLines?.length === expectedGrid[1] + 1 &&
             result.csiExportAudit.sectionAxisMapping?.some(section =>
@@ -6571,6 +6753,7 @@ async function runProjectSmoke(projectPath, etabsScriptPath = null, staadPath = 
             result.staadExportAudit.hasJointDisplacements &&
             result.staadExportAudit.hasMemberOffsets &&
             result.staadExportAudit.hasCentroidToPhysicalMemberOffsets &&
+            result.staadExportAudit.hasCanonicalSlabMetadata &&
             result.staadExportAudit.counts.jointOffsetBeams === result.csiExportAudit.beamInsertion.jointOffsetCount &&
             result.staadExportAudit.counts.verticallyOffsetBeams === result.csiExportAudit.beamInsertion.offsetCount &&
             result.staadExportAudit.concreteDesign?.units === 'N-mm' &&

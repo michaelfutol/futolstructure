@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('FutolStructureDesktop', Object.freeze({
   rememberProject: (projectPath) => ipcRenderer.invoke('remember-project', projectPath),
   exportPdfReport: (payload) => ipcRenderer.invoke('export-pdf-report', payload),
   runEtabsBuilder: (payload) => ipcRenderer.invoke('run-etabs-export', payload),
+  runRevitImport: (payload) => ipcRenderer.invoke('run-revit-import', payload),
   onProjectOpen: (callback) => {
     if (typeof callback !== 'function') return () => {};
     const listener = (_event, payload) => callback(payload);

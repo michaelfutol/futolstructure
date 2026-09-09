@@ -151,14 +151,23 @@ const EngineTributary = (function () {
      * @param {object} beam
      * @param {number} pu - Factored slab load per square meter
      * @param {number} wallLoad - Unfactored wall line load (kN/m)
+     * @param {object} [options] - Load transfer options
      * @returns {object} { tributaryArea, tributaryWidth, wallLoad, w }
      */
-    function calculateBeamLineLoad(beam, pu, wallLoad) {
+    function calculateBeamLineLoad(beam, pu, wallLoad, options = {}) {
         const tributaryArea = Math.max(0, beam?.tributaryArea || 0);
         const span = beam?.span || 0;
         const tributaryWidth = span > 0 ? tributaryArea / span : 0;
         const slabLoad = (pu || 0) * tributaryWidth;
-        const factoredWallLoad = beam?.isCantilever || beam?.isEdgeBeam ? 0 : 1.2 * (wallLoad || 0);
+        // A wall line that is explicitly resolved to this beam is a real
+        // supported permanent load, including when the receiver is an edge
+        // or cantilever-side beam. Keep the legacy broad floor allowance
+        // behavior unchanged for those members unless the transfer is explicit.
+        const explicitWallTransfer = options.wallLoadSource === 'wall-line-to-beam-tributary';
+        const legacyEdgeWallExclusion = beam?.isCantilever || beam?.isEdgeBeam;
+        const factoredWallLoad = legacyEdgeWallExclusion && !explicitWallTransfer
+            ? 0
+            : 1.2 * (wallLoad || 0);
 
         return {
             tributaryArea: tributaryArea,

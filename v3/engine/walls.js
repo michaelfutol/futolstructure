@@ -18,6 +18,7 @@
         plasterWeightKPaPerMm: 0.023,
         openingDeductionMode: 'area'
     });
+    const OPENING_SNAP_STEP_M = 0.05;
 
     function num(value, fallback = 0) {
         const parsed = Number(value);
@@ -39,6 +40,7 @@
 
     function normalizeOpening(opening, index) {
         const item = opening || {};
+        const rawOffset = Number(item.offsetM ?? item.positionM);
         return {
             id: item.id || `OPEN-${index + 1}`,
             type: ['door', 'window', 'other'].includes(String(item.type || '').toLowerCase())
@@ -46,6 +48,9 @@
             widthM: Math.max(0, num(item.widthM ?? item.width)),
             heightM: Math.max(0, num(item.heightM ?? item.height)),
             sillHeightM: Math.max(0, num(item.sillHeightM ?? item.sillHeight)),
+            offsetM: Number.isFinite(rawOffset)
+                ? Math.max(0, Number((Math.round(rawOffset / OPENING_SNAP_STEP_M) * OPENING_SNAP_STEP_M).toFixed(3)))
+                : null,
             count: Math.max(1, Math.round(num(item.count, 1))),
             notes: item.notes || ''
         };
@@ -86,10 +91,19 @@
         const openingArea = openings.reduce((sum, opening) => sum + opening.widthM * opening.heightM * opening.count, 0);
         const grossArea = length * height;
         const netArea = Math.max(0, grossArea - Math.min(openingArea, grossArea));
-        const chbFaceWeightKPa = Math.max(0, num(
-            item.chbFaceWeightKPa ?? item.faceWeightKPa ?? item.wallWeightKPa,
-            CHB_FACE_WEIGHT_KPA[thickness]
-        ));
+        // A legacy wall record may persist a zero placeholder for face weight.
+        // Treat that placeholder as "use the governed CHB default" so the
+        // elevation diagram and solver line-load assignment cannot disagree.
+        const suppliedChbFaceWeightKPa = num(
+            item.chbFaceWeightKPa ?? item.faceWeightKPa,
+            NaN
+        );
+        const suppliedLegacyWallWeightKPa = num(item.wallWeightKPa, NaN);
+        const chbFaceWeightKPa = suppliedChbFaceWeightKPa > 0
+            ? suppliedChbFaceWeightKPa
+            : suppliedLegacyWallWeightKPa > 0
+                ? suppliedLegacyWallWeightKPa
+                : CHB_FACE_WEIGHT_KPA[thickness];
         const plasterWeightKPaPerMm = Math.max(0, num(
             item.plasterWeightKPaPerMm,
             num(item.plasterUnitWeightKNM3, DEFAULTS.plasterUnitWeightKNM3) / 1000

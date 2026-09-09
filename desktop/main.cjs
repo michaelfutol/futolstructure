@@ -69,6 +69,22 @@ function normalizeProjectPath(projectPath, requireExisting = true) {
   }
 }
 
+function findRevit2027Executable() {
+  const roots = [
+    process.env.ProgramFiles,
+    process.env['ProgramW6432'],
+    process.env['ProgramFiles(x86)']
+  ].filter(Boolean);
+  const candidates = roots.map((root) => path.join(root, 'Autodesk', 'Revit 2027', 'Revit.exe'));
+  return candidates.find((candidate) => fs.existsSync(candidate)) || '';
+}
+
+function writeJsonAtomically(filePath, payload) {
+  const temporaryPath = `${filePath}.tmp-${process.pid}`;
+  fs.writeFileSync(temporaryPath, JSON.stringify(payload, null, 2), 'utf8');
+  fs.renameSync(temporaryPath, filePath);
+}
+
 function getRecentProjectsStorePath() {
   return path.join(app.getPath('userData'), 'recent-projects.json');
 }
@@ -629,6 +645,65 @@ ipcMain.handle('run-etabs-export', async (_event, payload) => {
       outputDirectory,
       message: error.message,
       stderr: String(error.stack || error.message).slice(-6000)
+    };
+  }
+});
+
+ipcMain.handle('run-revit-import', async (_event, payload) => {
+  const manifest = payload?.manifest;
+  if (!manifest || manifest.contract !== 'FutolStructure.RevitNativeImport.v1') {
+    return { success: false, message: 'The Revit manifest contract is missing or unsupported.' };
+  }
+
+  const revitExecutable = findRevit2027Executable();
+  if (!revitExecutable) {
+    return { success: false, message: 'Revit 2027 was not found in the standard Autodesk installation path.' };
+  }
+  const outputDirectory = path.join(app.getPath('documents'), 'FutolStructure Revit Imports');
+  const jobDirectory = path.join(app.getPath('documents'), 'FutolStructure', 'Revit Jobs');
+  const hostDirectory = path.join(app.getPath('documents'), 'FutolStructure', 'Revit Hosts');
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').replace(/\.\d{3}Z$/, 'Z');
+  const manifestPath = path.join(outputDirectory, `FutolStructure_Revit_Import_${stamp}.json`);
+  const jobPath = path.join(jobDirectory, 'pending-revit-import.json');
+  // Version the private host so a stale .rte copied to .rvt from an older build
+  // can never be reused by the corrected API-created host workflow.
+  const hostPath = path.join(hostDirectory, 'FutolStructure_Revit_Import_Host_FS125.rvt');
+  const jobId = `revit-${stamp}-${process.pid}`;
+
+  try {
+    await fs.promises.mkdir(outputDirectory, { recursive: true });
+    await fs.promises.mkdir(jobDirectory, { recursive: true });
+    await fs.promises.mkdir(hostDirectory, { recursive: true });
+    await fs.promises.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
+    const hostExists = fs.existsSync(hostPath);
+    writeJsonAtomically(jobPath, {
+      contract: 'FutolStructure.RevitImportJob.v1',
+      jobId,
+      createdAt: new Date().toISOString(),
+      manifestPath,
+      hostPath
+    });
+
+    const child = spawn(revitExecutable, hostExists ? [hostPath] : [], { detached: true, stdio: 'ignore', windowsHide: false });
+    child.unref();
+    return {
+      success: true,
+      jobId,
+      manifestPath,
+      hostPath,
+      jobPath,
+      revitExecutable,
+      hostCreatedByRevitApi: !hostExists,
+      message: hostExists
+        ? 'Revit 2027 was launched with the FutolStructure FS125 host. The installed FutolStructure startup add-in will post the import command automatically.'
+        : 'Revit 2027 was launched for the queued job. The installed FutolStructure startup add-in will create a valid metric .rvt host through the Revit API, open it, and import automatically.'
+    };
+  } catch (error) {
+    return {
+      success: false,
+      manifestPath,
+      jobPath,
+      message: `Revit automation job could not be started: ${error.message}`
     };
   }
 });
