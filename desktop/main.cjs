@@ -8,6 +8,7 @@ const { autoUpdater } = require('electron-updater');
 const APP_ID = 'com.futoltech.futolstructure';
 const RECENT_PROJECT_LIMIT = 10;
 const PROJECT_EXTENSIONS = new Set(['.fstr', '.json']);
+const PREFERRED_PROJECT_DIRECTORY = 'D:\\FUTOLSTRUCTURE PROJECTS';
 let mainWindow = null;
 let manualUpdateCheck = false;
 let updateDownloadStarted = false;
@@ -87,6 +88,21 @@ function writeJsonAtomically(filePath, payload) {
 
 function getRecentProjectsStorePath() {
   return path.join(app.getPath('userData'), 'recent-projects.json');
+}
+
+function getDefaultProjectDirectory() {
+  const candidates = process.platform === 'win32'
+    ? [PREFERRED_PROJECT_DIRECTORY, path.join(app.getPath('documents'), 'FUTOLSTRUCTURE PROJECTS')]
+    : [path.join(app.getPath('documents'), 'FUTOLSTRUCTURE PROJECTS')];
+  for (const candidate of candidates) {
+    try {
+      fs.mkdirSync(candidate, { recursive: true });
+      return candidate;
+    } catch (error) {
+      console.warn(`FutolStructure could not prepare project directory ${candidate}:`, error.message);
+    }
+  }
+  return app.getPath('documents');
 }
 
 function writeRecentProjectRecords(records) {
@@ -179,6 +195,7 @@ function readProjectPayload(projectPath) {
 async function chooseProjectFromDialog() {
   const result = await dialog.showOpenDialog(mainWindow || undefined, {
     title: 'Open FutolStructure Project',
+    defaultPath: getDefaultProjectDirectory(),
     properties: ['openFile'],
     filters: [
       { name: 'FutolStructure Projects', extensions: ['fstr', 'json'] },
@@ -187,6 +204,17 @@ async function chooseProjectFromDialog() {
   });
   if (result.canceled || !result.filePaths[0]) return null;
   return readProjectPayload(result.filePaths[0]);
+}
+
+function safeProjectFilename(value) {
+  const cleaned = String(value || 'FutolStructure_Project.fstr')
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const filename = cleaned || 'FutolStructure_Project.fstr';
+  return filename.toLowerCase().endsWith('.fstr')
+    ? filename
+    : `${filename.replace(/\.json$/i, '')}.fstr`;
 }
 
 function safeReportFilename(value) {
@@ -215,7 +243,7 @@ async function exportPdfReport(event, payload) {
     ? { canceled: false, filePath: testOutputPath }
     : await dialog.showSaveDialog(mainWindow, {
       title: 'Save FutolStructure PDF Report',
-      defaultPath: path.join(app.getPath('documents'), suggestedName),
+      defaultPath: path.join(getDefaultProjectDirectory(), suggestedName),
       filters: [{ name: 'PDF Document', extensions: ['pdf'] }]
     });
   if (saveResult.canceled || !saveResult.filePath) return { success: false, canceled: true };
@@ -445,7 +473,7 @@ function installMenu() {
         },
         {
           label: 'Open Project Folder',
-          click: () => shell.openPath(app.getPath('documents'))
+          click: () => shell.openPath(getDefaultProjectDirectory())
         }
       ]
     },
@@ -558,7 +586,8 @@ function installUpdater() {
 ipcMain.handle('desktop-info', () => ({
   appVersion: app.getVersion(),
   packaged: app.isPackaged,
-  updateChannel: 'github-releases'
+  updateChannel: 'github-releases',
+  defaultProjectDirectory: getDefaultProjectDirectory()
 }));
 
 ipcMain.handle('check-for-updates', () => checkForUpdates(true));
@@ -581,6 +610,36 @@ ipcMain.handle('open-recent-project', (_event, projectPath) => {
 });
 
 ipcMain.handle('remember-project', (_event, projectPath) => rememberRecentProject(projectPath));
+
+ipcMain.handle('save-project-file', async (_event, payload) => {
+  const json = payload?.json;
+  if (typeof json !== 'string' || json.length < 20 || json.length > 25_000_000) {
+    return { success: false, message: 'The FutolStructure project payload is missing or invalid.' };
+  }
+  try {
+    JSON.parse(json);
+    const requestedPath = normalizeProjectPath(payload?.existingPath, false);
+    let filePath = requestedPath && fs.existsSync(requestedPath) ? requestedPath : '';
+    if (!filePath) {
+      const saveResult = await dialog.showSaveDialog(mainWindow || undefined, {
+        title: 'Save FutolStructure Project',
+        defaultPath: path.join(getDefaultProjectDirectory(), safeProjectFilename(payload?.suggestedName)),
+        filters: [{ name: 'FutolStructure Project', extensions: ['fstr'] }]
+      });
+      if (saveResult.canceled || !saveResult.filePath) return { success: false, canceled: true };
+      filePath = saveResult.filePath.toLowerCase().endsWith('.fstr')
+        ? saveResult.filePath
+        : `${saveResult.filePath}.fstr`;
+    }
+    await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.promises.writeFile(filePath, json, 'utf8');
+    rememberRecentProject(filePath);
+    return { success: true, filePath, name: path.basename(filePath) };
+  } catch (error) {
+    console.error('FutolStructure project save failed:', error);
+    return { success: false, message: error.message };
+  }
+});
 
 ipcMain.handle('export-pdf-report', exportPdfReport);
 

@@ -2337,6 +2337,77 @@
             filter: brightness(1.08);
         }
 
+        .recent-projects-sidebar {
+            margin: 8px 10px 12px;
+            border: 1px solid var(--border);
+            background: var(--panel-bg);
+            overflow: hidden;
+        }
+
+        .recent-projects-sidebar[hidden] {
+            display: none;
+        }
+
+        .recent-projects-sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .recent-projects-sidebar-title {
+            margin: 0;
+            color: var(--text-primary);
+            font: 800 0.72rem/1.2 var(--font-main);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .recent-projects-sidebar-folder {
+            max-width: 58%;
+            overflow: hidden;
+            color: var(--text-muted);
+            font: 600 0.58rem/1.2 var(--font-mono);
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .recent-projects-sidebar-list {
+            max-height: 232px;
+            overflow-y: auto;
+        }
+
+        .recent-projects-sidebar .recent-project-row {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 2px;
+            padding: 8px 10px;
+        }
+
+        .recent-projects-sidebar .recent-project-name {
+            font-size: 0.68rem;
+        }
+
+        .recent-projects-sidebar .recent-project-path,
+        .recent-projects-sidebar .recent-project-time,
+        .recent-projects-sidebar .recent-projects-empty {
+            font-size: 0.58rem;
+        }
+
+        .recent-projects-sidebar-footer {
+            display: flex;
+            justify-content: flex-end;
+            padding: 6px 8px;
+            border-top: 1px solid var(--border);
+        }
+
+        .recent-projects-sidebar .recent-projects-browse {
+            min-height: 28px;
+            padding: 5px 9px;
+            font-size: 0.64rem;
+        }
+
         /* ========== RESPONSIVE ADJUSTMENTS ========== */
         @media (max-width: 1200px) {
             .app-container {
@@ -2449,6 +2520,17 @@
         <!-- ========== LEFT PANEL: INPUTS ========== -->
         <div class="panel">
             <div class="panel-header">Input Parameters</div>
+
+            <section class="recent-projects-sidebar" id="desktopRecentProjectsSidebar" hidden aria-labelledby="desktopRecentProjectsSidebarTitle">
+                <div class="recent-projects-sidebar-header">
+                    <h2 class="recent-projects-sidebar-title" id="desktopRecentProjectsSidebarTitle">Recent Projects</h2>
+                    <span class="recent-projects-sidebar-folder" id="desktopRecentProjectsSidebarFolder" title="Default project folder"></span>
+                </div>
+                <div class="recent-projects-sidebar-list" id="desktopRecentProjectsSidebarList"></div>
+                <div class="recent-projects-sidebar-footer">
+                    <button type="button" class="recent-projects-browse" onclick="openProject()">Open Project...</button>
+                </div>
+            </section>
 
             <!-- Grid Spans -->
             <div class="param-group">
@@ -18091,6 +18173,7 @@
 
         // ========== v3.0: SAVE/LOAD PROJECT ==========
         let currentProjectFileHandle = null;
+        let currentProjectFilePath = '';
         let currentProjectFileName = '';
         let currentProjectId = '';
         let currentProjectRevisionId = '';
@@ -18593,6 +18676,33 @@
                 const review = confirmProtectedSaveDelta(currentSummary, saveAs);
                 if (!review.confirmed) return;
                 const json = JSON.stringify(projectData, null, 2);
+
+                const desktopBridge = window.FutolStructureDesktop;
+                if (desktopBridge?.isDesktop && desktopBridge.saveProjectFile) {
+                    if (!saveAs && currentProjectFilePath && currentProjectBaselineData) {
+                        await storeProtectedRevision(currentProjectBaselineData, {
+                            sourceName: currentProjectFileName || currentProjectFilePath,
+                            reason: 'pre-overwrite',
+                            summary: currentProjectBaselineSummary,
+                            delta: review.delta
+                        });
+                    }
+                    const desktopSave = await desktopBridge.saveProjectFile({
+                        json,
+                        existingPath: saveAs ? '' : currentProjectFilePath,
+                        suggestedName: getProjectFileNameForSave(saveAs)
+                    });
+                    if (desktopSave?.canceled) return;
+                    if (!desktopSave?.success) throw new Error(desktopSave?.message || 'The desktop project save failed.');
+                    currentProjectFilePath = desktopSave.filePath || currentProjectFilePath;
+                    currentProjectFileName = desktopSave.name || currentProjectFileName || getDefaultProjectFileName();
+                    establishProjectBaseline(projectData, currentSummary);
+                    await refreshDesktopRecentProjectsPanel();
+                    console.log('v3.0: Desktop project saved!', projectData);
+                    if (currentPlanTab === 'recovery') populateRecoveryPanel();
+                    alert(`Project saved: ${ currentProjectFileName }`);
+                    return;
+                }
 
                 if (window.showSaveFilePicker) {
                     if (saveAs || !currentProjectFileHandle) {
@@ -19163,6 +19273,7 @@
                     const file = await fileHandle.getFile();
                     const projectData = validateProjectData(JSON.parse(await file.text()));
                     currentProjectFileHandle = fileHandle;
+                    currentProjectFilePath = '';
                     currentProjectFileName = file.name || fileHandle.name || '';
                     clearProjectAutosaveSnapshot();
                     applyLoadedProject(projectData, currentProjectFileName, { quarantineHiddenGeometry: true });
@@ -19185,6 +19296,7 @@
                 try {
                     const projectData = validateProjectData(JSON.parse(e.target.result));
                     currentProjectFileHandle = null;
+                    currentProjectFilePath = '';
                     currentProjectFileName = file.name || '';
                     clearProjectAutosaveSnapshot();
                     applyLoadedProject(projectData, currentProjectFileName, { quarantineHiddenGeometry: true });
@@ -19203,6 +19315,7 @@
             try {
                 const projectData = validateProjectData(JSON.parse(payload.text));
                 currentProjectFileHandle = null;
+                currentProjectFilePath = payload.path || '';
                 currentProjectFileName = payload.name || '';
                 clearProjectAutosaveSnapshot();
                 applyLoadedProject(projectData, currentProjectFileName, {
@@ -19249,6 +19362,61 @@
                 alert('Failed to open recent project: ' + err.message);
                 hideDesktopRecentProjects();
                 void showDesktopRecentProjectsOnStartup();
+            }
+        }
+
+        function renderDesktopRecentProjectsPanel(projects, defaultDirectory = '') {
+            const panel = document.getElementById('desktopRecentProjectsSidebar');
+            const list = document.getElementById('desktopRecentProjectsSidebarList');
+            const folder = document.getElementById('desktopRecentProjectsSidebarFolder');
+            if (!panel || !list) return;
+            panel.hidden = false;
+            if (folder) folder.textContent = defaultDirectory || '';
+            list.replaceChildren();
+            const recentProjects = Array.isArray(projects) ? projects.slice(0, 10) : [];
+            if (!recentProjects.length) {
+                const empty = document.createElement('p');
+                empty.className = 'recent-projects-empty';
+                empty.textContent = 'No recent projects';
+                list.appendChild(empty);
+                return;
+            }
+            recentProjects.forEach((project, index) => {
+                const row = document.createElement('button');
+                row.type = 'button';
+                row.className = 'recent-project-row';
+                row.title = project.path || project.name || '';
+                row.addEventListener('click', () => openDesktopRecentProject(project.path));
+
+                const copy = document.createElement('span');
+                copy.className = 'recent-project-copy';
+                const name = document.createElement('span');
+                name.className = 'recent-project-name';
+                name.textContent = `${index + 1}. ${project.name || 'Untitled project'}`;
+                const projectPath = document.createElement('span');
+                projectPath.className = 'recent-project-path';
+                projectPath.textContent = project.directory || project.path || '';
+                copy.append(name, projectPath);
+
+                const opened = document.createElement('span');
+                opened.className = 'recent-project-time';
+                opened.textContent = formatRecentProjectTime(project.openedAt);
+                row.append(copy, opened);
+                list.appendChild(row);
+            });
+        }
+
+        async function refreshDesktopRecentProjectsPanel() {
+            const bridge = window.FutolStructureDesktop;
+            if (!bridge?.isDesktop || !bridge.getRecentProjects) return;
+            try {
+                const [projects, info] = await Promise.all([
+                    bridge.getRecentProjects(),
+                    bridge.getInfo ? bridge.getInfo() : Promise.resolve(null)
+                ]);
+                renderDesktopRecentProjectsPanel(projects, info?.defaultProjectDirectory || '');
+            } catch (err) {
+                console.warn('Recent project history is unavailable:', err);
             }
         }
 
@@ -19335,13 +19503,7 @@
         async function showDesktopRecentProjectsOnStartup() {
             const bridge = window.FutolStructureDesktop;
             if (!bridge?.isDesktop || !bridge.getRecentProjects || currentProjectFileName) return;
-            try {
-                const projects = await bridge.getRecentProjects();
-                if (currentProjectFileName) return;
-                renderDesktopRecentProjects(projects);
-            } catch (err) {
-                console.warn('Recent project history is unavailable:', err);
-            }
+            await refreshDesktopRecentProjectsPanel();
         }
 
         document.addEventListener('keydown', (event) => {
@@ -19386,6 +19548,7 @@
             state.finalSoilBearing = null;
             state.soilBearing = 150;
             currentProjectFileHandle = null;
+            currentProjectFilePath = '';
             currentProjectFileName = '';
             currentProjectId = createProjectIdentifier('project');
             currentProjectRevisionId = '';

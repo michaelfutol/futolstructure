@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('FutolStructureDesktop', Object.freeze({
   openProjectDialog: () => ipcRenderer.invoke('open-project-dialog'),
   openRecentProject: (projectPath) => ipcRenderer.invoke('open-recent-project', projectPath),
   rememberProject: (projectPath) => ipcRenderer.invoke('remember-project', projectPath),
+  saveProjectFile: (payload) => ipcRenderer.invoke('save-project-file', payload),
   exportPdfReport: (payload) => ipcRenderer.invoke('export-pdf-report', payload),
   runEtabsBuilder: (payload) => ipcRenderer.invoke('run-etabs-export', payload),
   runRevitImport: (payload) => ipcRenderer.invoke('run-revit-import', payload),

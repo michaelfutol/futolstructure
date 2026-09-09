@@ -794,6 +794,21 @@ function checkDesktopETABSBridge() {
         'Desktop preload does not expose the governed recent-project bridge'
     );
     assert(
+        main.includes('PREFERRED_PROJECT_DIRECTORY') &&
+        main.includes('function getDefaultProjectDirectory()') &&
+        main.includes("ipcMain.handle('save-project-file'") &&
+        main.includes('defaultPath: path.join(getDefaultProjectDirectory()'),
+        'Desktop project save/open default folder governance is incomplete'
+    );
+    assert(
+        preload.includes('saveProjectFile') &&
+        index.includes('id="desktopRecentProjectsSidebar"') &&
+        index.includes('function renderDesktopRecentProjectsPanel') &&
+        index.includes('currentProjectFilePath') &&
+        index.includes('desktopBridge.saveProjectFile'),
+        'Desktop left-dashboard recent history or controlled project save is incomplete'
+    );
+    assert(
         index.includes('function renderDesktopRecentProjects(projects)') &&
         index.includes('function showDesktopRecentProjectsOnStartup()') &&
         index.includes('projects.slice(0, 10)') &&
@@ -823,6 +838,9 @@ function checkDesktopETABSBridge() {
         recentProjectLimit: 10,
         nativeOpenRecentMenu: true,
         recentProjectsStartupSurface: true,
+        defaultProjectDirectory: 'D:\\FUTOLSTRUCTURE PROJECTS when available; Documents/FUTOLSTRUCTURE PROJECTS fallback',
+        leftDashboardRecentProjects: true,
+        desktopProjectSaveBridge: true,
         nonBlockingFileAssociationLoad: true,
         etabsBuilderSettlesOnPowerShellExit: true,
         etabsSelfWeightOwner: 'FS_DEAD=1; Dead=0',
