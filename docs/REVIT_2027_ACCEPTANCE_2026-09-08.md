@@ -73,6 +73,23 @@ Result:
 
 This proves the add-in registration and execution path. A later Revit session produced a startup dialog saying that the same DLL “does not exist”; its current journal entry is classified as `WrongAssembly`. The successful execution is recorded in `journal.0003.txt`, while the later failed scan is in `journal.0004.txt`. Investigation also found that the installed DLL was an older binary (`86F1130847A7DB6D3DF30790EDA5FC5266A2CA3A5FFD41FFD161F376489E38BC`) and did not match the latest Revit 2027.2 build (`043A5DE898936D729A62AB55CD925389F55E841D43B00C2005B94EEB1D0675C2`). The prescribed recovery is therefore: close every Revit process, reinstall the current build, verify the installed hash, then restart Revit.
 
+## Post-Recovery Installation Check
+
+The recovery was executed on 2026-09-09:
+
+- Revit and RevitWorker background processes were closed before replacement.
+- The add-in was rebuilt with `dotnet build revit/FutolStructure.Revit2027.csproj -c Release` and completed with 0 errors.
+- The installed DLL now matches the build exactly:
+
+```text
+SHA-256: 16F4B55D80287DB1D61AFC2A2FC01C8368F9077D837A114AB9E202E924A62612
+```
+
+- The installed manifest contains both `FutolStructureStartup` and `FutolStructureHostAutomationCommand`.
+- The installed application now queues the versioned `FutolStructure_Revit_Import_Host_FS125.rvt` workflow instead of reusing the invalid legacy host.
+
+The previous wrong-assembly condition is therefore corrected at the installed-file level. A fresh native Revit 2027 launch and one complete import remain required before the overall member-import gate can be marked passed.
+
 ## Corrected Vertical Datum Mapping
 
 The earlier strict-check invocation expected `2F=3.0 m` and `RF=6.0 m`. That expectation did not match the actual Bacacay governed model. It was a test-harness expectation mismatch, not an IFC parse failure.
