@@ -1,6 +1,6 @@
 # FutolStructure Delivery Tracker
 
-Updated: 2026-09-13. Update this file after each verified milestone; retain evidence links and unresolved blockers.
+Updated: 2026-09-14. Update this file after each verified milestone; retain evidence links and unresolved blockers.
 
 Governing direction: [Drive roadmap](https://docs.google.com/document/d/1l4THhH7AIRu_SW5WWB0ixpKqgR0jLG21cRenhR96Xc4/edit).
 Detailed scope: [September delivery plan](FS_DELIVERY_ROADMAP_2026-09-05.md).
@@ -10,7 +10,7 @@ Integrated analysis/optimization specification: [PRD v1](FS_INTEGRATED_ANALYSIS_
 Statuses: Planned, In Progress, Locally Verified, Native Acceptance Pending, Released.
 Locally Verified does not imply a published installer or a production deployment.
 
-Current working candidate: `feature/fs-125-shared-analytical-inputs`, packaged and installed as `3.16.125-rc.6 / FS-125-RC6`. Source gates and isolated packaged/installed-app acceptance pass, including on-demand File Open history (ten entries, no sidebar/startup history), with no page errors. RC6 implementation commit `021668f` is pushed to the feature branch. See [UI control audit](UI-CONTROL-AUDIT-2026-09-13.md) for completed cleanup and proposed follow-ups.
+Current working candidate: `feature/fs-125-shared-analytical-inputs`, advancing to `3.16.125-rc.7 / FS-125-RC7`. Source gates pass for edge-beam face joining, projection dimensions, and typed member-size entry. RC7 still requires package/install verification. See [UI control audit](UI-CONTROL-AUDIT-2026-09-13.md) for completed cleanup and proposed follow-ups.
 
 Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_ULTRA_SUPER_IMPROVEMENT_AUDIT_V2.md](FUTOLSTRUCTURE_ASTRA_ULTRA_SUPER_IMPROVEMENT_AUDIT_V2.md). Phase 1A has a focused local regression passing for unit-contract source checks, finite support validation, incomplete ETABS evidence, signed/zero-safe comparison, and per-floor dashboard source behavior. The first Phase 1B boundary is now explicit: PyNite accepts the governed zero-offset horizontal baseline but blocks physical joint offsets, vertical insertion offsets, and sloped members until equivalent mapping is implemented. The old PyNite result artifact is not a post-fix acceptance result and must be regenerated in the pinned environment.
 

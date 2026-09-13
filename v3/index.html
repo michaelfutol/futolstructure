@@ -1652,6 +1652,12 @@
             font-weight: 500;
         }
 
+        .schedule-table input[type="number"] {
+            min-width: 76px;
+            min-height: 28px;
+            padding: 3px 5px;
+        }
+
         .schedule-table input:focus {
             background: #fff3cd;
             color: #111827;
@@ -2434,7 +2440,7 @@
             </div>
             <img class="logo-icon" src="assets/futolstructure-icon.png" alt="FutolStructure">
             <span style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary); letter-spacing: -0.01em;">FutolStructure</span>
-<button id="buildVersionBadge" type="button" title="View FS-125-RC6 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.125-rc.6</button>
+<button id="buildVersionBadge" type="button" title="View FS-125-RC7 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.125-rc.7</button>
         </div>
         <!-- Action Toolbar -->
         <div class="header-actions">
@@ -4944,8 +4950,8 @@
         const FSTR_HIDDEN_GEOMETRY_POLICY = 'preserve-intentional-hidden-geometry';
         const FSTR_AUTOSAVE_STATE_REVISION = 'P0-C1A-column-segment-intent';
         const COLUMN_SEGMENT_INTENT_VERSION = 1;
-        const FSTR_APP_VERSION = '3.16.125-rc.6';
-        const FSTR_BUILD_ID = 'FS-125-RC6';
+        const FSTR_APP_VERSION = '3.16.125-rc.7';
+        const FSTR_BUILD_ID = 'FS-125-RC7';
         const FSTR_RELEASE_NAME = 'Desktop Workspaces Candidate';
         const FSTR_RELEASE_MANIFEST_FALLBACK = Object.freeze({
             appVersion: FSTR_APP_VERSION,
@@ -6710,7 +6716,7 @@
                 x2: Number(endpoints?.x2 ?? beam?.x2) || 0,
                 y2: Number(endpoints?.y2 ?? beam?.y2) || 0
             };
-            if (!beam?.isEdgeBeam || beam.faceTerminated) return result;
+            if (!beam?.isEdgeBeam) return result;
 
             const startMember = getEdgeBeamTerminationMember(beam, 'start', floorId);
             const endMember = getEdgeBeamTerminationMember(
@@ -7880,6 +7886,13 @@
 
         // v3.10: Global keyboard shortcuts for Undo/Redo
         document.addEventListener('keydown', (e) => {
+            if (e.target.matches?.('input, textarea, select, [contenteditable="true"]')) {
+                if (e.key === 'Enter' && e.target.matches('input[type="number"]')) {
+                    e.preventDefault();
+                    e.target.blur();
+                }
+                return;
+            }
             // Ctrl+Z = Undo
             if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
                 e.preventDefault();
@@ -13840,6 +13853,8 @@
                 }
             }
 
+            if (layerVisibility.grid) drawCantileverProjectionDimensions();
+
             // ===== SLAB OUTLINES (tributary areas) =====
             ctx.strokeStyle = COLOR_SLAB;
             ctx.lineWidth = 0.5;
@@ -15871,6 +15886,55 @@
             if (!state.measureMode || !state.measureStart || !canvas) return;
             state.measureHover = getCanvasWorldPoint(event);
             draw();
+        }
+
+        function getCantileverProjectionDimensions() {
+            const seen = new Set();
+            return (state.slabs || []).filter(s => s.isCantilever && !s.deleted && !s.isVoid)
+                .flatMap(s => {
+                    const edge = s.cantileverEdge;
+                    if (!['top', 'bottom', 'left', 'right'].includes(edge)) return [];
+                    const vertical = edge === 'top' || edge === 'bottom';
+                    const start = Math.min(vertical ? s.y1 : s.x1, vertical ? s.y2 : s.x2);
+                    const end = Math.max(vertical ? s.y1 : s.x1, vertical ? s.y2 : s.x2);
+                    const key = `${edge}:${start.toFixed(4)}:${end.toFixed(4)}`;
+                    if (seen.has(key) || end - start < 0.001) return [];
+                    seen.add(key);
+                    return [{ edge, vertical, start, end, label: String(Math.round((end - start) * 1000)) }];
+                });
+        }
+
+        function drawCantileverProjectionDimensions() {
+            const scaleFactor = Math.max(state.scale / 50, 0.5);
+            const offset = 45 * scaleFactor + getGridBubbleOffsetPx() * 0.35;
+            ctx.save();
+            ctx.setLineDash([]);
+            ctx.font = `bold ${Math.round(10 * scaleFactor)}px Arial`;
+            ctx.textAlign = 'center';
+            getCantileverProjectionDimensions().forEach(d => {
+                const a = d.start * state.scale + (d.vertical ? state.offsetY : state.offsetX);
+                const b = d.end * state.scale + (d.vertical ? state.offsetY : state.offsetX);
+                const cross = d.vertical ? state.offsetX - offset - 5 * scaleFactor : state.offsetY - offset;
+                const tick = 3 * scaleFactor;
+                ctx.beginPath();
+                if (d.vertical) {
+                    ctx.moveTo(cross, a); ctx.lineTo(cross, b);
+                    ctx.moveTo(cross - tick, a); ctx.lineTo(cross + tick, a);
+                    ctx.moveTo(cross - tick, b); ctx.lineTo(cross + tick, b);
+                } else {
+                    ctx.moveTo(a, cross); ctx.lineTo(b, cross);
+                    ctx.moveTo(a, cross - tick); ctx.lineTo(a, cross + tick);
+                    ctx.moveTo(b, cross - tick); ctx.lineTo(b, cross + tick);
+                }
+                ctx.stroke();
+                ctx.save();
+                ctx.translate(d.vertical ? cross - 7 * scaleFactor : (a + b) / 2,
+                    d.vertical ? (a + b) / 2 : cross - 7 * scaleFactor);
+                if (d.vertical) ctx.rotate(-Math.PI / 2);
+                ctx.fillText(d.label, 0, 0);
+                ctx.restore();
+            });
+            ctx.restore();
         }
 
         function drawPlanDimensionLine(dimension, options = {}) {

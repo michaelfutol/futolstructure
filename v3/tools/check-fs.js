@@ -76,7 +76,7 @@ function checkReleaseManifest() {
     const html = fs.readFileSync(INDEX, 'utf8');
     const desktopPackage = JSON.parse(fs.readFileSync(DESKTOP_PACKAGE, 'utf8'));
     assert(manifest.appVersion === desktopPackage.version, 'Desktop and runtime versions differ', manifest);
-    assert(manifest.buildId === 'FS-125-RC6', 'Release manifest build ID is stale', manifest);
+    assert(manifest.buildId === 'FS-125-RC7', 'Release manifest build ID is stale', manifest);
     assert(manifest.releaseName === 'Desktop Workspaces Candidate', 'Release manifest name is stale', manifest);
     assert(manifest.fstrSchemaVersion === '0.2.0', 'Release manifest FSTR schema is stale', manifest);
     const allowUnstampedManifest = process.env.FS_ALLOW_UNSTAMPED_MANIFEST === '1';
