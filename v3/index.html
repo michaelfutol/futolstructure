@@ -2493,7 +2493,7 @@
             </div>
             <img class="logo-icon" src="assets/futolstructure-icon.png" alt="FutolStructure">
             <span style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary); letter-spacing: -0.01em;">FutolStructure</span>
-<button id="buildVersionBadge" type="button" title="View FS-125-RC3 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.125-rc.3</button>
+<button id="buildVersionBadge" type="button" title="View FS-125-RC4 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.125-rc.4</button>
         </div>
         <!-- Action Toolbar -->
         <div class="header-actions">
@@ -3072,14 +3072,15 @@
                         <table class="schedule-table" id="footingScheduleTable">
                             <thead>
                                 <tr>
-
-                                    <th style="width:35px;">Type</th>
-                                    <th style="width:80px;">Columns</th>
-                                    <th style="width:70px;">Size (m)</th>
-                                    <th style="width:50px;">h (mm)</th>
-                                    <th style="width:120px;">Reinforcement</th>
-                                    <th style="width:40px;" title="Punching Shear Check">Punch</th>
-                                    <th style="width:40px;" title="Wide-Beam Shear Check">Shear</th>
+                                    <th style="width:35px;">No.</th>
+                                    <th style="width:70px;">ID</th>
+                                    <th style="width:45px;">Mark</th>
+                                    <th style="width:65px;">L/Y (mm)</th>
+                                    <th style="width:65px;">W/X (mm)</th>
+                                    <th style="width:65px;">D (mm)</th>
+                                    <th style="width:70px;">Column</th>
+                                    <th style="width:60px;">Mode</th>
+                                    <th style="width:70px;">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="footingScheduleBody"></tbody>
@@ -4621,6 +4622,13 @@
         <button class="ctx-menu-btn" onclick="showColumnDeleteDialog()" style="color:#fca5a5;">Delete / Terminate...</button>
         <button class="ctx-menu-btn" onclick="moveSelectedColumn()">Move / Nudge...</button>
         <button class="ctx-menu-btn" onclick="resetSelectedColumnPosition()">Reset Position</button>
+        <button class="ctx-menu-btn" onclick="editSelectedColumnOrientation()">Column Rotation...</button>
+        <button class="ctx-menu-btn" onclick="rotateSelectedColumn90()">Rotate +90&deg;</button>
+        <button class="ctx-menu-btn" onclick="resetSelectedColumnOrientation()">Reset Rotation</button>
+        <div style="border-top:1px solid rgba(255,255,255,0.1); margin:4px 0;"></div>
+        <button id="columnFootingOverrideBtn" class="ctx-menu-btn" onclick="editSelectedFootingOverride()">Footing Override...</button>
+        <button id="columnFootingResetBtn" class="ctx-menu-btn" onclick="resetSelectedFootingOverride()">Reset Footing to Auto</button>
+        <div style="border-top:1px solid rgba(255,255,255,0.1); margin:4px 0;"></div>
         <button class="ctx-menu-btn" onclick="moveAllColumns()">Move All Columns...</button>
         <button class="ctx-menu-btn" onclick="resetAllColumnPositions()">Reset All Column Positions</button>
         <div style="border-top:1px solid rgba(255,255,255,0.1); margin:4px 0;"></div>
@@ -4998,8 +5006,8 @@
         const FSTR_HIDDEN_GEOMETRY_POLICY = 'preserve-intentional-hidden-geometry';
         const FSTR_AUTOSAVE_STATE_REVISION = 'P0-C1A-column-segment-intent';
         const COLUMN_SEGMENT_INTENT_VERSION = 1;
-        const FSTR_APP_VERSION = '3.16.125-rc.3';
-        const FSTR_BUILD_ID = 'FS-125-RC3';
+        const FSTR_APP_VERSION = '3.16.125-rc.4';
+        const FSTR_BUILD_ID = 'FS-125-RC4';
         const FSTR_RELEASE_NAME = 'Desktop Workspaces Candidate';
         const FSTR_RELEASE_MANIFEST_FALLBACK = Object.freeze({
             appVersion: FSTR_APP_VERSION,
@@ -5007,7 +5015,7 @@
             releaseName: FSTR_RELEASE_NAME,
             fstrSchemaVersion: FSTR_SCHEMA_VERSION,
             releaseChannel: 'candidate',
-            gitCommit: '8e55979f8d12e5bf1dc95c831a9a3c58b21a5d49',
+            gitCommit: '760997fbd4ecf6cdd2bd24322f8bf54676d514c3',
             buildDate: '2026-09-05',
             validatedFixtures: [
                 'legacy-v2.8-2floor',
@@ -6100,6 +6108,40 @@
         function getColumnOrientationDeg(col) {
             const orientation = Number(col?.orientationDeg);
             return Number.isFinite(orientation) ? orientation : 0;
+        }
+
+        function getFootingDimensionsM(col) {
+            const autoSize = Math.max(0.6, Number(col?.autoFootingSize || col?.footingSize) || 0.6);
+            const autoThickness = Math.max(
+                0.3,
+                Number(col?.autoFootingThick || col?.footingThick || col?.footingD) ||
+                    RESIDENTIAL_FOOTING_THICKNESS_MM / 1000
+            );
+            const manual = col?.footingOverride?.enabled === true ? col.footingOverride : null;
+            return {
+                width: manual ? Math.max(0.6, Number(manual.width) || autoSize) : autoSize,
+                length: manual ? Math.max(0.6, Number(manual.length) || autoSize) : autoSize,
+                thickness: manual ? Math.max(0.3, Number(manual.thickness) || autoThickness) : autoThickness,
+                isManual: !!manual,
+                autoSize,
+                autoThickness
+            };
+        }
+
+        function applyFootingOverrideToColumn(col, widthM, lengthM, thicknessM) {
+            if (!col) return null;
+            col.footingOverride = {
+                enabled: true,
+                width: Math.max(0.6, Number(widthM) || 0.6),
+                length: Math.max(0.6, Number(lengthM) || 0.6),
+                thickness: Math.max(0.3, Number(thicknessM) || 0.3),
+                source: 'manual'
+            };
+            col.footingW = col.footingOverride.width;
+            col.footingL = col.footingOverride.length;
+            col.footingD = col.footingOverride.thickness;
+            col.footingThick = col.footingOverride.thickness;
+            return col.footingOverride;
         }
 
         function getColumnPlanHalfExtentsM(col) {
@@ -9622,6 +9664,10 @@
 
         // v3.2: Update footing schedule table
         function updateFootingSchedule() {
+            if (typeof window.populateFootingSchedule === 'function') {
+                window.populateFootingSchedule();
+                return;
+            }
             const tbody = document.getElementById('footingScheduleBody');
             if (!tbody) return;
 
@@ -14855,11 +14901,11 @@
             // v3.2: Group footings by size for type naming (F1, F2, etc.)
             const footingTypes = {};
             activeColumns.forEach(col => {
-                const size = col.footingSize || 1.0;
-                const sizeKey = (size * 1000).toFixed(0);  // Round to mm
+                const footing = getFootingDimensionsM(col);
+                const sizeKey = `${Math.round(footing.length * 1000)}x${Math.round(footing.width * 1000)}x${Math.round(footing.thickness * 1000)}`;
                 if (!footingTypes[sizeKey]) {
                     footingTypes[sizeKey] = {
-                        size: size,
+                        ...footing,
                         typeId: `F${ Object.keys(footingTypes).length + 1 } `,
                         columns: []
                     };
@@ -14869,8 +14915,8 @@
 
             // Assign footing type to each column
             activeColumns.forEach(col => {
-                const size = col.footingSize || 1.0;
-                const sizeKey = (size * 1000).toFixed(0);
+                const footing = getFootingDimensionsM(col);
+                const sizeKey = `${Math.round(footing.length * 1000)}x${Math.round(footing.width * 1000)}x${Math.round(footing.thickness * 1000)}`;
                 col.footingTypeId = footingTypes[sizeKey]?.typeId || 'F1';
             });
 
@@ -14915,8 +14961,9 @@
             ctx.setLineDash([dashLength, gapLength]);
 
             activeColumns.forEach(col => {
-                const footingSize = col.footingSize || 1.0;
-                const footingSizePx = footingSize * state.scale;
+                const footing = getFootingDimensionsM(col);
+                const footingWidthPx = footing.width * state.scale;
+                const footingLengthPx = footing.length * state.scale;
 
                 // v3.2: Apply alignment offset (Flush mode support)
                 const offset = getColumnAlignmentOffset(col);
@@ -14924,10 +14971,10 @@
                 const y = (col.y + offset.dy) * state.scale + state.offsetY;
 
                 // Draw footing (centered on column)
-                const footingLeft = x - footingSizePx / 2;
-                const footingTop = y - footingSizePx / 2;
+                const footingLeft = x - footingWidthPx / 2;
+                const footingTop = y - footingLengthPx / 2;
 
-                ctx.strokeRect(footingLeft, footingTop, footingSizePx, footingSizePx);
+                ctx.strokeRect(footingLeft, footingTop, footingWidthPx, footingLengthPx);
             });
 
             // ========== DRAW TIE BEAMS (dashed, connecting COLUMNS - continuous through footings) ==========
@@ -15076,21 +15123,22 @@
                 const offset = getColumnAlignmentOffset(col);
                 const x = (col.x + offset.dx) * state.scale + state.offsetX;
                 const y = (col.y + offset.dy) * state.scale + state.offsetY;
-                const footingSize = col.footingSize || 1.0;
-                const footingSizePx = footingSize * state.scale;
+                const footing = getFootingDimensionsM(col);
+                const footingWidthPx = footing.width * state.scale;
+                const footingLengthPx = footing.length * state.scale;
 
                 // F1-A1 format (Type + Grid)
                 const gridLabel = getGridCol(col.x) + getGridRow(col.y);
                 const footingLabel = `${ col.footingTypeId } -${ gridLabel } `;
 
                 ctx.textAlign = 'center';
-                ctx.fillText(footingLabel, x, y - footingSizePx / 2 - 5 * scaleFactor);
+                ctx.fillText(footingLabel, x, y - footingLengthPx / 2 - 5 * scaleFactor);
 
                 // Footing dimension below
                 ctx.font = `${ Math.round(6 * scaleFactor) }px Arial`;
                 ctx.fillStyle = COLOR_DIM;
-                const dimText = `${ (footingSize * 1000).toFixed(0) }×${ (footingSize * 1000).toFixed(0) } `;
-                ctx.fillText(dimText, x, y + footingSizePx / 2 + 10 * scaleFactor);
+                const dimText = `${ (footing.length * 1000).toFixed(0) }×${ (footing.width * 1000).toFixed(0) }${footing.isManual ? ' M' : ''} `;
+                ctx.fillText(dimText, x, y + footingLengthPx / 2 + 10 * scaleFactor);
 
                 ctx.font = `bold ${ labelFontSize }px Arial`;
                 ctx.fillStyle = COLOR_TEXT;
@@ -18126,13 +18174,13 @@
             }
             slabVol *= numFloors;  // Slabs on each floor
 
-            // FOOTINGS: size × size × depth (300mm min)
+            // FOOTINGS: effective governed W x L x D (auto or per-footing manual override)
             let footingVol = 0;
-            const footingDepth = 0.3;  // Standard 300mm
             if (isFoundationPlanEnabled()) {
                 for (let col of activeColumns) {
                     if (col.footingSize && !col.isPlanted) { // only non-planted columns have footings
-                        footingVol += col.footingSize * col.footingSize * footingDepth;
+                        const footing = getFootingDimensionsM(col);
+                        footingVol += footing.width * footing.length * footing.thickness;
                     }
                 }
             }
@@ -18490,7 +18538,13 @@
                     overrideB: c.overrideB,
                     overrideH: c.overrideH,
                     webB: c.webB,
-                    webD: c.webD
+                    webD: c.webD,
+                    footingOverride: c.footingOverride?.enabled === true
+                        ? cloneSerializable(c.footingOverride, null)
+                        : null,
+                    footingW: c.footingOverride?.enabled === true ? Number(c.footingW) : null,
+                    footingL: c.footingOverride?.enabled === true ? Number(c.footingL) : null,
+                    footingD: c.footingOverride?.enabled === true ? Number(c.footingD) : null
                 })),
                 slabOpenings: (state.slabs || []).map(s => ({
                     id: s.id,
@@ -20489,7 +20543,10 @@ function calculateCost() {
 
     let ftgVol = 0;
     activeCols.forEach(col => {
-        if (col.footingSize) ftgVol += col.footingSize * col.footingSize * (col.footingDesign ? col.footingDesign.h / 1000 : 0.3);
+        if (col.footingSize) {
+            const footing = getFootingDimensionsM(col);
+            ftgVol += footing.width * footing.length * footing.thickness;
+        }
     });
 
     let slabVol = 0;
@@ -24760,8 +24817,8 @@ function populateBOM() {
     if (isFoundationPlanEnabled()) {
         activeCols.forEach(col => {
             if (col.footingSize) {
-                const h = col.footingDesign ? col.footingDesign.h / 1000 : (col.footingThick || 0.3);
-                footingVol += col.footingSize * col.footingSize * h;
+                const footing = getFootingDimensionsM(col);
+                footingVol += footing.width * footing.length * footing.thickness;
             }
         });
     }
@@ -29311,9 +29368,19 @@ try {
             const menu = document.getElementById('columnContextMenu');
             const title = document.getElementById('columnMenuTitle');
             const optionsDiv = document.getElementById('plantedFloorOptions');
+            const selectedColumn = state.columns.find(column => column.id === colId);
+            const footingOverrideBtn = document.getElementById('columnFootingOverrideBtn');
+            const footingResetBtn = document.getElementById('columnFootingResetBtn');
 
             // Set title
-            title.textContent = `Column ${ colId } `;
+            title.textContent = `Column ${ colId } | ${getColumnOrientationDeg(selectedColumn)} deg`;
+            const footingAvailable = !!selectedColumn && !selectedColumn.startFloor && !selectedColumn.isPlanted;
+            if (footingOverrideBtn) footingOverrideBtn.style.display = footingAvailable ? '' : 'none';
+            if (footingResetBtn) {
+                footingResetBtn.style.display = footingAvailable && selectedColumn?.footingOverride?.enabled === true
+                    ? ''
+                    : 'none';
+            }
 
             // Populate planted floor options (all floors except GF which is ground)
             optionsDiv.innerHTML = '';
@@ -29720,6 +29787,108 @@ try {
             saveStateSnapshot();
             delete state.columnPositionOverrides[selectedColumnId];
             calculate();
+        }
+
+        function editSelectedColumnOrientation() {
+            if (!selectedColumnId) return;
+            const col = state.columns.find(column => column.id === selectedColumnId);
+            if (!col) return;
+            if (columnLockBlocks(`Column ${selectedColumnId} rotation`)) {
+                hideColumnMenu();
+                return;
+            }
+            hideColumnMenu();
+            const raw = prompt(
+                `Column ${col.id} plan rotation in degrees (+ counter-clockwise in FS plan)`,
+                String(getColumnOrientationDeg(col))
+            );
+            if (raw === null) return;
+            const orientation = Number(raw);
+            if (!Number.isFinite(orientation) || Math.abs(orientation) > 3600) {
+                alert('Please enter a valid rotation angle in degrees.');
+                return;
+            }
+            saveStateSnapshot();
+            col.orientationDeg = orientation;
+            calculate();
+            scheduleProjectAutosave('column-rotation');
+        }
+
+        function rotateSelectedColumn90() {
+            if (!selectedColumnId) return;
+            const col = state.columns.find(column => column.id === selectedColumnId);
+            if (!col) return;
+            if (columnLockBlocks(`Column ${selectedColumnId} rotation`)) {
+                hideColumnMenu();
+                return;
+            }
+            hideColumnMenu();
+            saveStateSnapshot();
+            col.orientationDeg = getColumnOrientationDeg(col) + 90;
+            calculate();
+            scheduleProjectAutosave('column-rotate-90');
+        }
+
+        function resetSelectedColumnOrientation() {
+            if (!selectedColumnId) return;
+            const col = state.columns.find(column => column.id === selectedColumnId);
+            if (!col || getColumnOrientationDeg(col) === 0) {
+                hideColumnMenu();
+                return;
+            }
+            if (columnLockBlocks(`Column ${selectedColumnId} rotation reset`)) {
+                hideColumnMenu();
+                return;
+            }
+            hideColumnMenu();
+            saveStateSnapshot();
+            col.orientationDeg = 0;
+            calculate();
+            scheduleProjectAutosave('column-rotation-reset');
+        }
+
+        function editSelectedFootingOverride() {
+            if (!selectedColumnId) return;
+            const col = state.columns.find(column => column.id === selectedColumnId);
+            if (!col || col.startFloor || col.isPlanted) return;
+            hideColumnMenu();
+            const current = getFootingDimensionsM(col);
+            const widthMm = promptNumberMm(
+                `Footing F-${col.id} width W in mm (plan X; minimum 600)`,
+                current.width
+            );
+            if (widthMm === null) return;
+            const lengthMm = promptNumberMm(
+                `Footing F-${col.id} length L in mm (plan Y; minimum 600)`,
+                current.length
+            );
+            if (lengthMm === null) return;
+            const thicknessMm = promptNumberMm(
+                `Footing F-${col.id} thickness D in mm (minimum 300)`,
+                current.thickness
+            );
+            if (thicknessMm === null) return;
+            saveStateSnapshot();
+            applyFootingOverrideToColumn(col, widthMm / 1000, lengthMm / 1000, thicknessMm / 1000);
+            calculate();
+            scheduleProjectAutosave('footing-manual-override');
+        }
+
+        function resetSelectedFootingOverride() {
+            if (!selectedColumnId) return;
+            const col = state.columns.find(column => column.id === selectedColumnId);
+            if (!col?.footingOverride?.enabled) {
+                hideColumnMenu();
+                return;
+            }
+            hideColumnMenu();
+            saveStateSnapshot();
+            delete col.footingOverride;
+            delete col.footingW;
+            delete col.footingL;
+            delete col.footingD;
+            calculate();
+            scheduleProjectAutosave('footing-auto-reset');
         }
 
         function moveAllColumns() {
@@ -31550,10 +31719,10 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                 columns.forEach(col => {
                     rowNum++;
 
-                    const footingSize = col.footingSize || 1.0;  // meters
-                    const ftL = col.footingL ? Math.round(col.footingL * 1000) : Math.round(footingSize * 1000);  // mm
-                    const ftW = col.footingW ? Math.round(col.footingW * 1000) : Math.round(footingSize * 1000);  // mm
-                    const ftD = Math.round((col.footingD || col.footingThick || RESIDENTIAL_FOOTING_THICKNESS_MM / 1000) * 1000);  // mm
+                    const footing = getFootingDimensionsM(col);
+                    const ftL = Math.round(footing.length * 1000);
+                    const ftW = Math.round(footing.width * 1000);
+                    const ftD = Math.round(footing.thickness * 1000);
 
                     const mark = getFootingMark(ftL, ftW);
                     const ftID = `F-${col.id}`;
@@ -31568,6 +31737,8 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                             <td><input type="number" value="${ftW}" onchange="updateFootingParam('${col.id}', 'footingW', this.value)" style="width:45px;"></td>
                             <td><input type="number" value="${ftD}" onchange="updateFootingParam('${col.id}', 'footingD', this.value)" style="width:45px;"></td>
                             <td>${colID}</td>
+                            <td>${footing.isManual ? 'Manual' : 'Auto'}</td>
+                            <td><button class="action-btn" onclick="resetFootingOverride('${col.id}')" ${footing.isManual ? '' : 'disabled'}>Auto</button></td>
                         </tr>
                     `;
                 });
@@ -31779,19 +31950,37 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                 const col = state.columns.find(c => c.id === colId);
                 if (!col) return;
 
-                const numValue = parseInt(value) || 0;
+                const numValue = Number(value);
+                if (!Number.isFinite(numValue) || numValue <= 0) return;
+                const current = getFootingDimensionsM(col);
+                let width = current.width;
+                let length = current.length;
+                let thickness = current.thickness;
                 if (param === 'footingL') {
-                    col.footingL = Math.max(600, numValue) / 1000;  // Convert to meters, min 600mm
+                    length = Math.max(600, numValue) / 1000;
                 } else if (param === 'footingW') {
-                    col.footingW = Math.max(600, numValue) / 1000;  // Convert to meters, min 600mm
+                    width = Math.max(600, numValue) / 1000;
                 } else if (param === 'footingD') {
-                    col.footingD = Math.max(300, numValue) / 1000;  // Convert to meters, min 300mm
-                    col.footingThick = col.footingD;
+                    thickness = Math.max(300, numValue) / 1000;
                 }
 
+                saveStateSnapshot();
+                applyFootingOverrideToColumn(col, width, length, thickness);
                 console.log(`v3.9: Footing for ${colId} ${param} = ${numValue}mm`);
-                draw();
-                if (typeof render3DFrame === 'function') render3DFrame();
+                calculate();
+                scheduleProjectAutosave('footing-schedule-override');
+            };
+
+            window.resetFootingOverride = function (colId) {
+                const col = state.columns.find(column => column.id === colId);
+                if (!col?.footingOverride?.enabled) return;
+                saveStateSnapshot();
+                delete col.footingOverride;
+                delete col.footingW;
+                delete col.footingL;
+                delete col.footingD;
+                calculate();
+                scheduleProjectAutosave('footing-schedule-auto-reset');
             };
 
             window.updateSlabParam = function (slabId, param, value) {

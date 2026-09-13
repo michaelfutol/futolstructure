@@ -45,6 +45,7 @@ public sealed class FutolStructureCommand : IExternalCommand
                 FutolStructureStartup.CompleteJob(pendingJobPath, "failed", queuedJobId, message);
                 return Result.Failed;
             }
+            TryActivateWorkspace(commandData.Application, queuedDocument);
             queuedDocument.Save();
             FutolStructureStartup.CompleteJob(pendingJobPath, "completed", queuedJobId,
                 "Manifest imported and host project saved.");
@@ -67,10 +68,12 @@ public sealed class FutolStructureCommand : IExternalCommand
             return Result.Failed;
         }
 
-        return TryImportManifest(activeDocument, commandData.Application.Application.VersionNumber,
-            dialog.FileName, out message, showDialog: true)
-            ? Result.Succeeded
-            : Result.Failed;
+        if (!TryImportManifest(activeDocument, commandData.Application.Application.VersionNumber,
+                dialog.FileName, out message, showDialog: true))
+            return Result.Failed;
+
+        TryActivateWorkspace(commandData.Application, activeDocument);
+        return Result.Succeeded;
     }
 
     internal static bool TryImportManifest(Document document, string revitVersion, string manifestPath,
@@ -113,6 +116,9 @@ public sealed class FutolStructureCommand : IExternalCommand
                 RevitVersion = revitVersion,
                 StartedAt = DateTimeOffset.UtcNow
             };
+            if (root.TryGetProperty("model", out var modelForMetadata) &&
+                modelForMetadata.TryGetProperty("provenance", out var provenance))
+                audit.Provenance = ImportProvenance.FromJson(provenance);
             try
             {
                 using var transaction = new Transaction(document, "FutolStructure governed concrete model");
@@ -126,6 +132,7 @@ public sealed class FutolStructureCommand : IExternalCommand
                         ImportColumns(document, columns, audit);
                     ImportConcreteMembers(document, model, audit);
                 }
+                audit.WorkspaceView = ConfigureWorkspace(document, levels, audit);
                 transaction.Commit();
             }
             catch (Exception ex)
@@ -162,6 +169,7 @@ public sealed class FutolStructureCommand : IExternalCommand
             $"Footings created / matched / blocked: {audit.FootingsCreated} / {audit.FootingsMatched} / {audit.FootingsBlocked}\n" +
             $"Pedestals created / matched / blocked: {audit.PedestalsCreated} / {audit.PedestalsMatched} / {audit.PedestalsBlocked}\n" +
             $"Tie beams created / matched / blocked: {audit.TieBeamsCreated} / {audit.TieBeamsMatched} / {audit.TieBeamsBlocked}\n" +
+            $"Workspace: {audit.WorkspaceView}\n" +
             $"Rebar handoff: {audit.RebarStatus}\n\nAudit: {auditPath}\n\n" +
             "Columns use native Revit families when compatible types are available, with exact governed proxies as fallback. Concrete beams, slabs, footings, pedestals, and tie beams are imported as exact governed Revit coordination solids. Approved reinforcement remains intentionally deferred.");
     }
@@ -231,6 +239,179 @@ public sealed class FutolStructureCommand : IExternalCommand
             var y = ToInternalMeters(sourceGrid.CoordinateM);
             var curve = Line.CreateBound(new XYZ(ToInternalMeters(minX), y, 0), new XYZ(ToInternalMeters(maxX), y, 0));
             CreateOrMatchGrid(document, existing, sourceGrid.Label, curve, false, y, audit);
+        }
+    }
+
+    private static string ConfigureWorkspace(Document document, JsonElement sourceLevels, ImportAudit audit)
+    {
+        var governedElements = new FilteredElementCollector(document)
+            .WhereElementIsNotElementType()
+            .Where(IsGovernedElement)
+            .ToList();
+        var bounds = GetGovernedBounds(governedElements);
+        if (bounds is null)
+        {
+            audit.Warnings.Add("The governed model has no viewable geometry; workspace views were not created.");
+            return string.Empty;
+        }
+
+        var workspace = GetOrCreateThreeDView(document, "FS Structural Workspace");
+        if (workspace is null)
+        {
+            audit.Warnings.Add("No Revit 3D view family was available for the FS workspace.");
+            return string.Empty;
+        }
+
+        workspace.IsSectionBoxActive = true;
+        workspace.SetSectionBox(bounds);
+        HideDefaultDatums(document, workspace);
+        CreateStructuralPlans(document, sourceLevels, bounds, audit);
+        return workspace.Name;
+    }
+
+    private static View3D? GetOrCreateThreeDView(Document document, string name)
+    {
+        var existing = new FilteredElementCollector(document)
+            .OfClass(typeof(View3D))
+            .Cast<View3D>()
+            .FirstOrDefault(view => !view.IsTemplate &&
+                string.Equals(view.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null) return existing;
+
+        var type = new FilteredElementCollector(document)
+            .OfClass(typeof(ViewFamilyType))
+            .Cast<ViewFamilyType>()
+            .FirstOrDefault(item => item.ViewFamily == ViewFamily.ThreeDimensional);
+        return type is null ? null : View3D.CreateIsometric(document, type.Id);
+    }
+
+    private static void CreateStructuralPlans(Document document, JsonElement sourceLevels,
+        BoundingBoxXYZ bounds, ImportAudit audit)
+    {
+        var planType = new FilteredElementCollector(document)
+            .OfClass(typeof(ViewFamilyType))
+            .Cast<ViewFamilyType>()
+            .FirstOrDefault(item => item.ViewFamily == ViewFamily.FloorPlan);
+        if (planType is null)
+        {
+            audit.Warnings.Add("No Revit floor-plan view family was available for FS structural plans.");
+            return;
+        }
+
+        var levels = new FilteredElementCollector(document)
+            .OfClass(typeof(Level))
+            .Cast<Level>()
+            .ToList();
+        var planViews = new FilteredElementCollector(document)
+            .OfClass(typeof(ViewPlan))
+            .Cast<ViewPlan>()
+            .Where(view => !view.IsTemplate)
+            .ToList();
+        foreach (var sourceLevel in sourceLevels.EnumerateArray())
+        {
+            var id = ReadString(sourceLevel, "id") ?? string.Empty;
+            var name = ReadString(sourceLevel, "name") ?? id;
+            if (string.IsNullOrWhiteSpace(name)) continue;
+
+            var level = levels.FirstOrDefault(item =>
+                string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase) &&
+                IsGovernedElement(item));
+            if (level is null) continue;
+
+            var viewName = $"FS {SanitizeViewName(name)} - Structural Plan";
+            var plan = planViews.FirstOrDefault(view =>
+                string.Equals(view.Name, viewName, StringComparison.OrdinalIgnoreCase));
+            if (plan is null)
+            {
+                plan = ViewPlan.Create(document, planType.Id, level.Id);
+                plan.Name = viewName;
+                planViews.Add(plan);
+            }
+
+            plan.CropBoxActive = true;
+            plan.CropBoxVisible = false;
+            plan.CropBox = bounds;
+            HideDefaultDatums(document, plan);
+            SetComments(plan, $"FutolStructure Workspace Level ID: {id}");
+        }
+    }
+
+    private static string SanitizeViewName(string name) =>
+        name.Replace('/', '-').Replace('\\', '-').Trim();
+
+    private static BoundingBoxXYZ? GetGovernedBounds(IEnumerable<Element> elements)
+    {
+        BoundingBoxXYZ? bounds = null;
+        foreach (var element in elements)
+        {
+            var box = element.get_BoundingBox(null);
+            if (box is null) continue;
+            bounds ??= new BoundingBoxXYZ
+            {
+                Min = box.Min,
+                Max = box.Max
+            };
+            if (bounds is null) continue;
+            bounds.Min = new XYZ(
+                Math.Min(bounds.Min.X, box.Min.X),
+                Math.Min(bounds.Min.Y, box.Min.Y),
+                Math.Min(bounds.Min.Z, box.Min.Z));
+            bounds.Max = new XYZ(
+                Math.Max(bounds.Max.X, box.Max.X),
+                Math.Max(bounds.Max.Y, box.Max.Y),
+                Math.Max(bounds.Max.Z, box.Max.Z));
+        }
+
+        if (bounds is null) return null;
+        const double marginFeet = 0.75 / 0.3048;
+        bounds.Min = new XYZ(bounds.Min.X - marginFeet, bounds.Min.Y - marginFeet,
+            bounds.Min.Z - marginFeet);
+        bounds.Max = new XYZ(bounds.Max.X + marginFeet, bounds.Max.Y + marginFeet,
+            bounds.Max.Z + marginFeet);
+        return bounds;
+    }
+
+    private static void HideDefaultDatums(Document document, View view)
+    {
+        var ids = new FilteredElementCollector(document)
+            .WhereElementIsNotElementType()
+            .Where(element => element is Level or Grid)
+            .Where(element => !IsGovernedElement(element))
+            .Where(element => CanHide(element, view))
+            .Select(element => element.Id)
+            .ToList();
+        if (ids.Count == 0) return;
+        try { view.HideElements(ids); } catch { }
+    }
+
+    private static bool CanHide(Element element, View view)
+    {
+        try { return element.CanBeHidden(view); }
+        catch { return false; }
+    }
+
+    private static bool IsGovernedElement(Element element)
+    {
+        var parameter = element.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+        var comments = parameter?.AsString();
+        return comments?.StartsWith("FutolStructure ", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static void TryActivateWorkspace(UIApplication application, Document document)
+    {
+        try
+        {
+            var view = new FilteredElementCollector(document)
+                .OfClass(typeof(View3D))
+                .Cast<View3D>()
+                .FirstOrDefault(item => !item.IsTemplate &&
+                    string.Equals(item.Name, "FS Structural Workspace", StringComparison.OrdinalIgnoreCase));
+            if (view is not null && application.ActiveUIDocument is not null)
+                application.ActiveUIDocument.RequestViewChange(view);
+        }
+        catch
+        {
+            // View activation is a presentation enhancement; import remains successful if Revit defers it.
         }
     }
 
@@ -334,7 +515,7 @@ public sealed class FutolStructureCommand : IExternalCommand
                     if (Math.Abs(angleRad) > 1e-9)
                         ElementTransformUtils.RotateElement(document, instance.Id,
                             Line.CreateBound(location, location + XYZ.BasisZ), angleRad);
-                    SetComments(instance, BuildColumnComments(commentToken, sourceColumn, "native-family"));
+                    SetComments(instance, BuildColumnComments(commentToken, sourceColumn, "native-family", audit));
                     existingColumns.Add(instance);
                     audit.ColumnsCreated++;
                     audit.ColumnsNative++;
@@ -355,7 +536,7 @@ public sealed class FutolStructureCommand : IExternalCommand
             {
                 var proxy = CreateColumnProxy(document, location, topElevation - baseElevation,
                     ToInternalMeters(bMm), ToInternalMeters(hMm), angleRad);
-                SetComments(proxy, BuildColumnComments(commentToken, sourceColumn, "governed-proxy"));
+                SetComments(proxy, BuildColumnComments(commentToken, sourceColumn, "governed-proxy", audit));
                 existingColumns.Add(proxy);
                 audit.ColumnsCreated++;
                 audit.ColumnsProxy++;
@@ -455,7 +636,7 @@ public sealed class FutolStructureCommand : IExternalCommand
             {
                 var beam = CreateConcreteProxy(document, beamFootprint, bottomElevation, topElevation,
                     BuiltInCategory.OST_StructuralFraming);
-                SetComments(beam, BuildMemberComments(token, sourceBeam, "governed-proxy"));
+                SetComments(beam, BuildMemberComments(token, sourceBeam, "governed-proxy", audit));
                 audit.BeamsCreated++;
                 audit.ConcreteRecords.Add(CreateConcreteRecord(sourceBeam, id, floorId, sectionName,
                     "Beam", "governed-proxy", beam.Id, axis.X1, axis.Y1, axis.X2, axis.Y2,
@@ -506,7 +687,7 @@ public sealed class FutolStructureCommand : IExternalCommand
             {
                 var slab = CreateConcreteProxy(document, footprint, bottomElevation, topElevation,
                     BuiltInCategory.OST_Floors);
-                SetComments(slab, BuildMemberComments(token, sourceSlab, "governed-proxy"));
+                SetComments(slab, BuildMemberComments(token, sourceSlab, "governed-proxy", audit));
                 audit.SlabsCreated++;
                 audit.ConcreteRecords.Add(CreateConcreteRecord(sourceSlab, id, floorId, sectionName,
                     "Slab", "governed-proxy", slab.Id, 0, 0, 0, 0, bottomElevation, topElevation,
@@ -563,7 +744,7 @@ public sealed class FutolStructureCommand : IExternalCommand
             {
                 var footing = CreateConcreteProxy(document, footprint, bottom, top,
                     BuiltInCategory.OST_StructuralFoundation);
-                SetComments(footing, BuildMemberComments(token, sourceFooting, "governed-proxy"));
+                SetComments(footing, BuildMemberComments(token, sourceFooting, "governed-proxy", audit));
                 audit.FootingsCreated++;
                     audit.ConcreteRecords.Add(CreateConcreteRecord(sourceFooting, id, floorId, "Footing",
                     "Isolated Footing", "governed-proxy", footing.Id, x, y, x, y, bottom, top,
@@ -610,7 +791,7 @@ public sealed class FutolStructureCommand : IExternalCommand
             {
                 var pedestal = CreateConcreteProxy(document, footprint, bottom, top,
                     BuiltInCategory.OST_StructuralFoundation);
-                SetComments(pedestal, BuildMemberComments(token, sourcePedestal, "governed-proxy"));
+                SetComments(pedestal, BuildMemberComments(token, sourcePedestal, "governed-proxy", audit));
                 audit.PedestalsCreated++;
                 audit.ConcreteRecords.Add(CreateConcreteRecord(sourcePedestal, id, floorId, "Pedestal",
                     "Pedestal", "governed-proxy", pedestal.Id, x, y, x, y, bottom, top,
@@ -652,7 +833,7 @@ public sealed class FutolStructureCommand : IExternalCommand
             {
                 var tieBeam = CreateConcreteProxy(document, footprint, bottom, top,
                     BuiltInCategory.OST_StructuralFraming);
-                SetComments(tieBeam, BuildMemberComments(token, sourceTieBeam, "governed-proxy"));
+                SetComments(tieBeam, BuildMemberComments(token, sourceTieBeam, "governed-proxy", audit));
                 audit.TieBeamsCreated++;
                 audit.ConcreteRecords.Add(CreateConcreteRecord(sourceTieBeam, id, floorId, "Tie Beam",
                     "Foundation Tie Beam", "governed-proxy", tieBeam.Id, 0, 0, 0, 0, bottom, top,
@@ -765,11 +946,86 @@ public sealed class FutolStructureCommand : IExternalCommand
         return footprint.Count >= 3;
     }
 
-    private static string BuildMemberComments(string token, JsonElement sourceMember, string mode)
+    private static string BuildMemberComments(string token, JsonElement sourceMember, string mode,
+        ImportAudit audit)
     {
         var sourceId = ReadString(sourceMember, "sourceId") ?? string.Empty;
         var floorId = ReadString(sourceMember, "floorId") ?? string.Empty;
-        return $"{token} | source={sourceId} | floor={floorId} | import={mode}";
+        var section = ReadString(sourceMember, "section") ?? string.Empty;
+        var material = ReadString(sourceMember, "material") ?? "Concrete";
+        var designStatus = ReadString(sourceMember, "designStatus") ?? string.Empty;
+        var supportedColumnId = ReadString(sourceMember, "supportedColumnId") ?? string.Empty;
+        var dimensions = ReadMemberDimensions(sourceMember);
+        var elevations = ReadMemberElevations(sourceMember);
+        var provenance = audit.Provenance;
+        return string.Join(" | ", new[]
+        {
+            token,
+            $"source={sourceId}",
+            $"floor={floorId}",
+            string.IsNullOrWhiteSpace(section) ? null : $"section={section}",
+            $"material={material}",
+            string.IsNullOrWhiteSpace(designStatus) ? null : $"status={designStatus}",
+            string.IsNullOrWhiteSpace(supportedColumnId) ? null : $"supportedColumn={supportedColumnId}",
+            string.IsNullOrWhiteSpace(dimensions) ? null : dimensions,
+            string.IsNullOrWhiteSpace(elevations) ? null : elevations,
+            $"project={provenance.ProjectId}",
+            $"revision={provenance.RevisionId}",
+            $"build={provenance.BuildId}",
+            $"import={mode}"
+        }.Where(item => !string.IsNullOrWhiteSpace(item)));
+    }
+
+    private static string BuildColumnComments(string token, JsonElement sourceColumn, string mode,
+        ImportAudit audit)
+    {
+        var segment = ReadString(sourceColumn, "segmentId") ?? string.Empty;
+        var sourceId = ReadString(sourceColumn, "sourceId") ?? string.Empty;
+        var section = ReadString(sourceColumn, "section") ?? string.Empty;
+        var width = TryReadDouble(sourceColumn, "sourceSizeBmm", out var widthMm) ? widthMm : 0;
+        var depth = TryReadDouble(sourceColumn, "sourceSizeHmm", out var depthMm) ? depthMm : 0;
+        var z1 = TryReadDouble(sourceColumn, "z1", out var bottom) ? bottom : 0;
+        var z2 = TryReadDouble(sourceColumn, "z2", out var top) ? top : 0;
+        var angle = TryReadDouble(sourceColumn, "sourceOrientationDeg", out var orientation) ? orientation : 0;
+        var provenance = audit.Provenance;
+        return string.Join(" | ", new[]
+        {
+            token,
+            $"source={sourceId}",
+            string.IsNullOrWhiteSpace(segment) ? null : $"segment={segment}",
+            string.IsNullOrWhiteSpace(section) ? null : $"section={section}",
+            $"size={widthMm:0.###}x{depthMm:0.###}mm",
+            $"elev={z1:0.###}->{z2:0.###}m",
+            $"orientation={angle:0.###}deg",
+            $"project={provenance.ProjectId}",
+            $"revision={provenance.RevisionId}",
+            $"build={provenance.BuildId}",
+            $"import={mode}"
+        }.Where(item => !string.IsNullOrWhiteSpace(item)));
+    }
+
+    private static string ReadMemberDimensions(JsonElement sourceMember)
+    {
+        if (TryReadDouble(sourceMember, "bMm", out var bMm) &&
+            TryReadDouble(sourceMember, "hMm", out var hMm))
+            return $"size={bMm:0.###}x{hMm:0.###}mm";
+        if (TryReadDouble(sourceMember, "width", out var width) &&
+            TryReadDouble(sourceMember, "length", out var length))
+            return $"plan={width:0.###}x{length:0.###}m";
+        if (TryReadDouble(sourceMember, "widthMm", out var widthMm) &&
+            TryReadDouble(sourceMember, "depthMm", out var depthMm))
+            return $"size={widthMm:0.###}x{depthMm:0.###}mm";
+        return string.Empty;
+    }
+
+    private static string ReadMemberElevations(JsonElement sourceMember)
+    {
+        if (TryReadDouble(sourceMember, "bottomElevation", out var bottom) &&
+            TryReadDouble(sourceMember, "topElevation", out var top))
+            return $"elev={bottom:0.###}->{top:0.###}m";
+        if (TryReadDouble(sourceMember, "z", out var z))
+            return $"top={z:0.###}m";
+        return string.Empty;
     }
 
     private static ConcreteImportRecord CreateConcreteRecord(JsonElement sourceMember, string id, string floorId,
@@ -835,13 +1091,6 @@ public sealed class FutolStructureCommand : IExternalCommand
         var shape = DirectShape.CreateElement(document, new ElementId(BuiltInCategory.OST_StructuralColumns));
         shape.SetShape(new List<GeometryObject> { solid });
         return shape;
-    }
-
-    private static string BuildColumnComments(string token, JsonElement sourceColumn, string mode)
-    {
-        var segment = ReadString(sourceColumn, "segmentId") ?? string.Empty;
-        var sourceId = ReadString(sourceColumn, "sourceId") ?? string.Empty;
-        return $"{token} | source={sourceId} | segment={segment} | import={mode}";
     }
 
     private static ColumnImportRecord CreateColumnRecord(JsonElement sourceColumn, string id,
@@ -980,6 +1229,27 @@ public sealed class FutolStructureCommand : IExternalCommand
     private sealed record FrameSectionRecord(string Name, double BMm, double HMm);
     private sealed record BeamAxisRecord(double X1, double Y1, double X2, double Y2);
 
+    private sealed class ImportProvenance
+    {
+        public string ProjectId { get; init; } = "unknown-project";
+        public string RevisionId { get; init; } = "unknown-revision";
+        public string BuildId { get; init; } = "unknown-build";
+        public string AppVersion { get; init; } = string.Empty;
+        public string SchemaVersion { get; init; } = string.Empty;
+
+        public static ImportProvenance FromJson(JsonElement value)
+        {
+            return new ImportProvenance
+            {
+                ProjectId = ReadString(value, "projectId") ?? "unknown-project",
+                RevisionId = ReadString(value, "sourceRevisionId") ?? "unknown-revision",
+                BuildId = ReadString(value, "buildId") ?? "unknown-build",
+                AppVersion = ReadString(value, "appVersion") ?? string.Empty,
+                SchemaVersion = ReadString(value, "schemaVersion") ?? string.Empty
+            };
+        }
+    }
+
     private sealed class ImportAudit
     {
         public string? Contract { get; set; }
@@ -987,6 +1257,7 @@ public sealed class FutolStructureCommand : IExternalCommand
         public string? RevitVersion { get; set; }
         public DateTimeOffset StartedAt { get; set; }
         public DateTimeOffset CompletedAt { get; set; }
+        public ImportProvenance Provenance { get; set; } = new();
         public int LevelsCreated { get; set; }
         public int LevelsMatched { get; set; }
         public int LevelsBlocked { get; set; }
@@ -1014,6 +1285,7 @@ public sealed class FutolStructureCommand : IExternalCommand
         public int TieBeamsCreated { get; set; }
         public int TieBeamsMatched { get; set; }
         public int TieBeamsBlocked { get; set; }
+        public string WorkspaceView { get; set; } = string.Empty;
         public List<ConcreteImportRecord> ConcreteRecords { get; } = [];
         public string RebarStatus { get; set; } = "PENDING_APPROVED_DESIGN_RESULTS";
         public List<string> Warnings { get; } = [];

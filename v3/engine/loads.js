@@ -450,12 +450,33 @@ const EngineLoads = (function () {
                 ? Math.max(0.3, fixedThicknessMm / 1000)
                 : Math.max(0.3, Math.round(side / 4 * 10) / 10);
 
+            col.autoFootingSize = side;
+            col.autoFootingThick = thick;
+            const manual = col.footingOverride && col.footingOverride.enabled === true
+                ? col.footingOverride
+                : null;
+            const manualWidth = Number(manual?.width);
+            const manualLength = Number(manual?.length);
+            const manualThickness = Number(manual?.thickness);
+            const footingW = manual && Number.isFinite(manualWidth)
+                ? Math.max(0.6, manualWidth)
+                : side;
+            const footingL = manual && Number.isFinite(manualLength)
+                ? Math.max(0.6, manualLength)
+                : side;
+            const footingThick = manual && Number.isFinite(manualThickness)
+                ? Math.max(0.3, manualThickness)
+                : thick;
+
             col.footingSize = side;
-            col.footingThick = thick;
+            col.footingW = footingW;
+            col.footingL = footingL;
+            col.footingD = footingThick;
+            col.footingThick = footingThick;
             col.columnDL = colDL;
             col.tieBeamDL = tieBeamDLPerColumn;
 
-            const footingVolume = side * side * thick;
+            const footingVolume = footingW * footingL * footingThick;
             col.footingDL = footingVolume * params.concreteDensity * 1.2;
         }
 
@@ -483,7 +504,12 @@ const EngineLoads = (function () {
         const colB = (col.suggestedB || 250) / 1000;
         const colH = (col.suggestedH || 250) / 1000;
         const fixedThicknessMm = Number(params.fixedFootingThicknessMm);
+        const manualOverride = col.footingOverride?.enabled === true ? col.footingOverride : null;
+        const manualWidth = Math.max(0.6, Number(manualOverride?.width) || Number(col.footingW) || col.footingSize);
+        const manualLength = Math.max(0.6, Number(manualOverride?.length) || Number(col.footingL) || col.footingSize);
+        const manualThicknessMm = Math.max(300, (Number(manualOverride?.thickness) || Number(col.footingD) || 0.3) * 1000);
         const widthFirst = !!params.preferFootingWidthOverDepth && Number.isFinite(fixedThicknessMm) && fixedThicknessMm >= 300;
+        const lockedManualDepth = !!manualOverride;
 
         function evaluateShear(side, d) {
             const qu = Pu / (side * side);
@@ -516,14 +542,17 @@ const EngineLoads = (function () {
             };
         }
 
-        let L = col.footingSize;
+        // The current preliminary design equations are square-footing equations.
+        // For a rectangular manual override, use its equal-area square side for
+        // screening while retaining exact W/L/D for model geometry and exports.
+        let L = manualOverride ? Math.sqrt(manualWidth * manualLength) : col.footingSize;
         let hFinal;
         let dFinal;
         let shear;
         let widenedForFixedDepth = false;
 
-        if (widthFirst) {
-            hFinal = fixedThicknessMm;
+        if (widthFirst || lockedManualDepth) {
+            hFinal = lockedManualDepth ? manualThicknessMm : fixedThicknessMm;
             dFinal = hFinal - cover - barDia / 2;
             shear = evaluateShear(L, dFinal);
             // Keep residential preliminary footing size governed by soil bearing.
@@ -590,12 +619,18 @@ const EngineLoads = (function () {
             barDia: barDia,
             spacing: spacing,
             rebarStr: nBars + '-ø' + barDia + 'mm @ ' + spacing + 'mm c/c EW',
-            thicknessPolicy: widthFirst ? '300mm fixed residential preliminary; bearing-sized with shear review' : 'depth-by-shear preliminary',
+            footingWidth: manualOverride ? manualWidth : L,
+            footingLength: manualOverride ? manualLength : L,
+            manualOverride: !!manualOverride,
+            thicknessPolicy: lockedManualDepth
+                ? 'manual W/L/D override; equal-area preliminary shear screening requires engineer review'
+                : (widthFirst ? '300mm fixed residential preliminary; bearing-sized with shear review' : 'depth-by-shear preliminary'),
             widenedForFixedDepth,
-            requiresDepthReview: widthFirst && !(shear.punchingOK && shear.wideOK)
+            requiresDepthReview: (widthFirst || lockedManualDepth) && !(shear.punchingOK && shear.wideOK)
         };
 
-        col.footingThick = hFinal / 1000;
+        col.footingThick = lockedManualDepth ? manualThicknessMm / 1000 : hFinal / 1000;
+        if (lockedManualDepth) col.footingD = col.footingThick;
 
         return col.footingDesign;
     }

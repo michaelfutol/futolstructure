@@ -76,7 +76,7 @@ function checkReleaseManifest() {
     const html = fs.readFileSync(INDEX, 'utf8');
     const desktopPackage = JSON.parse(fs.readFileSync(DESKTOP_PACKAGE, 'utf8'));
     assert(manifest.appVersion === desktopPackage.version, 'Desktop and runtime versions differ', manifest);
-    assert(manifest.buildId === 'FS-125-RC3', 'Release manifest build ID is stale', manifest);
+    assert(manifest.buildId === 'FS-125-RC4', 'Release manifest build ID is stale', manifest);
     assert(manifest.releaseName === 'Desktop Workspaces Candidate', 'Release manifest name is stale', manifest);
     assert(manifest.fstrSchemaVersion === '0.2.0', 'Release manifest FSTR schema is stale', manifest);
     const allowUnstampedManifest = process.env.FS_ALLOW_UNSTAMPED_MANIFEST === '1';
@@ -89,6 +89,7 @@ function checkReleaseManifest() {
     );
     assert(html.includes('v' + manifest.appVersion), 'Build badge does not match release manifest', manifest);
     assert(html.includes(`const FSTR_BUILD_ID = '${manifest.buildId}'`), 'Runtime build ID does not match release manifest', manifest);
+    assert(html.includes(`gitCommit: '${manifest.gitCommit}'`), 'Runtime fallback commit does not match release manifest', manifest);
     assert(html.includes('persistence/project-revisions.js'), 'Protected revision module is not loaded by the app');
     assert(
         manifest.validatedFixtures?.includes('legacy-v2.8-2floor') &&
@@ -309,16 +310,19 @@ function checkRevitImportSourceContract() {
     const html = fs.readFileSync(INDEX, 'utf8');
     const revitProjectPath = path.join(ROOT, 'revit', 'FutolStructure.Revit2027.csproj');
     const revitCommandPath = path.join(ROOT, 'revit', 'FutolStructureCommand.cs');
+    const revitBoqPath = path.join(ROOT, 'revit', 'FutolStructureBoqCommand.cs');
     const revitStartupPath = path.join(ROOT, 'revit', 'FutolStructureStartup.cs');
     const revitHostAutomationPath = path.join(ROOT, 'revit', 'FutolStructureHostAutomationCommand.cs');
     const revitAddinTemplatePath = path.join(ROOT, 'revit', 'FutolStructure.Revit2027.addin.template');
     const revitInstallerPath = path.join(ROOT, 'revit', 'install-revit2027-addin.ps1');
     assert(fs.existsSync(revitProjectPath), 'Revit 2027 add-in project is missing');
     assert(fs.existsSync(revitCommandPath), 'Revit 2027 import command is missing');
+    assert(fs.existsSync(revitBoqPath), 'Revit 2027 BOQ command is missing');
     assert(fs.existsSync(revitStartupPath), 'Revit 2027 startup automation entry is missing');
     assert(fs.existsSync(revitHostAutomationPath), 'Revit 2027 automated host creator is missing');
     const revitProject = fs.readFileSync(revitProjectPath, 'utf8');
     const revitCommand = fs.readFileSync(revitCommandPath, 'utf8');
+    const revitBoq = fs.readFileSync(revitBoqPath, 'utf8');
     const revitStartup = fs.readFileSync(revitStartupPath, 'utf8');
     const revitHostAutomation = fs.readFileSync(revitHostAutomationPath, 'utf8');
     const revitAddinTemplate = fs.readFileSync(revitAddinTemplatePath, 'utf8');
@@ -335,10 +339,34 @@ function checkRevitImportSourceContract() {
     assert(revitProject.includes('RevitAPI.dll') && revitProject.includes('RevitAPIUI.dll'), 'Revit API references are incomplete');
     assert(revitCommand.includes('Grid.Create('), 'Native Revit grid creation is missing');
     assert(revitCommand.includes('Level.Create('), 'Native Revit level creation is missing');
+    assert(
+        revitCommand.includes('ImportBeams') &&
+        revitCommand.includes('ImportSlabs') &&
+        revitCommand.includes('ImportFoundationMembers') &&
+        revitCommand.includes('ImportFootings') &&
+        revitCommand.includes('ImportPedestals') &&
+        revitCommand.includes('ImportTieBeams'),
+        'Complete FS concrete member import is missing'
+    );
     assert(revitCommand.includes('exists at a different elevation and was not modified'), 'Level conflict blocking is missing');
     assert(revitCommand.includes('exists at a different coordinate and was not modified'), 'Grid conflict blocking is missing');
     assert(revitCommand.includes('revit-import-audit-'), 'Dated native Revit import audit is missing');
+    assert(
+        revitCommand.includes('FS Structural Workspace') &&
+        revitCommand.includes('IsSectionBoxActive') &&
+        revitCommand.includes('CreateStructuralPlans') &&
+        revitCommand.includes('HideDefaultDatums'),
+        'Compact governed Revit workspace views are missing'
+    );
     assert(revitCommand.includes('RevitAutomationPaths.PendingJobPath') && revitCommand.includes('CompleteJob'), 'Revit command does not consume the queued import job');
+    assert(
+        revitBoq.includes('IExternalCommand') &&
+        revitBoq.includes('ViewSchedule.CreateSchedule') &&
+        revitBoq.includes('OST_StructuralFoundation') &&
+        revitBoq.includes('UnitTypeId.CubicMeters') &&
+        revitBoq.includes('WriteCsv'),
+        'Revit BOQ command must create native schedules and a metric CSV quantity summary'
+    );
     assert(
         revitStartup.includes('IExternalApplication') &&
         revitStartup.includes('application.Idling += OnIdling') &&
@@ -365,13 +393,15 @@ function checkRevitImportSourceContract() {
         revitAddinTemplate.includes('FutolStructure.Revit2027.FutolStructureStartup') &&
         revitInstaller.includes('FutolStructure.Revit2027.FutolStructureStartup') &&
         revitAddinTemplate.includes('FutolStructure.Revit2027.FutolStructureHostAutomationCommand') &&
-        revitInstaller.includes('FutolStructure.Revit2027.FutolStructureHostAutomationCommand'),
-        'Revit startup automation is not registered for development installation'
+        revitInstaller.includes('FutolStructure.Revit2027.FutolStructureHostAutomationCommand') &&
+        revitAddinTemplate.includes('FutolStructure.Revit2027.FutolStructureBoqCommand') &&
+        revitInstaller.includes('FutolStructure.Revit2027.FutolStructureBoqCommand'),
+        'Revit startup and BOQ commands are not registered for development installation'
     );
     return {
         contract: 'FutolStructure.RevitNativeImport.v1',
         source: 'collectCSIExportModelData',
-        nativeRvt: 'Revit 2027 add-in compiled; levels/grids implemented; native acceptance pending',
+        nativeRvt: 'Revit 2027 add-in compiled; governed levels/grids and compact structural workspace implemented; native acceptance pending',
         oneClickAutomation: 'Desktop bridge queues job; Revit API creates a valid metric .rvt host; startup add-in opens it and posts import command; completion receipt is written',
         rebar: 'PENDING_APPROVED_DESIGN_RESULTS'
     };
@@ -2375,6 +2405,7 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
                 rectangularColumn.memberStatus = 'existing_for_assessment';
                 rectangularColumn.orientationDeg = 90;
                 applyColumnSizeMm(rectangularColumn, 150, 400);
+                applyFootingOverrideToColumn(rectangularColumn, 1.2, 1.5, 0.4);
                 squareColumn.memberStatus = 'existing';
                 squareColumn.orientationDeg = 0;
                 applyColumnSizeMm(squareColumn, 150, 150);
@@ -2494,7 +2525,8 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
                     rectangularColumn: {
                         ...getColumnSizeMm(loadedRectangularColumn),
                         memberStatus: loadedRectangularColumn?.memberStatus,
-                        orientationDeg: getColumnOrientationDeg(loadedRectangularColumn)
+                        orientationDeg: getColumnOrientationDeg(loadedRectangularColumn),
+                        footing: getFootingDimensionsM(loadedRectangularColumn)
                     },
                     squareColumn: {
                         ...getColumnSizeMm(loadedSquareColumn),
@@ -2522,6 +2554,9 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
                 );
                 const modelBeam = model.beams.find(beam =>
                     beam.sourceId === beamId && beam.floorId === floorId
+                );
+                const modelFooting = model.foundation?.footings?.find(footing =>
+                    footing.supportedColumnId === rectangularColumnId
                 );
                 const modelSections = Object.fromEntries(model.frameSections.map(section => [
                     section.name,
@@ -2628,6 +2663,7 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
                         rectangularColumn: modelRectangularColumn,
                         squareColumn: modelSquareColumn,
                         beam: modelBeam,
+                        footing: modelFooting,
                         sections: modelSections
                     },
                     exports: {
@@ -3429,7 +3465,7 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
         assert(!result.initial.initError && !result.initError, 'Init error shown in app', result);
         assert(result.initial.columns === 9, 'Default 2x2 model did not initialize 9 columns', result.initial);
         assert(
-            result.uiCleanupAudit.buildBadge === 'v3.16.125-rc.3' &&
+            result.uiCleanupAudit.buildBadge === 'v3.16.125-rc.4' &&
             result.uiCleanupAudit.rebuildButton === true &&
             result.uiCleanupAudit.etabsButton === true &&
             result.uiCleanupAudit.solverImportButton === true &&
@@ -3788,6 +3824,10 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
             memberAuditResult.save.rectangularColumn.webB === 150 &&
             memberAuditResult.save.rectangularColumn.webD === 400 &&
             memberAuditResult.save.rectangularColumn.orientationDeg === 90 &&
+            memberAuditResult.save.rectangularColumn.footingOverride?.enabled === true &&
+            Math.abs(memberAuditResult.save.rectangularColumn.footingOverride.width - 1.2) < 0.000001 &&
+            Math.abs(memberAuditResult.save.rectangularColumn.footingOverride.length - 1.5) < 0.000001 &&
+            Math.abs(memberAuditResult.save.rectangularColumn.footingOverride.thickness - 0.4) < 0.000001 &&
             memberAuditResult.save.rectangularColumn.memberStatus === 'existing_for_assessment' &&
             memberAuditResult.save.squareColumn.webB === 150 &&
             memberAuditResult.save.squareColumn.webD === 150 &&
@@ -3798,12 +3838,24 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
             memberAuditResult.loadedSizes.rectangularColumn.b === 150 &&
             memberAuditResult.loadedSizes.rectangularColumn.h === 400 &&
             memberAuditResult.loadedSizes.rectangularColumn.orientationDeg === 90 &&
+            memberAuditResult.loadedSizes.rectangularColumn.footing.isManual === true &&
+            Math.abs(memberAuditResult.loadedSizes.rectangularColumn.footing.width - 1.2) < 0.000001 &&
+            Math.abs(memberAuditResult.loadedSizes.rectangularColumn.footing.length - 1.5) < 0.000001 &&
+            Math.abs(memberAuditResult.loadedSizes.rectangularColumn.footing.thickness - 0.4) < 0.000001 &&
             memberAuditResult.loadedSizes.squareColumn.b === 150 &&
             memberAuditResult.loadedSizes.squareColumn.h === 150 &&
             memberAuditResult.loadedSizes.beam.b === 150 &&
             memberAuditResult.loadedSizes.beam.h === 175,
             'Exact member dimensions, class, orientation, or policy did not survive FSTR save/reopen',
             { save: memberAuditResult.save, loaded: memberAuditResult.loadedSizes }
+        );
+        assert(
+            memberAuditResult.sharedModel.footing?.supportedColumnId === memberAuditResult.ids.rectangularColumnId &&
+            Math.abs(memberAuditResult.sharedModel.footing.width - 1.2) < 0.000001 &&
+            Math.abs(memberAuditResult.sharedModel.footing.length - 1.5) < 0.000001 &&
+            Math.abs(memberAuditResult.sharedModel.footing.thickness - 0.4) < 0.000001,
+            'Manual footing W/L/D did not reach the canonical foundation export model',
+            memberAuditResult.sharedModel.footing
         );
         const warningItems = memberAuditResult.governance.warning.items || [];
         const blockedItems = memberAuditResult.governance.blocked.items || [];
@@ -4170,7 +4222,7 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
             result.dxfLayerAudit.crlfOnly === true &&
             result.dxfLayerAudit.packageAudit.dxfVersion === 'AC1009' &&
             result.dxfLayerAudit.packageAudit.lineEnding === 'CRLF' &&
-            result.dxfLayerAudit.packageAudit.build === 'FS-125-RC3' &&
+            result.dxfLayerAudit.packageAudit.build === 'FS-125-RC4' &&
             result.dxfLayerAudit.packageAudit.writerBuild === 'FS-119-DXF-1',
             'DXF envelope or app/writer provenance is inconsistent',
             result.dxfLayerAudit
@@ -4504,13 +4556,13 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
             revisionProtection.destructive.some(item => item.includes('voids')) &&
             revisionProtection.invalidHealth.valid === false &&
             revisionProtection.rowCount >= 1 &&
-            revisionProtection.releaseVersion === '3.16.125-rc.3' &&
-            revisionProtection.releaseBuildId === 'FS-125-RC3' &&
+            revisionProtection.releaseVersion === '3.16.125-rc.4' &&
+            revisionProtection.releaseBuildId === 'FS-125-RC4' &&
             revisionProtection.schemaVersion === '0.2.0' &&
             revisionProtection.normalSaveAudit.writtenBytes > 0 &&
             /^model-revision-/.test(revisionProtection.normalSaveAudit.revisionId) &&
             revisionProtection.normalSaveAudit.parentRevisionId === 'qa-protected-baseline' &&
-            revisionProtection.normalSaveAudit.releaseBuildId === 'FS-125-RC3' &&
+            revisionProtection.normalSaveAudit.releaseBuildId === 'FS-125-RC4' &&
             revisionProtection.normalSaveAudit.protectedCount >= 3 &&
             revisionProtection.normalSaveAudit.preOverwriteCount >= 2 &&
             revisionProtection.downloadAudit?.filename.endsWith('.fstr') &&

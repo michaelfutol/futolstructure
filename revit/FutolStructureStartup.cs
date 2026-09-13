@@ -1,6 +1,8 @@
 using System.IO;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 
 namespace FutolStructure.Revit2027;
@@ -8,13 +10,13 @@ namespace FutolStructure.Revit2027;
 public sealed class FutolStructureStartup : IExternalApplication
 {
     private const string ImportCommandId =
-        "7e17f4af-6c55-4a17-a77c-b0cc0b2d7a27:FutolStructure.Revit2027.FutolStructureCommand";
-    private const string HostAutomationCommandId =
-        "b458d5b5-a9d2-41b4-b8e7-1bfe5de3a8f0:FutolStructure.Revit2027.FutolStructureHostAutomationCommand";
+        "7e17f4af-6c55-4a17-a77c-b0cc0b2d7a27";
     private static DateTime _lastPostUtc = DateTime.MinValue;
+    private static UIControlledApplication? _application;
 
     public Result OnStartup(UIControlledApplication application)
     {
+        _application = application;
         application.Idling += OnIdling;
         return Result.Succeeded;
     }
@@ -22,69 +24,108 @@ public sealed class FutolStructureStartup : IExternalApplication
     public Result OnShutdown(UIControlledApplication application)
     {
         application.Idling -= OnIdling;
+        _application = null;
         return Result.Succeeded;
     }
 
     private static void OnIdling(object? sender, Autodesk.Revit.UI.Events.IdlingEventArgs args)
     {
-        if (sender is not UIControlledApplication application ||
+        var application = _application;
+        if (application is null ||
             (DateTime.UtcNow - _lastPostUtc).TotalSeconds < 2)
             return;
 
         var jobPath = RevitAutomationPaths.PendingJobPath;
         if (!File.Exists(jobPath)) return;
 
+        Log("Idling found queued import job.");
+
         if (!TryReadJob(jobPath, out var manifestPath, out var hostPath, out var jobId, out var error))
         {
+            Log($"Job read failed: {error}");
             CompleteJob(jobPath, "invalid", jobId, error);
             TaskDialog.Show("FutolStructure Revit automation", error);
             return;
         }
 
+        Log($"Job {jobId}: manifest={manifestPath}; host={hostPath}");
+
         if (!File.Exists(manifestPath))
         {
             var missing = $"The queued FutolStructure manifest was not found:\n\n{manifestPath}";
+            Log(missing);
             CompleteJob(jobPath, "failed", jobId, missing);
             TaskDialog.Show("FutolStructure Revit automation", missing);
             return;
         }
 
+        // Revit identifies external commands by the AddInId from the manifest.
+        // The full class name suffix is not a valid LookupCommandId key.
         var commandId = RevitCommandId.LookupCommandId(ImportCommandId);
         if (commandId is null)
         {
-            var missingCommand = "The FutolStructure Revit import command could not be registered.";
-            CompleteJob(jobPath, "failed", jobId, missingCommand);
-            TaskDialog.Show("FutolStructure Revit automation", missingCommand);
+            Log($"LookupCommandId returned null for {ImportCommandId}.");
+            // Keep the job queued. Revit can finish ribbon registration after the
+            // first idle cycle, and the next cycle can retry without losing it.
+            _lastPostUtc = DateTime.UtcNow;
             return;
         }
 
         try
         {
             var uiApplication = CreateUIApplication(application);
-            if (uiApplication is null) return;
-
-            if (!File.Exists(hostPath))
+            if (uiApplication is null)
             {
-                var hostCommandId = RevitCommandId.LookupCommandId(HostAutomationCommandId);
-                if (hostCommandId is null)
-                {
-                    var missingHostCommand = "The FutolStructure Revit host-creation command could not be registered.";
-                    CompleteJob(jobPath, "failed", jobId, missingHostCommand);
-                    TaskDialog.Show("FutolStructure Revit automation", missingHostCommand);
-                    return;
-                }
-
-                if (!uiApplication.CanPostCommand(hostCommandId)) return;
-                uiApplication.PostCommand(hostCommandId);
+                Log("UIApplication creation returned null.");
                 _lastPostUtc = DateTime.UtcNow;
                 return;
             }
 
+            // A user-opened blank host is a controlled fallback for Revit Home/security
+            // states where the startup-created host cannot be opened automatically.
             var activePath = uiApplication.ActiveUIDocument?.Document?.PathName;
+            Log($"Active document: {activePath ?? "<none>"}");
+            if (WaitForActiveDocumentFallback(jobPath) &&
+                (string.IsNullOrWhiteSpace(activePath) ||
+                 !File.Exists(activePath) ||
+                 !IsManagedHostPath(activePath)))
+            {
+                _lastPostUtc = DateTime.UtcNow;
+                return;
+            }
+
+            if (AllowsActiveDocumentFallback(jobPath) &&
+                !string.IsNullOrWhiteSpace(activePath) &&
+                File.Exists(activePath) &&
+                IsManagedHostPath(activePath))
+            {
+                if (!PathsEqual(activePath, hostPath) && !TryRetargetJobHost(jobPath, activePath))
+                    return;
+                hostPath = activePath;
+            }
+
+            if (!File.Exists(hostPath))
+            {
+                Log($"Host does not exist; attempting creation: {hostPath}");
+                if (!TryCreateAndActivateHost(application, hostPath, out var hostError))
+                {
+                    Log($"Host creation failed: {hostError}");
+                    CompleteJob(jobPath, "failed", jobId, hostError);
+                    TaskDialog.Show("FutolStructure Revit automation", hostError);
+                    return;
+                }
+
+                _lastPostUtc = DateTime.UtcNow;
+                return;
+            }
+
+            activePath = uiApplication.ActiveUIDocument?.Document?.PathName;
             if (string.IsNullOrWhiteSpace(activePath) || !PathsEqual(activePath, hostPath))
             {
+                Log($"Opening/activating host because active document does not match: {hostPath}");
                 if (!TryOpenAndActivateDocument(application, hostPath, out var openError))
                 {
+                    Log($"Host open failed: {openError}");
                     string backupPath = string.Empty;
                     string quarantineError = string.Empty;
                     if (!IsManagedHostPath(hostPath) || !TryQuarantineInvalidHost(hostPath, out backupPath, out quarantineError))
@@ -97,16 +138,14 @@ public sealed class FutolStructureStartup : IExternalApplication
                         return;
                     }
 
-                    var hostCommandId = RevitCommandId.LookupCommandId(HostAutomationCommandId);
-                    if (hostCommandId is null || !uiApplication.CanPostCommand(hostCommandId))
+                    if (!TryCreateAndActivateHost(application, hostPath, out var hostError))
                     {
-                        var failure = $"The existing FutolStructure host was invalid and was moved to:\n\n{backupPath}\n\nThe automated host-creation command is not currently available.";
+                        var failure = $"The existing FutolStructure host was invalid and was moved to:\n\n{backupPath}\n\n{hostError}";
                         CompleteJob(jobPath, "failed", jobId, failure);
                         TaskDialog.Show("FutolStructure Revit automation", failure);
                         return;
                     }
 
-                    uiApplication.PostCommand(hostCommandId);
                     _lastPostUtc = DateTime.UtcNow;
                     return;
                 }
@@ -115,12 +154,19 @@ public sealed class FutolStructureStartup : IExternalApplication
                 return;
             }
 
-            if (!uiApplication.CanPostCommand(commandId)) return;
+            if (!uiApplication.CanPostCommand(commandId))
+            {
+                Log($"CanPostCommand returned false for {ImportCommandId}.");
+                _lastPostUtc = DateTime.UtcNow;
+                return;
+            }
             uiApplication.PostCommand(commandId);
+            Log($"Posted import command {ImportCommandId}.");
             _lastPostUtc = DateTime.UtcNow;
         }
         catch (Exception ex)
         {
+            Log($"Idling exception: {ex}");
             // Revit can reject a post while another command is still running. Leave the
             // job queued so the next idle cycle can retry without losing the manifest.
             if (!ex.Message.Contains("already been posted", StringComparison.OrdinalIgnoreCase))
@@ -133,13 +179,53 @@ public sealed class FutolStructureStartup : IExternalApplication
 
     private static UIApplication? CreateUIApplication(UIControlledApplication application)
     {
-        var databaseApplication = (Autodesk.Revit.ApplicationServices.Application?)Activator.CreateInstance(
-            typeof(Autodesk.Revit.ApplicationServices.Application),
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-            binder: null,
-            args: new object[] { application.ControlledApplication },
-            culture: null);
-        return databaseApplication is null ? null : new UIApplication(databaseApplication);
+        // Revit owns the UIApplication bridge. Revit 2027 exposes it internally
+        // from UIControlledApplication, while its public constructors require a
+        // database Application that is not exposed by the startup callback.
+        var getter = application.GetType().GetMethod(
+            "getUIApplication",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        return getter?.Invoke(application, null) as UIApplication;
+    }
+
+    private static Autodesk.Revit.ApplicationServices.Application? CreateDatabaseApplication(
+        UIControlledApplication application)
+    {
+        return CreateUIApplication(application)?.Application;
+    }
+
+    private static bool TryCreateAndActivateHost(UIControlledApplication application, string hostPath,
+        out string error)
+    {
+        error = string.Empty;
+        Autodesk.Revit.ApplicationServices.Application? databaseApplication = null;
+        Document? host = null;
+        try
+        {
+            databaseApplication = CreateDatabaseApplication(application);
+            var directory = Path.GetDirectoryName(hostPath);
+            if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
+
+            if (databaseApplication is null)
+            {
+                error = "Revit did not expose its database application for host creation.";
+                return false;
+            }
+
+            host = databaseApplication.NewProjectDocument(UnitSystem.Metric);
+            host.SaveAs(hostPath);
+            host.Close(false);
+            host = null;
+
+            if (!TryOpenAndActivateDocument(application, hostPath, out error)) return false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            try { host?.Close(false); } catch { }
+            error = ex.Message;
+            return false;
+        }
     }
 
     private static bool TryOpenAndActivateDocument(UIControlledApplication application, string hostPath,
@@ -176,7 +262,54 @@ public sealed class FutolStructureStartup : IExternalApplication
     }
 
     private static bool IsManagedHostPath(string hostPath) =>
-        PathsEqual(Path.GetDirectoryName(hostPath) ?? string.Empty, RevitAutomationPaths.HostDirectory);
+        PathsEqual(Path.GetDirectoryName(hostPath) ?? string.Empty, RevitAutomationPaths.HostDirectory) &&
+        string.Equals(Path.GetExtension(hostPath), ".rvt", StringComparison.OrdinalIgnoreCase);
+
+    private static bool AllowsActiveDocumentFallback(string jobPath)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(jobPath));
+            return document.RootElement.TryGetProperty("allowActiveDocumentFallback", out var value) &&
+                value.ValueKind == JsonValueKind.True;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool WaitForActiveDocumentFallback(string jobPath)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(jobPath));
+            return document.RootElement.TryGetProperty("waitForActiveDocumentFallback", out var value) &&
+                value.ValueKind == JsonValueKind.True;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryRetargetJobHost(string jobPath, string hostPath)
+    {
+        try
+        {
+            var root = JsonNode.Parse(File.ReadAllText(jobPath)) as JsonObject;
+            if (root is null) return false;
+            root["hostPath"] = Path.GetFullPath(hostPath);
+            var tempPath = $"{jobPath}.tmp-{Environment.ProcessId}";
+            File.WriteAllText(tempPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            File.Move(tempPath, jobPath, overwrite: true);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     private static bool TryQuarantineInvalidHost(string hostPath, out string backupPath, out string error)
     {
@@ -266,6 +399,23 @@ public sealed class FutolStructureStartup : IExternalApplication
 
     internal static bool PathsEqual(string left, string right) =>
         string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase);
+
+    private static void Log(string message)
+    {
+        try
+        {
+            var directory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                "FutolStructure", "Revit Jobs");
+            Directory.CreateDirectory(directory);
+            var path = Path.Combine(directory, "revit-startup.log");
+            File.AppendAllText(path, $"{DateTimeOffset.Now:O} {message}{Environment.NewLine}");
+        }
+        catch
+        {
+            // Diagnostics must never interfere with Revit startup.
+        }
+    }
 }
 
 internal static class RevitAutomationPaths

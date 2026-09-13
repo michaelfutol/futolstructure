@@ -36,4 +36,13 @@
     <VendorId>FutolTech</VendorId>
     <VendorDescription>FutolStructure valid .rvt host creator for queued imports</VendorDescription>
   </AddIn>
+  <AddIn Type="Command">
+    <Name>FutolStructure BOQ</Name>
+    <Assembly>PATH_TO_BUILD_OUTPUT\FutolStructure.Revit2027.dll</Assembly>
+    <AddInId>2D3B8E4A-1E0C-4CC5-8BFB-1DCF8EAF96B8</AddInId>
+    <AddInVersion>1.0.0.0</AddInVersion>
+    <FullClassName>FutolStructure.Revit2027.FutolStructureBoqCommand</FullClassName>
+    <VendorId>FutolTech</VendorId>
+    <VendorDescription>FutolStructure native Revit quantity schedules and CSV BOQ</VendorDescription>
+  </AddIn>
 </RevitAddIns>

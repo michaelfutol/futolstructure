@@ -740,7 +740,8 @@ ipcMain.handle('run-revit-import', async (_event, payload) => {
       jobId,
       createdAt: new Date().toISOString(),
       manifestPath,
-      hostPath
+      hostPath,
+      allowActiveDocumentFallback: true
     });
 
     const child = spawn(revitExecutable, hostExists ? [hostPath] : [], { detached: true, stdio: 'ignore', windowsHide: false });
