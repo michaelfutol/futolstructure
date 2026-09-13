@@ -76,7 +76,7 @@ function checkReleaseManifest() {
     const html = fs.readFileSync(INDEX, 'utf8');
     const desktopPackage = JSON.parse(fs.readFileSync(DESKTOP_PACKAGE, 'utf8'));
     assert(manifest.appVersion === desktopPackage.version, 'Desktop and runtime versions differ', manifest);
-    assert(manifest.buildId === 'FS-125-RC4', 'Release manifest build ID is stale', manifest);
+    assert(manifest.buildId === 'FS-125-RC5', 'Release manifest build ID is stale', manifest);
     assert(manifest.releaseName === 'Desktop Workspaces Candidate', 'Release manifest name is stale', manifest);
     assert(manifest.fstrSchemaVersion === '0.2.0', 'Release manifest FSTR schema is stale', manifest);
     const allowUnstampedManifest = process.env.FS_ALLOW_UNSTAMPED_MANIFEST === '1';
@@ -2210,6 +2210,54 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
                     getCurrentFloorPlanDimensions()[0]?.y2 - getCurrentFloorPlanDimensions()[0]?.y1
                 )
             };
+
+            state.floors.forEach(floor => { floor.planDimensions = []; });
+            setPlanTab('foundation');
+            toggleMeasureMode(false);
+            toggleMeasureSnap(false);
+            state.snapEnabled = false;
+            state.snapSize = 0.05;
+            syncSnapToolState();
+            document.getElementById('measureToolBtn').click();
+            const dispatchCanvasClick = (x, y) => {
+                const liveRect = canvas.getBoundingClientRect();
+                return canvas.dispatchEvent(new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: liveRect.left + (state.offsetX + x * state.scale) * liveRect.width / canvas.width,
+                    clientY: liveRect.top + (state.offsetY + y * state.scale) * liveRect.height / canvas.height
+                }));
+            };
+            dispatchCanvasClick(0, 0);
+            dispatchCanvasClick(3, 4);
+            const foundationUiDimension = getCurrentFloorPlanDimensions()[0];
+            document.getElementById('measureSnapBtn').click();
+            document.getElementById('snapToggleBtn').click();
+            const snapSizeSelect = document.getElementById('snapSizeSelect');
+            snapSizeSelect.value = '0.25';
+            snapSizeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            const afterMeasureToolbarControls = {
+                foundationDimensionCount: getCurrentFloorPlanDimensions().length,
+                foundationDimension: foundationUiDimension ? { ...foundationUiDimension } : null,
+                foundationLengthM: Math.hypot(
+                    Number(foundationUiDimension?.x2) - Number(foundationUiDimension?.x1),
+                    Number(foundationUiDimension?.y2) - Number(foundationUiDimension?.y1)
+                ),
+                measureButtonActive: document.getElementById('measureToolBtn').classList.contains('active'),
+                objectSnapEnabled: state.measureSnapEnabled,
+                objectSnapButtonActive: document.getElementById('measureSnapBtn').classList.contains('active'),
+                gridSnapEnabled: state.snapEnabled,
+                gridSnapButtonActive: document.getElementById('snapToggleBtn').classList.contains('active'),
+                snapSizeM: state.snapSize,
+                snappedValueM: snapToGrid(0.13)
+            };
+            toggleMeasureMode(false);
+            state.floors.forEach(floor => { floor.planDimensions = []; });
+            state.snapEnabled = false;
+            state.snapSize = 0.05;
+            syncSnapToolState();
+            setPlanTab('analysis');
+
             state.floors.forEach(floor => { floor.planDimensions = []; });
             state.measureSnapEnabled = true;
             state.measureOrtho = false;
@@ -3421,6 +3469,7 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
                 afterMeasureAdd,
                 afterMeasureClear,
                 afterMeasureClearUndo,
+                afterMeasureToolbarControls,
                 afterMeasureSnapOrtho,
                 memberSizeAudit,
                 afterStairCreate,
@@ -3692,6 +3741,24 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
             Math.abs(result.afterMeasureClearUndo.lengthM - 5) < 0.001,
             'Undo did not restore cleared plan dimensions',
             result.afterMeasureClearUndo
+        );
+        assert(
+            result.afterMeasureToolbarControls.foundationDimensionCount === 1 &&
+            Number.isFinite(result.afterMeasureToolbarControls.foundationLengthM) &&
+            result.afterMeasureToolbarControls.foundationLengthM > 0.5 &&
+            result.afterMeasureToolbarControls.measureButtonActive === true,
+            'Measure toolbar button did not create a visible Foundation-plan dimension through real canvas clicks',
+            result.afterMeasureToolbarControls
+        );
+        assert(
+            result.afterMeasureToolbarControls.objectSnapEnabled === true &&
+            result.afterMeasureToolbarControls.objectSnapButtonActive === true &&
+            result.afterMeasureToolbarControls.gridSnapEnabled === true &&
+            result.afterMeasureToolbarControls.gridSnapButtonActive === true &&
+            Math.abs(result.afterMeasureToolbarControls.snapSizeM - 0.25) < 0.000001 &&
+            Math.abs(result.afterMeasureToolbarControls.snappedValueM - 0.25) < 0.000001,
+            'Plan Object Snap, Grid Snap, or snap-increment controls are not connected to pointer resolution',
+            result.afterMeasureToolbarControls
         );
         assert(
             Math.abs(result.afterMeasureSnapOrtho.snappedMeasurePoint.x -

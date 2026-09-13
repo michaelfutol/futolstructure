@@ -606,6 +606,17 @@
             border-color: var(--primary);
         }
 
+        .tool-select {
+            min-height: 25px;
+            padding: 2px 22px 2px 7px;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            background: var(--surface);
+            color: var(--text-primary);
+            font: 500 0.68rem var(--font-main);
+            cursor: pointer;
+        }
+
         .tool-btn.secondary-action {
             color: var(--text-muted);
             border-color: rgba(139, 148, 158, 0.22);
@@ -2493,7 +2504,7 @@
             </div>
             <img class="logo-icon" src="assets/futolstructure-icon.png" alt="FutolStructure">
             <span style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary); letter-spacing: -0.01em;">FutolStructure</span>
-<button id="buildVersionBadge" type="button" title="View FS-125-RC4 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.125-rc.4</button>
+<button id="buildVersionBadge" type="button" title="View FS-125-RC5 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.125-rc.5</button>
         </div>
         <!-- Action Toolbar -->
         <div class="header-actions">
@@ -2950,6 +2961,14 @@
                 <button class="tool-btn" id="gridBubbleOffsetBtn" onclick="adjustGridBubbleOffset(10)" title="Move grid bubbles farther from the building">Bubble +20</button>
                 <button class="tool-btn" id="measureToolBtn" onclick="toggleMeasureMode()" title="Measure/dimension two points on the active floor">Measure</button>
                 <button class="tool-btn" id="measureOrthoBtn" onclick="toggleMeasureOrtho()" title="Constrain Measure to horizontal/vertical">Ortho</button>
+                <button class="tool-btn active" id="measureSnapBtn" onclick="toggleMeasureSnap()" title="Snap Measure to grids, column centers/faces, beam axes/faces, slab edges, and footing geometry">Osnap On</button>
+                <button class="tool-btn" id="snapToggleBtn" onclick="toggleSnap()" title="Snap placed points to the selected drawing increment">Grid Snap Off</button>
+                <select class="tool-select" id="snapSizeSelect" onchange="updateSnapSize(this.value)" aria-label="Grid snap increment" title="Grid snap increment">
+                    <option value="0.05" selected>5 cm</option>
+                    <option value="0.10">10 cm</option>
+                    <option value="0.25">25 cm</option>
+                    <option value="0.50">50 cm</option>
+                </select>
                 <button class="tool-btn" onclick="clearPlanDimensions()" title="Clear saved dimensions on the active floor">Clear Dims</button>
                 <span class="toolbar-separator"></span>
                 <!-- Modeling Tools -->
@@ -5006,8 +5025,8 @@
         const FSTR_HIDDEN_GEOMETRY_POLICY = 'preserve-intentional-hidden-geometry';
         const FSTR_AUTOSAVE_STATE_REVISION = 'P0-C1A-column-segment-intent';
         const COLUMN_SEGMENT_INTENT_VERSION = 1;
-        const FSTR_APP_VERSION = '3.16.125-rc.4';
-        const FSTR_BUILD_ID = 'FS-125-RC4';
+        const FSTR_APP_VERSION = '3.16.125-rc.5';
+        const FSTR_BUILD_ID = 'FS-125-RC5';
         const FSTR_RELEASE_NAME = 'Desktop Workspaces Candidate';
         const FSTR_RELEASE_MANIFEST_FALLBACK = Object.freeze({
             appVersion: FSTR_APP_VERSION,
@@ -5015,7 +5034,7 @@
             releaseName: FSTR_RELEASE_NAME,
             fstrSchemaVersion: FSTR_SCHEMA_VERSION,
             releaseChannel: 'candidate',
-            gitCommit: '760997fbd4ecf6cdd2bd24322f8bf54676d514c3',
+            gitCommit: 'e05d915bd97fd8d6f81366416ae0541b9efc011b',
             buildDate: '2026-09-05',
             validatedFixtures: [
                 'legacy-v2.8-2floor',
@@ -5877,7 +5896,7 @@
             // v3.0: Grid and snap settings for precise element placement
             showSubGrid: false,     // Toggle for 1m sub-gridlines overlay
             snapEnabled: false,     // Toggle for snap-to-grid
-            snapSize: 0.1,          // Snap increment in meters (0.1m = 10cm default)
+            snapSize: 0.05,         // Snap increment in meters (0.05m = 5cm default)
             measureMode: false,
             measureOrtho: false,
             measureSnapEnabled: true,
@@ -8621,14 +8640,20 @@
         }
 
         // ========== CANVAS SETUP ==========
-        let canvas, ctx;
+        let canvas, ctx, canvasResizeObserver;
 
         function initCanvas() {
             canvas = document.getElementById('mainCanvas');
             ctx = canvas.getContext('2d');
             syncColumnPositionLockButton();
+            syncSnapToolState();
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
+            if (typeof ResizeObserver === 'function') {
+                canvasResizeObserver?.disconnect();
+                canvasResizeObserver = new ResizeObserver(() => resizeCanvas());
+                canvasResizeObserver.observe(canvas.parentElement);
+            }
             // v2.7: Click on column to toggle active state
             canvas.addEventListener('click', handleCanvasClick);
             // v3.0: Mouseup for beam drawing
@@ -8637,8 +8662,10 @@
 
         function resizeCanvas() {
             const wrapper = canvas.parentElement;
-            canvas.width = wrapper.clientWidth;
-            canvas.height = wrapper.clientHeight;
+            const width = Math.max(1, wrapper.clientWidth);
+            const height = Math.max(1, wrapper.clientHeight);
+            if (canvas.width !== width) canvas.width = width;
+            if (canvas.height !== height) canvas.height = height;
             draw();
         }
 
@@ -12554,9 +12581,9 @@
             if (!canvas) return;
             if (handleMeasureClick(event)) return;
 
-            const rect = canvas.getBoundingClientRect();
-            const clickX = event.clientX - rect.left;
-            const clickY = event.clientY - rect.top;
+            const pointer = getCanvasEventPixelPoint(event);
+            const clickX = pointer.x;
+            const clickY = pointer.y;
 
             // Convert to world coordinates
             const worldX = (clickX - state.offsetX) / state.scale;
@@ -12692,9 +12719,9 @@
         function finishBeamDraw(event) {
             if (!state.addingBeam || !state.beamDrawStart) return;
 
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = event.clientX - rect.left;
-            const mouseY = event.clientY - rect.top;
+            const pointer = getCanvasEventPixelPoint(event);
+            const mouseX = pointer.x;
+            const mouseY = pointer.y;
 
             // v3.0: Use configurable snap-to-grid (respects state.snapSize when enabled)
             const endX = snapToGrid((mouseX - state.offsetX) / state.scale);
@@ -12851,6 +12878,7 @@
             // v3.2: Check if foundation plan tab is active - draw footings and tie beams
             if (currentPlanTab === 'foundation') {
                 drawFoundationPlan();
+                drawPlanDimensions();
                 return; // Skip wireframe mode
             }
 
@@ -15493,10 +15521,26 @@
         // v3.0: Toggle snap-to-grid
         function toggleSnap() {
             state.snapEnabled = !state.snapEnabled;
+            syncSnapToolState();
+            draw();
+        }
+
+        function syncSnapToolState() {
             const btn = document.getElementById('snapToggleBtn');
             if (btn) {
-                btn.textContent = state.snapEnabled ? '🧲 Snap: ON' : '🧲 Snap: OFF';
+                btn.textContent = state.snapEnabled ? 'Grid Snap On' : 'Grid Snap Off';
                 btn.classList.toggle('active', state.snapEnabled);
+            }
+            const sizeSelect = document.getElementById('snapSizeSelect');
+            if (sizeSelect) {
+                const normalized = Number.isFinite(Number(state.snapSize))
+                    ? Math.max(0.01, Math.min(1, Number(state.snapSize)))
+                    : 0.05;
+                state.snapSize = normalized;
+                const matchingOption = Array.from(sizeSelect.options).find(option =>
+                    Math.abs(Number(option.value) - normalized) < 0.000001
+                );
+                if (matchingOption) sizeSelect.value = matchingOption.value;
             }
         }
 
@@ -15600,7 +15644,12 @@
 
         // v3.0: Update snap size from dropdown
         function updateSnapSize(value) {
-            state.snapSize = parseFloat(value);
+            const requested = Number(value);
+            if (!Number.isFinite(requested) || requested <= 0) return;
+            state.snapSize = Math.max(0.01, Math.min(1, requested));
+            state.snapEnabled = true;
+            syncSnapToolState();
+            draw();
         }
 
         // v3.0: Snap a value to the grid
@@ -15609,11 +15658,19 @@
             return Math.round(value / state.snapSize) * state.snapSize;
         }
 
-        function getCanvasRawWorldPoint(event) {
+        function getCanvasEventPixelPoint(event) {
             const rect = canvas.getBoundingClientRect();
             return {
-                x: (event.clientX - rect.left - state.offsetX) / state.scale,
-                y: (event.clientY - rect.top - state.offsetY) / state.scale
+                x: (event.clientX - rect.left) * canvas.width / Math.max(1, rect.width),
+                y: (event.clientY - rect.top) * canvas.height / Math.max(1, rect.height)
+            };
+        }
+
+        function getCanvasRawWorldPoint(event) {
+            const pointer = getCanvasEventPixelPoint(event);
+            return {
+                x: (pointer.x - state.offsetX) / state.scale,
+                y: (pointer.y - state.offsetY) / state.scale
             };
         }
 
@@ -15707,6 +15764,34 @@
                 addMeasureSnapCandidate(candidates, Number(dimension.x2), Number(dimension.y2), 'dimension-end', 3);
             });
 
+            if (currentPlanTab === 'foundation') {
+                (state.columns || []).filter(col => isFoundationColumnForPlan(col, currentFloorId)).forEach(col => {
+                    const center = getColumnPlanPosition(col);
+                    const footing = getFootingDimensionsM(col);
+                    const x1 = center.x - footing.width / 2;
+                    const x2 = center.x + footing.width / 2;
+                    const y1 = center.y - footing.length / 2;
+                    const y2 = center.y + footing.length / 2;
+                    addMeasureSnapCandidate(candidates, center.x, center.y, 'footing-center', 0);
+                    addMeasureSegmentSnapCandidates(candidates, rawPoint, x1, y1, x2, y1, 'footing-edge', 2);
+                    addMeasureSegmentSnapCandidates(candidates, rawPoint, x2, y1, x2, y2, 'footing-edge', 2);
+                    addMeasureSegmentSnapCandidates(candidates, rawPoint, x2, y2, x1, y2, 'footing-edge', 2);
+                    addMeasureSegmentSnapCandidates(candidates, rawPoint, x1, y2, x1, y1, 'footing-edge', 2);
+                });
+                getFoundationTieBeamSegmentsForPlan(currentFloorId).forEach(segment => {
+                    addMeasureSegmentSnapCandidates(
+                        candidates,
+                        rawPoint,
+                        segment.direction === 'X' ? segment.x1 : segment.cx,
+                        segment.direction === 'X' ? segment.cy : segment.y1,
+                        segment.direction === 'X' ? segment.x2 : segment.cx,
+                        segment.direction === 'X' ? segment.cy : segment.y2,
+                        'tie-beam-axis',
+                        3
+                    );
+                });
+            }
+
             return candidates;
         }
 
@@ -15772,9 +15857,21 @@
                 orthoBtn.classList.toggle('active', !!state.measureOrtho);
                 orthoBtn.textContent = state.measureOrtho ? 'Ortho On' : 'Ortho';
             }
+            const snapBtn = document.getElementById('measureSnapBtn');
+            if (snapBtn) {
+                snapBtn.classList.toggle('active', state.measureSnapEnabled !== false);
+                snapBtn.textContent = state.measureSnapEnabled !== false ? 'Osnap On' : 'Osnap Off';
+            }
             if (canvas && !state.isPanning) {
                 canvas.style.cursor = state.measureMode ? 'crosshair' : 'default';
             }
+        }
+
+        function toggleMeasureSnap(force = null) {
+            state.measureSnapEnabled = force === null ? state.measureSnapEnabled === false : !!force;
+            state.measureSnapPoint = null;
+            updateMeasureToolState();
+            draw();
         }
 
         function toggleMeasureOrtho(force = null) {
@@ -15818,7 +15915,6 @@
             if (!state.measureMode) return false;
             event.preventDefault();
             event.stopImmediatePropagation();
-            if (currentPlanTab === 'foundation') return true;
 
             const point = getCanvasWorldPoint(event);
             if (!state.measureStart) {
@@ -15946,7 +16042,6 @@
         }
 
         function drawPlanDimensions() {
-            if (currentPlanTab === 'foundation') return;
             getCurrentFloorPlanDimensions().forEach(dimension => drawPlanDimensionLine(dimension));
             if (state.measureMode && state.measureStart && state.measureHover) {
                 drawPlanDimensionLine({
@@ -16003,9 +16098,9 @@
             // v3.9: CAD-style scroll wheel zoom (centered on mouse position)
             canvas.addEventListener('wheel', (e) => {
                 e.preventDefault();
-                const rect = canvas.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
+                const pointer = getCanvasEventPixelPoint(e);
+                const mouseX = pointer.x;
+                const mouseY = pointer.y;
 
                 // World position before zoom
                 const worldXBefore = (mouseX - state.offsetX) / state.scale;
@@ -16062,9 +16157,9 @@
                 // Skip if panning, adding beam, or dragging
                 if (state.isPanning || state.addingBeam || state.measureMode || state.isDragging) return;
 
-                const rect = canvas.getBoundingClientRect();
-                const clickX = e.clientX - rect.left;
-                const clickY = e.clientY - rect.top;
+                const pointer = getCanvasEventPixelPoint(e);
+                const clickX = pointer.x;
+                const clickY = pointer.y;
 
                 // Convert to world coordinates
                 const worldX = (clickX - state.offsetX) / state.scale;
@@ -16191,9 +16286,9 @@
                 // Skip if panning or adding beam
                 if (state.isPanning || state.addingBeam || state.measureMode) return;
 
-                const rect = canvas.getBoundingClientRect();
-                const clickX = e.clientX - rect.left;
-                const clickY = e.clientY - rect.top;
+                const pointer = getCanvasEventPixelPoint(e);
+                const clickX = pointer.x;
+                const clickY = pointer.y;
 
                 // Convert to world coordinates
                 const worldX = (clickX - state.offsetX) / state.scale;
