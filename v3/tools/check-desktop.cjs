@@ -30,6 +30,16 @@ async function main() {
         const recent = await page.evaluate(() => window.FutolStructureDesktop.getRecentProjects());
         assert.deepEqual(recent, [], 'Smoke profile must not load user project history');
         const recentPanel = page.locator('#desktopRecentProjects');
+        assert.equal(await page.locator('#desktopRecentProjectsSidebar').count(), 0);
+        assert.equal(await recentPanel.count(), 0, 'Recent history must not open on startup');
+        await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('desktop-request-open-project'));
+        await recentPanel.waitFor({ state: 'visible' });
+        assert.equal(await page.getByRole('button', { name: 'Browse files...', exact: true }).count(), 1);
+        await page.evaluate(() => renderDesktopRecentProjects(Array.from({ length: 12 }, (_, index) => ({
+            name: `Smoke project ${index + 1}.fstr`, path: `D:/Smoke/project-${index + 1}.fstr`
+        }))));
+        assert.equal(await recentPanel.locator('.recent-project-row').count(), 10);
+        await page.screenshot({ path: path.join(output, 'file-open-history.png') });
         if (await recentPanel.count()) {
             await page.getByRole('button', { name: 'Close recent projects', exact: true }).click();
             await recentPanel.waitFor({ state: 'detached' });

@@ -2,6 +2,12 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('FutolStructureDesktop', Object.freeze({
   isDesktop: true,
+  onOpenProjectRequested: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = () => callback();
+    ipcRenderer.on('desktop-request-open-project', listener);
+    return () => ipcRenderer.removeListener('desktop-request-open-project', listener);
+  },
   getInfo: () => ipcRenderer.invoke('desktop-info'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),

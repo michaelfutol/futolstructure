@@ -2348,76 +2348,6 @@
             filter: brightness(1.08);
         }
 
-        .recent-projects-sidebar {
-            margin: 8px 10px 12px;
-            border: 1px solid var(--border);
-            background: var(--panel-bg);
-            overflow: hidden;
-        }
-
-        .recent-projects-sidebar[hidden] {
-            display: none;
-        }
-
-        .recent-projects-sidebar-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-            padding: 8px 10px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .recent-projects-sidebar-title {
-            margin: 0;
-            color: var(--text-primary);
-            font: 800 0.72rem/1.2 var(--font-main);
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-
-        .recent-projects-sidebar-folder {
-            max-width: 58%;
-            overflow: hidden;
-            color: var(--text-muted);
-            font: 600 0.58rem/1.2 var(--font-mono);
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .recent-projects-sidebar-list {
-            max-height: 232px;
-            overflow-y: auto;
-        }
-
-        .recent-projects-sidebar .recent-project-row {
-            grid-template-columns: minmax(0, 1fr);
-            gap: 2px;
-            padding: 8px 10px;
-        }
-
-        .recent-projects-sidebar .recent-project-name {
-            font-size: 0.68rem;
-        }
-
-        .recent-projects-sidebar .recent-project-path,
-        .recent-projects-sidebar .recent-project-time,
-        .recent-projects-sidebar .recent-projects-empty {
-            font-size: 0.58rem;
-        }
-
-        .recent-projects-sidebar-footer {
-            display: flex;
-            justify-content: flex-end;
-            padding: 6px 8px;
-            border-top: 1px solid var(--border);
-        }
-
-        .recent-projects-sidebar .recent-projects-browse {
-            min-height: 28px;
-            padding: 5px 9px;
-            font-size: 0.64rem;
-        }
 
         /* ========== RESPONSIVE ADJUSTMENTS ========== */
         @media (max-width: 1200px) {
@@ -2504,12 +2434,11 @@
             </div>
             <img class="logo-icon" src="assets/futolstructure-icon.png" alt="FutolStructure">
             <span style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary); letter-spacing: -0.01em;">FutolStructure</span>
-<button id="buildVersionBadge" type="button" title="View FS-125-RC5 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.125-rc.5</button>
+<button id="buildVersionBadge" type="button" title="View FS-125-RC6 release provenance" onclick="showReleaseInfo()" style="font-size:0.58rem; color:var(--text-muted); font-weight:500; padding:1px 5px; background:var(--surface); border:1px solid var(--border); border-radius:3px; cursor:pointer;">v3.16.125-rc.6</button>
         </div>
         <!-- Action Toolbar -->
         <div class="header-actions">
             <button class="tool-btn" onclick="calculate()" title="Rebuild geometry, gravity-load paths, preliminary member checks, and dashboard totals. This does not run an external finite-element solver." style="background: var(--primary); color: #fff; font-weight: 600;">Recalculate</button>
-            <button class="tool-btn secondary-action" onclick="refreshView()" title="Recalculate model data and rebuild the current view">Rebuild</button>
             <button class="tool-btn" onclick="saveProject()" title="Save current project">Save</button>
             <button class="tool-btn" id="undoBtn" onclick="undo()" title="Undo last model edit" disabled>Undo</button>
             <button class="tool-btn" id="redoBtn" onclick="redo()" title="Redo last undone edit" disabled>Redo</button>
@@ -2520,7 +2449,7 @@
             <button class="tool-btn" onclick="exportToRevitPackage()" title="Import the governed FutolStructure model into Revit 2027">Revit</button>
             <button class="tool-btn" onclick="exportToSTAAD()" title="Export to STAAD.Pro">STAAD</button>
             <button class="tool-btn" onclick="exportToETABS()" title="Create and open a dated ETABS 22 .edb model">ETABS</button>
-            <button class="tool-btn" onclick="chooseETABSAuditFile()" title="Import a read-only ETABS audit and compare it with the current FS model">Import</button>
+            <button class="tool-btn" onclick="chooseETABSAuditFile()" title="Import a read-only ETABS audit and compare it with the current FS model">ETABS Audit</button>
             <span class="export-validation-badge" title="Gravity/modal ETABS baseline is validated; lateral design still requires engineer review.">QA</span>
             <button class="tool-btn" onclick="exportToSAFEViaETABS()" title="Prepare CSI SAFE V12 handoff through ETABS">SAFE</button>
         </div>
@@ -2532,16 +2461,6 @@
         <div class="panel">
             <div class="panel-header">Input Parameters</div>
 
-            <section class="recent-projects-sidebar" id="desktopRecentProjectsSidebar" hidden aria-labelledby="desktopRecentProjectsSidebarTitle">
-                <div class="recent-projects-sidebar-header">
-                    <h2 class="recent-projects-sidebar-title" id="desktopRecentProjectsSidebarTitle">Recent Projects</h2>
-                    <span class="recent-projects-sidebar-folder" id="desktopRecentProjectsSidebarFolder" title="Default project folder"></span>
-                </div>
-                <div class="recent-projects-sidebar-list" id="desktopRecentProjectsSidebarList"></div>
-                <div class="recent-projects-sidebar-footer">
-                    <button type="button" class="recent-projects-browse" onclick="openProject()">Open Project...</button>
-                </div>
-            </section>
 
             <!-- Grid Spans -->
             <div class="param-group">
@@ -5025,8 +4944,8 @@
         const FSTR_HIDDEN_GEOMETRY_POLICY = 'preserve-intentional-hidden-geometry';
         const FSTR_AUTOSAVE_STATE_REVISION = 'P0-C1A-column-segment-intent';
         const COLUMN_SEGMENT_INTENT_VERSION = 1;
-        const FSTR_APP_VERSION = '3.16.125-rc.5';
-        const FSTR_BUILD_ID = 'FS-125-RC5';
+        const FSTR_APP_VERSION = '3.16.125-rc.6';
+        const FSTR_BUILD_ID = 'FS-125-RC6';
         const FSTR_RELEASE_NAME = 'Desktop Workspaces Candidate';
         const FSTR_RELEASE_MANIFEST_FALLBACK = Object.freeze({
             appVersion: FSTR_APP_VERSION,
@@ -5034,7 +4953,7 @@
             releaseName: FSTR_RELEASE_NAME,
             fstrSchemaVersion: FSTR_SCHEMA_VERSION,
             releaseChannel: 'candidate',
-            gitCommit: 'e05d915bd97fd8d6f81366416ae0541b9efc011b',
+            gitCommit: 'cd9c322aed57d508d417afbc7d534dad3cf5faea',
             buildDate: '2026-09-05',
             validatedFixtures: [
                 'legacy-v2.8-2floor',
@@ -18846,7 +18765,6 @@
                     currentProjectFilePath = desktopSave.filePath || currentProjectFilePath;
                     currentProjectFileName = desktopSave.name || currentProjectFileName || getDefaultProjectFileName();
                     establishProjectBaseline(projectData, currentSummary);
-                    await refreshDesktopRecentProjectsPanel();
                     console.log('v3.0: Desktop project saved!', projectData);
                     if (currentPlanTab === 'recovery') populateRecoveryPanel();
                     alert(`Project saved: ${ currentProjectFileName }`);
@@ -19392,8 +19310,16 @@
             }
         }
 
-        async function openProject() {
+        async function openProject(browseFiles = false) {
             const desktopBridge = window.FutolStructureDesktop;
+            if (desktopBridge?.isDesktop && desktopBridge.getRecentProjects && browseFiles !== true) {
+                try {
+                    renderDesktopRecentProjects(await desktopBridge.getRecentProjects());
+                    return;
+                } catch (err) {
+                    console.warn('Recent history unavailable; opening file browser:', err);
+                }
+            }
             if (desktopBridge?.isDesktop && desktopBridge.openProjectDialog) {
                 try {
                     const payload = await desktopBridge.openProjectDialog();
@@ -19510,64 +19436,10 @@
                 console.error('Recent project could not be opened:', err);
                 alert('Failed to open recent project: ' + err.message);
                 hideDesktopRecentProjects();
-                void showDesktopRecentProjectsOnStartup();
+                void openProject();
             }
         }
 
-        function renderDesktopRecentProjectsPanel(projects, defaultDirectory = '') {
-            const panel = document.getElementById('desktopRecentProjectsSidebar');
-            const list = document.getElementById('desktopRecentProjectsSidebarList');
-            const folder = document.getElementById('desktopRecentProjectsSidebarFolder');
-            if (!panel || !list) return;
-            panel.hidden = false;
-            if (folder) folder.textContent = defaultDirectory || '';
-            list.replaceChildren();
-            const recentProjects = Array.isArray(projects) ? projects.slice(0, 10) : [];
-            if (!recentProjects.length) {
-                const empty = document.createElement('p');
-                empty.className = 'recent-projects-empty';
-                empty.textContent = 'No recent projects';
-                list.appendChild(empty);
-                return;
-            }
-            recentProjects.forEach((project, index) => {
-                const row = document.createElement('button');
-                row.type = 'button';
-                row.className = 'recent-project-row';
-                row.title = project.path || project.name || '';
-                row.addEventListener('click', () => openDesktopRecentProject(project.path));
-
-                const copy = document.createElement('span');
-                copy.className = 'recent-project-copy';
-                const name = document.createElement('span');
-                name.className = 'recent-project-name';
-                name.textContent = `${index + 1}. ${project.name || 'Untitled project'}`;
-                const projectPath = document.createElement('span');
-                projectPath.className = 'recent-project-path';
-                projectPath.textContent = project.directory || project.path || '';
-                copy.append(name, projectPath);
-
-                const opened = document.createElement('span');
-                opened.className = 'recent-project-time';
-                opened.textContent = formatRecentProjectTime(project.openedAt);
-                row.append(copy, opened);
-                list.appendChild(row);
-            });
-        }
-
-        async function refreshDesktopRecentProjectsPanel() {
-            const bridge = window.FutolStructureDesktop;
-            if (!bridge?.isDesktop || !bridge.getRecentProjects) return;
-            try {
-                const [projects, info] = await Promise.all([
-                    bridge.getRecentProjects(),
-                    bridge.getInfo ? bridge.getInfo() : Promise.resolve(null)
-                ]);
-                renderDesktopRecentProjectsPanel(projects, info?.defaultProjectDirectory || '');
-            } catch (err) {
-                console.warn('Recent project history is unavailable:', err);
-            }
-        }
 
         function renderDesktopRecentProjects(projects) {
             hideDesktopRecentProjects();
@@ -19636,8 +19508,8 @@
             const browse = document.createElement('button');
             browse.type = 'button';
             browse.className = 'recent-projects-browse';
-            browse.textContent = 'Open Project...';
-            browse.addEventListener('click', openProject);
+            browse.textContent = 'Browse files...';
+            browse.addEventListener('click', () => openProject(true));
             footer.appendChild(browse);
 
             dialog.append(header, list, footer);
@@ -19649,11 +19521,6 @@
             close.focus();
         }
 
-        async function showDesktopRecentProjectsOnStartup() {
-            const bridge = window.FutolStructureDesktop;
-            if (!bridge?.isDesktop || !bridge.getRecentProjects || currentProjectFileName) return;
-            await refreshDesktopRecentProjectsPanel();
-        }
 
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') hideDesktopRecentProjects();
@@ -19662,6 +19529,7 @@
         if (window.FutolStructureDesktop?.onProjectOpen) {
             window.FutolStructureDesktop.onProjectOpen(loadDesktopProject);
         }
+        window.FutolStructureDesktop?.onOpenProjectRequested?.(() => void openProject());
 
         // ========== v3.0: RESET & REFRESH ==========
 
@@ -26196,7 +26064,6 @@ function populateBOM() {
                 if (sb) { sb.textContent = 'Init error — check console'; sb.style.color = 'var(--danger)'; }
             }
             void loadReleaseManifest();
-            window.setTimeout(() => void showDesktopRecentProjectsOnStartup(), 200);
         };
 
         // ========== v3.0: DXF EXPORT (AutoCAD) ==========

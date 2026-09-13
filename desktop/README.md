@@ -22,10 +22,10 @@ For a local development launch, use `npm start`. The script clears the `ELECTRON
 
 Outputs are written outside source control:
 
-- `output/desktop/FutolStructure-Setup-3.16.125-rc.5-x64.exe` is the release-candidate NSIS installer.
-- `output/desktop/FutolStructure-Portable-3.16.125-rc.5-x64.exe` is the matching portable build when the portable target is built.
+- `output/desktop/FutolStructure-Setup-3.16.125-rc.6-x64.exe` is the release-candidate NSIS installer.
+- `output/desktop/FutolStructure-Portable-3.16.125-rc.6-x64.exe` is the matching portable build when the portable target is built.
 
-The installer creates a Start Menu entry, a desktop shortcut, and an `.fstr` file association. It does not move or rewrite project files. On Windows, the desktop app uses `D:\FUTOLSTRUCTURE PROJECTS` as the default project folder and creates it when available; if that drive is unavailable, it falls back to `Documents/FUTOLSTRUCTURE PROJECTS`. The left dashboard shows the ten most recently opened or saved projects, and the native **File > Open Recent** menu mirrors the same history.
+The installer creates a Start Menu entry, a desktop shortcut, and an `.fstr` file association. It does not move or rewrite project files. On Windows, the desktop app uses `D:\FUTOLSTRUCTURE PROJECTS` as the default project folder and creates it when available; if that drive is unavailable, it falls back to `Documents/FUTOLSTRUCTURE PROJECTS`. **File > Open Project** (Ctrl+O) shows the ten most recently opened or saved projects, with Browse files for other projects. The native **File > Open Recent** menu mirrors that history. No recent-file list appears in the dashboard or at startup.
 
 When the installed Windows app's **ETABS** action is used, it writes the current model's dated PowerShell/OAPI builder into `Documents/FutolStructure ETABS Exports`, runs it through Windows PowerShell, and waits for a dated `.edb`. ETABS 20, 21, or 22 must be installed and licensed. The OAPI session leaves the generated model open in ETABS; the matching `.e2k`, mass/modal audit JSON, and modal participation CSV are saved beside it. Browser builds retain the manual `.ps1` download fallback.
 

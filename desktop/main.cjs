@@ -446,14 +446,9 @@ function installMenu() {
         {
           label: 'Open Project...',
           accelerator: 'CmdOrCtrl+O',
-          click: async () => {
-            try {
-              const payload = await chooseProjectFromDialog();
-              if (payload && mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('desktop-open-project', payload);
-              }
-            } catch (error) {
-              dialog.showErrorBox('FutolStructure could not open the project', error.message);
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('desktop-request-open-project');
             }
           }
         },

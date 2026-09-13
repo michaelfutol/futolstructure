@@ -76,7 +76,7 @@ function checkReleaseManifest() {
     const html = fs.readFileSync(INDEX, 'utf8');
     const desktopPackage = JSON.parse(fs.readFileSync(DESKTOP_PACKAGE, 'utf8'));
     assert(manifest.appVersion === desktopPackage.version, 'Desktop and runtime versions differ', manifest);
-    assert(manifest.buildId === 'FS-125-RC5', 'Release manifest build ID is stale', manifest);
+    assert(manifest.buildId === 'FS-125-RC6', 'Release manifest build ID is stale', manifest);
     assert(manifest.releaseName === 'Desktop Workspaces Candidate', 'Release manifest name is stale', manifest);
     assert(manifest.fstrSchemaVersion === '0.2.0', 'Release manifest FSTR schema is stale', manifest);
     const allowUnstampedManifest = process.env.FS_ALLOW_UNSTAMPED_MANIFEST === '1';
@@ -832,18 +832,18 @@ function checkDesktopETABSBridge() {
     );
     assert(
         preload.includes('saveProjectFile') &&
-        index.includes('id="desktopRecentProjectsSidebar"') &&
-        index.includes('function renderDesktopRecentProjectsPanel') &&
+        !index.includes('id="desktopRecentProjectsSidebar"') &&
+        preload.includes('onOpenProjectRequested') &&
         index.includes('currentProjectFilePath') &&
         index.includes('desktopBridge.saveProjectFile'),
-        'Desktop left-dashboard recent history or controlled project save is incomplete'
+        'Desktop File Open history or controlled project save is incomplete'
     );
     assert(
         index.includes('function renderDesktopRecentProjects(projects)') &&
-        index.includes('function showDesktopRecentProjectsOnStartup()') &&
+        main.includes("webContents.send('desktop-request-open-project')") &&
         index.includes('projects.slice(0, 10)') &&
-        index.includes('showDesktopRecentProjectsOnStartup(), 200)'),
-        'Desktop startup does not provide the ten-item Recent Projects surface'
+        !index.includes('showDesktopRecentProjectsOnStartup(), 200)'),
+        'Recent Projects must be available through File Open, not startup'
     );
     assert(
         index.includes('if (window.FutolStructureDesktop?.isDesktop)') &&
@@ -867,9 +867,9 @@ function checkDesktopETABSBridge() {
         explicitProjectOpenOnStartup: true,
         recentProjectLimit: 10,
         nativeOpenRecentMenu: true,
-        recentProjectsStartupSurface: true,
+        recentProjectsOnFileOpen: true,
         defaultProjectDirectory: 'D:\\FUTOLSTRUCTURE PROJECTS when available; Documents/FUTOLSTRUCTURE PROJECTS fallback',
-        leftDashboardRecentProjects: true,
+        leftDashboardRecentProjects: false,
         desktopProjectSaveBridge: true,
         nonBlockingFileAssociationLoad: true,
         etabsBuilderSettlesOnPowerShellExit: true,
