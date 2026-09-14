@@ -1,96 +1,148 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FutolStructure | Structural Engineering Workbench</title>
-    <meta name="description" content="FutolStructure is a browser-based structural engineering workbench for RC building layout, tributary load review, 3D visualization, and solver handoff.">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FutolStructure | Governed Structural Modeling</title>
+    <meta name="description" content="FutolStructure is a structural engineering workspace for governed framing models, load-path review, coordination output, and ETABS, STAAD, and Revit handoff.">
     <meta name="robots" content="index,follow">
-    <meta name="theme-color" content="#111827">
+    <meta name="theme-color" content="#0f1722">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="FutolStructure | Structural Engineering Workbench">
-    <meta property="og:description" content="RC building layout, tributary load-path review, 3D coordination, and solver handoff preparation.">
+    <meta property="og:title" content="FutolStructure | Governed Structural Modeling">
+    <meta property="og:description" content="Build, review, and hand off governed structural models.">
     <meta property="og:url" content="https://futolstructure.futoltech.com/">
     <meta property="og:image" content="https://futolstructure.futoltech.com/v3/assets/screenshots/futolstructure-3d.png">
     <meta name="twitter:card" content="summary_large_image">
     <link rel="canonical" href="https://futolstructure.futoltech.com/">
-    <meta http-equiv="refresh" content="0; url=v3/index.html">
     <link rel="icon" type="image/png" href="v3/assets/futolstructure-icon.png">
     <style>
-        :root {
-            color-scheme: dark;
-            --bg: #0b1220;
-            --panel: #111827;
-            --line: #243244;
-            --text: #f8fafc;
-            --muted: #94a3b8;
-            --accent: #3b82f6;
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            min-height: 100vh;
-            display: grid;
-            place-items: center;
-            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: var(--bg);
-            color: var(--text);
-        }
-
-        main {
-            width: min(480px, calc(100vw - 32px));
-            padding: 32px;
-            border: 1px solid var(--line);
-            background: var(--panel);
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        img {
-            width: 72px;
-            height: 72px;
-            object-fit: contain;
-        }
-
-        h1 {
-            margin: 18px 0 8px;
-            font-size: 1.6rem;
-            letter-spacing: 0;
-        }
-
-        p {
-            margin: 0 0 20px;
-            color: var(--muted);
-            line-height: 1.5;
-        }
-
-        a {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 40px;
-            padding: 0 18px;
-            border-radius: 6px;
-            background: var(--accent);
-            color: white;
-            text-decoration: none;
-            font-weight: 700;
-        }
+        :root { --ink:#101822; --ink-soft:#243446; --surface:#f7f9fc; --paper:#fff; --line:#d7e0ea; --muted:#5d6b7d; --blue:#1769d8; --blue-dark:#0d4fa5; --cyan:#27b6d1; --green:#137660; --shadow:0 18px 50px rgba(12,28,49,.16); }
+        * { box-sizing:border-box; }
+        html { scroll-behavior:smooth; }
+        body { margin:0; background:var(--surface); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+        a { color:inherit; }
+        button,input { font:inherit; }
+        button { cursor:pointer; }
+        .site-header { min-height:68px; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:0 5vw; border-bottom:1px solid rgba(215,224,234,.68); background:rgba(255,255,255,.94); position:sticky; top:0; z-index:10; backdrop-filter:blur(12px); }
+        .brand { display:inline-flex; align-items:center; gap:10px; text-decoration:none; font-weight:760; }
+        .brand img { width:30px; height:30px; object-fit:contain; }
+        .brand span { letter-spacing:0; }
+        .site-nav { display:flex; align-items:center; gap:22px; font-size:.9rem; font-weight:650; color:var(--ink-soft); }
+        .site-nav a { text-decoration:none; }
+        .site-nav a:hover { color:var(--blue); }
+        .button { min-height:44px; border:1px solid transparent; border-radius:5px; padding:10px 16px; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; font-size:.93rem; font-weight:750; transition:background 140ms ease,border-color 140ms ease,transform 140ms ease; }
+        .button:hover { transform:translateY(-1px); }
+        .button-primary { color:#fff; background:var(--blue); border-color:var(--blue); }
+        .button-primary:hover { background:var(--blue-dark); border-color:var(--blue-dark); }
+        .button-secondary { color:#fff; background:rgba(15,24,34,.76); border-color:rgba(255,255,255,.56); }
+        .button-secondary:hover { background:var(--ink); }
+        .button-light { color:var(--blue); background:#fff; border-color:#fff; }
+        .button-light:hover { background:#eaf4ff; }
+        .hero { min-height:min(760px,calc(100vh - 68px)); display:flex; align-items:end; position:relative; overflow:hidden; background:var(--ink); color:#fff; }
+        .hero::before { content:""; position:absolute; inset:0; background:linear-gradient(90deg,rgba(8,16,28,.97) 0%,rgba(8,16,28,.82) 37%,rgba(8,16,28,.22) 76%,rgba(8,16,28,.36) 100%),url("v3/assets/screenshots/futolstructure-3d.png") center right / cover no-repeat; }
+        .hero-inner { position:relative; width:min(1240px,100%); margin:0 auto; padding:7.5rem 5vw 3.2rem; }
+        .eyebrow,.section-kicker { margin:0 0 16px; color:#72d3e7; font-size:.78rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+        h1 { max-width:790px; margin:0; font-size:clamp(2.75rem,5vw,5.2rem); line-height:.98; letter-spacing:0; }
+        .hero-copy { max-width:620px; margin:23px 0 0; color:#d6e1ee; font-size:clamp(1rem,1.5vw,1.18rem); line-height:1.6; }
+        .hero-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:30px; }
+        .hero-foot { display:flex; flex-wrap:wrap; gap:12px 30px; margin-top:58px; color:#c2d2e3; font-size:.82rem; }
+        .hero-foot strong { color:#fff; }
+        .band { border-top:1px solid var(--line); background:var(--paper); }
+        .section { width:min(1240px,100%); margin:0 auto; padding:82px 5vw; }
+        .section-kicker { margin-bottom:8px; color:var(--blue); }
+        h2 { max-width:720px; margin:0; font-size:clamp(2rem,3.2vw,3.35rem); line-height:1.04; letter-spacing:0; }
+        .section-intro { max-width:760px; color:var(--muted); font-size:1.02rem; line-height:1.65; }
+        .workflow { display:grid; grid-template-columns:repeat(3,1fr); margin-top:44px; border-top:1px solid var(--line); border-left:1px solid var(--line); }
+        .workflow-item { min-height:230px; padding:28px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); background:var(--paper); }
+        .workflow-number { color:var(--cyan); font-size:.8rem; font-weight:800; letter-spacing:.08em; }
+        .workflow-item h3 { margin:28px 0 9px; font-size:1.12rem; }
+        .workflow-item p { margin:0; color:var(--muted); font-size:.93rem; line-height:1.56; }
+        .handoff { background:var(--ink); color:#fff; }
+        .handoff .section-kicker { color:#72d3e7; }
+        .handoff .section-intro { color:#c7d5e4; }
+        .handoff-grid { display:grid; grid-template-columns:1.25fr .75fr; gap:50px; align-items:end; }
+        .handoff-list { display:grid; gap:0; margin:36px 0 0; border-top:1px solid rgba(194,210,227,.25); }
+        .handoff-list div { display:grid; grid-template-columns:100px 1fr; gap:20px; padding:17px 0; border-bottom:1px solid rgba(194,210,227,.25); }
+        .handoff-list strong { color:#72d3e7; font-size:.83rem; }
+        .handoff-list span { color:#d3dfeb; font-size:.92rem; line-height:1.5; }
+        .frame-image { width:100%; display:block; border:1px solid rgba(194,210,227,.34); box-shadow:var(--shadow); }
+        .trial { background:#eaf4ff; }
+        .trial-layout { display:grid; grid-template-columns:1.05fr .95fr; gap:58px; align-items:center; }
+        .trial-copy p { max-width:600px; color:var(--muted); font-size:1.02rem; line-height:1.65; }
+        .trial-details { border-left:3px solid var(--blue); padding:2px 0 2px 18px; }
+        .trial-details p { margin:0; color:var(--ink-soft); font-size:.94rem; line-height:1.58; }
+        .trial-details p+p { margin-top:10px; }
+        .footer { padding:28px 5vw; display:flex; justify-content:space-between; gap:20px; color:var(--muted); font-size:.8rem; background:var(--paper); }
+        .footer a { color:var(--muted); }
+        dialog { width:min(520px,calc(100vw - 32px)); border:0; padding:0; color:var(--ink); box-shadow:0 24px 80px rgba(0,0,0,.34); }
+        dialog::backdrop { background:rgba(5,12,20,.64); }
+        .trial-dialog { padding:30px; background:#fff; }
+        .dialog-head { display:flex; justify-content:space-between; gap:16px; align-items:start; }
+        .dialog-head h2 { font-size:1.75rem; }
+        .icon-button { width:36px; height:36px; border:1px solid var(--line); border-radius:4px; color:var(--ink-soft); background:#fff; font-size:1.3rem; line-height:1; }
+        .dialog-copy { color:var(--muted); line-height:1.55; }
+        .trial-form { display:grid; gap:16px; margin-top:22px; }
+        .field { display:grid; gap:7px; font-size:.87rem; font-weight:700; }
+        .field input { width:100%; min-height:44px; padding:10px 11px; border:1px solid #b9c8d9; border-radius:4px; color:var(--ink); background:#fff; }
+        .field input:focus { outline:3px solid rgba(23,105,216,.2); border-color:var(--blue); }
+        .form-status { min-height:22px; margin:0; color:var(--green); font-size:.86rem; font-weight:700; }
+        .form-note { margin:0; color:var(--muted); font-size:.75rem; line-height:1.45; }
+        @media (max-width:800px) { .site-header { padding:0 20px; } .site-nav { display:none; } .hero { min-height:700px; align-items:end; } .hero::before { background:linear-gradient(0deg,rgba(8,16,28,.98) 0%,rgba(8,16,28,.79) 53%,rgba(8,16,28,.25) 100%),url("v3/assets/screenshots/futolstructure-3d.png") 62% center / cover no-repeat; } .hero-inner,.section { padding-left:20px; padding-right:20px; } .hero-inner { padding-top:7rem; } .workflow,.trial-layout,.handoff-grid { grid-template-columns:1fr; } .workflow-item { min-height:180px; } .handoff-grid { gap:32px; } .handoff-list div { grid-template-columns:78px 1fr; gap:12px; } .footer { flex-direction:column; padding:25px 20px; } }
     </style>
 </head>
-
 <body>
+    <header class="site-header">
+        <a class="brand" href="/" aria-label="FutolStructure home"><img src="v3/assets/futolstructure-icon.png" alt=""><span>FutolStructure</span></a>
+        <nav class="site-nav" aria-label="Main navigation"><a href="#workflow">Workflow</a><a href="#handoff">Handoff</a><a href="#trial">Trial</a></nav>
+        <button class="button button-primary" type="button" data-open-trial>Start 30-day trial</button>
+    </header>
     <main>
-        <img src="v3/assets/futolstructure-icon.png" alt="FutolStructure logo">
-        <h1>FutolStructure</h1>
-        <p>Opening the structural engineering workbench.</p>
-        <a href="v3/index.html">Open App</a>
+        <section class="hero" aria-labelledby="hero-title"><div class="hero-inner">
+            <p class="eyebrow">FutolTech engineering systems</p><h1 id="hero-title">FutolStructure</h1>
+            <p class="hero-copy">Governed structural modeling for the practical work between framing plans, gravity-load review, coordination output, and solver handoff.</p>
+            <div class="hero-actions"><button class="button button-light" type="button" data-open-trial>Start 30-day trial</button><a class="button button-secondary" href="v3/index.html">Open current workspace</a></div>
+            <div class="hero-foot"><span><strong>Canonical framing</strong> with governed analytical handoff</span><span><strong>Local-first</strong> project workflow</span></div>
+        </div></section>
+        <section class="band" id="workflow" aria-labelledby="workflow-title"><div class="section">
+            <p class="section-kicker">One governed model</p><h2 id="workflow-title">Model the building you intend to construct. Review the model you intend to analyze.</h2>
+            <p class="section-intro">FutolStructure keeps canonical framing, preliminary load logic, and solver handoff evidence connected so the plan, 3D representation, and export basis stay traceable.</p>
+            <div class="workflow">
+                <article class="workflow-item"><div class="workflow-number">01 / MODEL</div><h3>Frame with intent</h3><p>Lay out grids, columns, beams, slabs, foundations, walls, stairs, and roof systems with practical offsets and orientation controls.</p></article>
+                <article class="workflow-item"><div class="workflow-number">02 / REVIEW</div><h3>See the load path</h3><p>Review tributary loading, member schedules, foundation assumptions, geometry warnings, and physical coordination views before handoff.</p></article>
+                <article class="workflow-item"><div class="workflow-number">03 / HANDOFF</div><h3>Export without guessing</h3><p>Produce traceable ETABS, STAAD, IFC, DXF, PDF, and Revit handoff artifacts with explicit engineering boundaries.</p></article>
+            </div>
+        </div></section>
+        <section class="handoff" id="handoff" aria-labelledby="handoff-title"><div class="section handoff-grid">
+            <div><p class="section-kicker">Interoperability</p><h2 id="handoff-title">Keep the authority in the right tool.</h2><p class="section-intro">FS prepares and documents the structural model. Final analysis and design acceptance remain with the selected solver and the responsible engineer.</p>
+                <div class="handoff-list"><div><strong>ETABS</strong><span>Native `.edb` is created through the installed ETABS API, with a governed solver payload and audit artifacts.</span></div><div><strong>STAAD</strong><span>Generate a `.std` model and open it through the Windows file association when STAAD.Pro is available.</span></div><div><strong>Revit</strong><span>Use the Revit 2027 bridge for native model creation, or use IFC for concrete coordination geometry.</span></div><div><strong>DXF / IFC</strong><span>Save portable coordination output and open it in AutoCAD, Revit, Navisworks, or another compatible desktop application.</span></div></div>
+            </div><img class="frame-image" src="v3/assets/screenshots/futolstructure-plan.png" alt="FutolStructure framing plan workspace">
+        </div></section>
+        <section class="trial" id="trial" aria-labelledby="trial-title"><div class="section trial-layout">
+            <div class="trial-copy"><p class="section-kicker">Private pilot</p><h2 id="trial-title">Start with a 30-day workspace trial.</h2><p>Register the pilot workspace on this device, then move directly into FutolStructure. Use the trial to evaluate modeling, documentation, and solver handoff on real internal test projects.</p><button class="button button-primary" type="button" data-open-trial>Register for trial access</button></div>
+            <div class="trial-details"><p><strong>Current pilot:</strong> registration and the 30-day expiry are stored only in this browser.</p><p><strong>Next product stage:</strong> account-based access, cloud project storage, team roles, and enforceable entitlements will be introduced with the Supabase identity service.</p></div>
+        </div></section>
     </main>
+    <footer class="footer"><span>FutolTech Engineering Systems</span><a href="v3/index.html">Open FutolStructure workspace</a></footer>
+    <dialog id="trialDialog" aria-labelledby="trial-dialog-title"><div class="trial-dialog">
+        <div class="dialog-head"><div><p class="section-kicker">Private pilot</p><h2 id="trial-dialog-title">Register your 30-day trial</h2></div><button class="icon-button" type="button" data-close-trial aria-label="Close registration">&times;</button></div>
+        <p class="dialog-copy">This creates a local pilot registration on this browser and starts a 30-day workspace trial.</p>
+        <form class="trial-form" id="trialForm"><label class="field">Name<input id="trialName" name="name" autocomplete="name" required maxlength="100"></label><label class="field">Work email<input id="trialEmail" name="email" type="email" autocomplete="email" required maxlength="160"></label><label class="field">Organization<input id="trialOrganization" name="organization" autocomplete="organization" maxlength="120"></label><p class="form-status" id="trialStatus" role="status" aria-live="polite"></p><button class="button button-primary" type="submit">Activate trial and open FS</button><p class="form-note">Pilot registration is local to this device. Do not enter project data or credentials in this form.</p></form>
+    </div></dialog>
+    <script>
+        (() => {
+            const storageKey = 'FutolStructure.pilotTrial.v1';
+            const trialDays = 30;
+            const dialog = document.getElementById('trialDialog');
+            const form = document.getElementById('trialForm');
+            const status = document.getElementById('trialStatus');
+            function getTrial() { try { return JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch (_error) { return null; } }
+            function remainingDays(trial) { const expiry = Date.parse(trial?.expiresAt || ''); return Number.isFinite(expiry) ? Math.max(0, Math.ceil((expiry - Date.now()) / 86400000)) : 0; }
+            function openTrial() { const trial = getTrial(); const days = remainingDays(trial); if (trial && days > 0) { status.textContent = `Trial active: ${days} day${days === 1 ? '' : 's'} remaining.`; form.elements.name.value = trial.name || ''; form.elements.email.value = trial.email || ''; form.elements.organization.value = trial.organization || ''; } else { status.textContent = ''; } dialog.showModal(); (trial?.email ? form.elements.organization : form.elements.name).focus(); }
+            document.querySelectorAll('[data-open-trial]').forEach(button => button.addEventListener('click', openTrial));
+            document.querySelector('[data-close-trial]').addEventListener('click', () => dialog.close());
+            dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+            form.addEventListener('submit', event => { event.preventDefault(); const existing = getTrial(); const now = new Date(); const trial = { contract:'FutolStructure.PilotTrial.v1', name:form.elements.name.value.trim(), email:form.elements.email.value.trim().toLowerCase(), organization:form.elements.organization.value.trim(), registeredAt:existing?.registeredAt || now.toISOString(), expiresAt:existing?.expiresAt || new Date(now.getTime() + trialDays * 86400000).toISOString() }; localStorage.setItem(storageKey, JSON.stringify(trial)); status.textContent = 'Trial activated. Opening FutolStructure…'; window.setTimeout(() => { window.location.assign('v3/index.html'); }, 350); });
+        })();
+    </script>
 </body>
-
 </html>

@@ -11,6 +11,8 @@ const { spawn, spawnSync, execFileSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..', '..');
 const V3 = path.join(ROOT, 'v3');
 const INDEX = path.join(V3, 'index.html');
+const LANDING_PAGE = path.join(ROOT, 'index.html');
+const VERCEL_CONFIG = path.join(ROOT, 'vercel.json');
 const HISTORICAL_FSTR_FIXTURE = path.join(V3, 'tools', 'fixtures', 'legacy-v2.8-2floor.fstr');
 const REGULAR_3F_FSTR_FIXTURE = path.join(V3, 'tools', 'fixtures', 'regular-v2.8-3floor-pre-p0c.fstr');
 const TERMINATED_3F_FSTR_FIXTURE = path.join(V3, 'tools', 'fixtures', 'terminated-v2.8-3floor-pre-p0c.fstr');
@@ -691,6 +693,24 @@ function checkUserGuideSourceContract() {
         tab: 'User Manual',
         refreshAction: 'Refresh Model',
         solverBoundary: 'external-solver-authority'
+    };
+}
+
+function checkLandingPageContract() {
+    const landing = fs.readFileSync(LANDING_PAGE, 'utf8');
+    const vercelConfig = JSON.parse(fs.readFileSync(VERCEL_CONFIG, 'utf8'));
+    assert(landing.includes('<title>FutolStructure | Governed Structural Modeling</title>'), 'FutolStructure landing page title is missing');
+    assert(landing.includes('futolstructure-3d.png') && landing.includes('futolstructure-plan.png'), 'Landing page does not use actual FutolStructure product imagery');
+    assert(landing.includes('Start 30-day trial') && landing.includes('id="trialForm"'), 'Landing page trial registration flow is missing');
+    assert(landing.includes("FutolStructure.pilotTrial.v1") && landing.includes('trialDays = 30'), 'Landing page 30-day pilot trial contract is missing');
+    assert(landing.includes('registration and the 30-day expiry are stored only in this browser'), 'Landing page does not disclose the pilot-only local registration boundary');
+    assert(landing.includes("window.location.assign('v3/index.html')"), 'Landing page trial flow does not launch the FutolStructure workspace');
+    assert(!/http-equiv="refresh"/i.test(landing), 'Landing page still redirects before users can see it');
+    assert(!Array.isArray(vercelConfig.rewrites) || !vercelConfig.rewrites.some(item => item.source === '/'), 'Vercel root route still bypasses the landing page');
+    return {
+        entry: 'landing-page',
+        trial: '30-day-device-local-pilot',
+        workspace: '/v3/index.html'
     };
 }
 
@@ -7872,6 +7892,7 @@ async function main() {
         roofFrameSourceContract: checkRoofFrameSourceContract(),
         analysisOptimizationSourceContract: checkAnalysisOptimizationSourceContract(),
         userGuideSourceContract: checkUserGuideSourceContract(),
+        landingPageContract: checkLandingPageContract(),
         desktopETABSBridge: checkDesktopETABSBridge()
     };
     const projectPath = getArgValue('--project');
