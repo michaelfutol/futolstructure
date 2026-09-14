@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://futolstructure.vercel.app/sitemap.xml
+Sitemap: https://futolstructure.futoltech.com/sitemap.xml

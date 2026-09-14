@@ -7,14 +7,14 @@
 FutolStructure is a browser-based structural engineering workbench for reinforced-concrete building layout, gravity load-path review, tributary area visualization, 3D coordination, and solver handoff preparation.
 
 <p>
-  <a href="https://futolstructure.vercel.app"><strong>Open the live technical preview</strong></a>
+  <a href="https://futolstructure.futoltech.com"><strong>Open FutolStructure</strong></a>
   &nbsp;|&nbsp;
   <a href="docs/LAUNCH_PLAN.md">Deployment</a>
   &nbsp;|&nbsp;
   <a href="SECURITY.md">Security</a>
 </p>
 
-[![Build](https://img.shields.io/badge/build-v3.16.119-2563eb)](https://futolstructure.vercel.app)
+[![Build](https://img.shields.io/badge/build-v3.16.125--rc.7-2563eb)](https://futolstructure.futoltech.com)
 [![Validation](https://github.com/michaelfutol/futolstructure/actions/workflows/validate.yml/badge.svg)](https://github.com/michaelfutol/futolstructure/actions/workflows/validate.yml)
 ![Platform](https://img.shields.io/badge/platform-browser-0f766e)
 ![Maturity](https://img.shields.io/badge/maturity-technical%20preview-f59e0b)
@@ -152,11 +152,9 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and [docs/AUTH_SECURI
 
 ## Deployment
 
-- Production preview: https://futolstructure.vercel.app
-- Custom domain target: https://futolstructure.futoltech.com
-- Release workflow: pull request preview, automated validation, merge to `main`, then Vercel production deployment.
-
-The custom domain requires its DNS record before it becomes public. See [docs/LAUNCH_PLAN.md](docs/LAUNCH_PLAN.md) for the exact record and verification command.
+- Production web app: https://futolstructure.futoltech.com
+- Vercel fallback: https://futolstructure.vercel.app
+- Release workflow: pull request preview, automated validation, then Vercel production deployment.
 
 ## Project Status
 

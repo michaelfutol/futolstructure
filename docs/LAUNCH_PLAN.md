@@ -46,10 +46,10 @@ Current Vercel project:
 ```text
 scope: ikel-eidras-projects
 project: futolstructure
-production: https://futolstructure.vercel.app
+production fallback: https://futolstructure.vercel.app
 production branch: main
 validated deployment: dpl_6BPVUFHxE7NqPEUSdQXCmUXkziiB
-custom domain target: futolstructure.futoltech.com
+production domain: https://futolstructure.futoltech.com
 ```
 
 1. Push the selected branch to GitHub.
@@ -133,7 +133,7 @@ https://futolstructure.futoltech.com
 - [x] No private `.fstr` project files are committed.
 - [x] No personal native-solver project files are committed.
 - [x] Public README does not claim permit-ready design without engineer review.
-- [ ] DNS resolves `futolstructure.futoltech.com` to Vercel.
+- [x] DNS resolves `futolstructure.futoltech.com` to Vercel (A `76.76.21.21`, verified 2026-09-14).
 
 ## Recommended Git Staging
 
