@@ -705,12 +705,16 @@ function checkLandingPageContract() {
     assert(landing.includes("FutolStructure.pilotTrial.v1") && landing.includes('trialDays = 30'), 'Landing page 30-day pilot trial contract is missing');
     assert(landing.includes('registration and the 30-day expiry are stored only in this browser'), 'Landing page does not disclose the pilot-only local registration boundary');
     assert(landing.includes("window.location.assign('v3/index.html')"), 'Landing page trial flow does not launch the FutolStructure workspace');
+    assert(landing.includes('/_vercel/insights/script.js') && landing.includes("window.va('beforeSend'"), 'Landing page Vercel analytics collector or privacy filter is missing');
+    assert(landing.includes("trackPilotEvent('trial_dialog_opened'") && landing.includes("trackPilotEvent('pilot_trial_activated'") && landing.includes("trackPilotEvent('workspace_opened'"), 'Landing page pilot funnel events are missing');
+    assert(landing.includes('Anonymous usage analytics do not receive these details.'), 'Landing page does not disclose the analytics privacy boundary');
     assert(!/http-equiv="refresh"/i.test(landing), 'Landing page still redirects before users can see it');
     assert(!Array.isArray(vercelConfig.rewrites) || !vercelConfig.rewrites.some(item => item.source === '/'), 'Vercel root route still bypasses the landing page');
     return {
         entry: 'landing-page',
         trial: '30-day-device-local-pilot',
-        workspace: '/v3/index.html'
+        workspace: '/v3/index.html',
+        analytics: 'vercel-pageview-and-anonymous-pilot-funnel'
     };
 }
 

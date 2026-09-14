@@ -15,6 +15,15 @@
     <meta name="twitter:card" content="summary_large_image">
     <link rel="canonical" href="https://futolstructure.futoltech.com/">
     <link rel="icon" type="image/png" href="v3/assets/futolstructure-icon.png">
+    <script>
+        window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+        window.va('beforeSend', function (event) {
+            const url = new URL(event.url);
+            url.search = '';
+            return Object.assign({}, event, { url: url.toString() });
+        });
+    </script>
+    <script defer src="/_vercel/insights/script.js"></script>
     <style>
         :root { --ink:#101822; --ink-soft:#243446; --surface:#f7f9fc; --paper:#fff; --line:#d7e0ea; --muted:#5d6b7d; --blue:#1769d8; --blue-dark:#0d4fa5; --cyan:#27b6d1; --green:#137660; --shadow:0 18px 50px rgba(12,28,49,.16); }
         * { box-sizing:border-box; }
@@ -94,13 +103,13 @@
     <header class="site-header">
         <a class="brand" href="/" aria-label="FutolStructure home"><img src="v3/assets/futolstructure-icon.png" alt=""><span>FutolStructure</span></a>
         <nav class="site-nav" aria-label="Main navigation"><a href="#workflow">Workflow</a><a href="#handoff">Handoff</a><a href="#trial">Trial</a></nav>
-        <button class="button button-primary" type="button" data-open-trial>Start 30-day trial</button>
+        <button class="button button-primary" type="button" data-open-trial="header">Start 30-day trial</button>
     </header>
     <main>
         <section class="hero" aria-labelledby="hero-title"><div class="hero-inner">
             <p class="eyebrow">FutolTech engineering systems</p><h1 id="hero-title">FutolStructure</h1>
             <p class="hero-copy">Governed structural modeling for the practical work between framing plans, gravity-load review, coordination output, and solver handoff.</p>
-            <div class="hero-actions"><button class="button button-light" type="button" data-open-trial>Start 30-day trial</button><a class="button button-secondary" href="v3/index.html">Open current workspace</a></div>
+            <div class="hero-actions"><button class="button button-light" type="button" data-open-trial="hero">Start 30-day trial</button><a class="button button-secondary" href="v3/index.html" data-open-workspace="hero">Open current workspace</a></div>
             <div class="hero-foot"><span><strong>Canonical framing</strong> with governed analytical handoff</span><span><strong>Local-first</strong> project workflow</span></div>
         </div></section>
         <section class="band" id="workflow" aria-labelledby="workflow-title"><div class="section">
@@ -118,15 +127,15 @@
             </div><img class="frame-image" src="v3/assets/screenshots/futolstructure-plan.png" alt="FutolStructure framing plan workspace">
         </div></section>
         <section class="trial" id="trial" aria-labelledby="trial-title"><div class="section trial-layout">
-            <div class="trial-copy"><p class="section-kicker">Private pilot</p><h2 id="trial-title">Start with a 30-day workspace trial.</h2><p>Register the pilot workspace on this device, then move directly into FutolStructure. Use the trial to evaluate modeling, documentation, and solver handoff on real internal test projects.</p><button class="button button-primary" type="button" data-open-trial>Register for trial access</button></div>
+            <div class="trial-copy"><p class="section-kicker">Private pilot</p><h2 id="trial-title">Start with a 30-day workspace trial.</h2><p>Register the pilot workspace on this device, then move directly into FutolStructure. Use the trial to evaluate modeling, documentation, and solver handoff on real internal test projects.</p><button class="button button-primary" type="button" data-open-trial="trial-section">Register for trial access</button></div>
             <div class="trial-details"><p><strong>Current pilot:</strong> registration and the 30-day expiry are stored only in this browser.</p><p><strong>Next product stage:</strong> account-based access, cloud project storage, team roles, and enforceable entitlements will be introduced with the Supabase identity service.</p></div>
         </div></section>
     </main>
-    <footer class="footer"><span>FutolTech Engineering Systems</span><a href="v3/index.html">Open FutolStructure workspace</a></footer>
+    <footer class="footer"><span>FutolTech Engineering Systems</span><a href="v3/index.html" data-open-workspace="footer">Open FutolStructure workspace</a></footer>
     <dialog id="trialDialog" aria-labelledby="trial-dialog-title"><div class="trial-dialog">
         <div class="dialog-head"><div><p class="section-kicker">Private pilot</p><h2 id="trial-dialog-title">Register your 30-day trial</h2></div><button class="icon-button" type="button" data-close-trial aria-label="Close registration">&times;</button></div>
         <p class="dialog-copy">This creates a local pilot registration on this browser and starts a 30-day workspace trial.</p>
-        <form class="trial-form" id="trialForm"><label class="field">Name<input id="trialName" name="name" autocomplete="name" required maxlength="100"></label><label class="field">Work email<input id="trialEmail" name="email" type="email" autocomplete="email" required maxlength="160"></label><label class="field">Organization<input id="trialOrganization" name="organization" autocomplete="organization" maxlength="120"></label><p class="form-status" id="trialStatus" role="status" aria-live="polite"></p><button class="button button-primary" type="submit">Activate trial and open FS</button><p class="form-note">Pilot registration is local to this device. Do not enter project data or credentials in this form.</p></form>
+        <form class="trial-form" id="trialForm"><label class="field">Name<input id="trialName" name="name" autocomplete="name" required maxlength="100"></label><label class="field">Work email<input id="trialEmail" name="email" type="email" autocomplete="email" required maxlength="160"></label><label class="field">Organization<input id="trialOrganization" name="organization" autocomplete="organization" maxlength="120"></label><p class="form-status" id="trialStatus" role="status" aria-live="polite"></p><button class="button button-primary" type="submit">Activate trial and open FS</button><p class="form-note">Pilot registration is local to this device. Do not enter project data or credentials in this form. Anonymous usage analytics do not receive these details.</p></form>
     </div></dialog>
     <script>
         (() => {
@@ -135,13 +144,17 @@
             const dialog = document.getElementById('trialDialog');
             const form = document.getElementById('trialForm');
             const status = document.getElementById('trialStatus');
+            function trackPilotEvent(name, data) {
+                if (typeof window.va === 'function') window.va('event', { name, data });
+            }
             function getTrial() { try { return JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch (_error) { return null; } }
             function remainingDays(trial) { const expiry = Date.parse(trial?.expiresAt || ''); return Number.isFinite(expiry) ? Math.max(0, Math.ceil((expiry - Date.now()) / 86400000)) : 0; }
-            function openTrial() { const trial = getTrial(); const days = remainingDays(trial); if (trial && days > 0) { status.textContent = `Trial active: ${days} day${days === 1 ? '' : 's'} remaining.`; form.elements.name.value = trial.name || ''; form.elements.email.value = trial.email || ''; form.elements.organization.value = trial.organization || ''; } else { status.textContent = ''; } dialog.showModal(); (trial?.email ? form.elements.organization : form.elements.name).focus(); }
-            document.querySelectorAll('[data-open-trial]').forEach(button => button.addEventListener('click', openTrial));
+            function openTrial(source) { const trial = getTrial(); const days = remainingDays(trial); if (trial && days > 0) { status.textContent = `Trial active: ${days} day${days === 1 ? '' : 's'} remaining.`; form.elements.name.value = trial.name || ''; form.elements.email.value = trial.email || ''; form.elements.organization.value = trial.organization || ''; } else { status.textContent = ''; } trackPilotEvent('trial_dialog_opened', { source, activeTrial: Boolean(trial && days > 0) }); dialog.showModal(); (trial?.email ? form.elements.organization : form.elements.name).focus(); }
+            document.querySelectorAll('[data-open-trial]').forEach(button => button.addEventListener('click', () => openTrial(button.dataset.openTrial)));
+            document.querySelectorAll('[data-open-workspace]').forEach(link => link.addEventListener('click', () => trackPilotEvent('workspace_opened', { source: link.dataset.openWorkspace })));
             document.querySelector('[data-close-trial]').addEventListener('click', () => dialog.close());
             dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
-            form.addEventListener('submit', event => { event.preventDefault(); const existing = getTrial(); const now = new Date(); const trial = { contract:'FutolStructure.PilotTrial.v1', name:form.elements.name.value.trim(), email:form.elements.email.value.trim().toLowerCase(), organization:form.elements.organization.value.trim(), registeredAt:existing?.registeredAt || now.toISOString(), expiresAt:existing?.expiresAt || new Date(now.getTime() + trialDays * 86400000).toISOString() }; localStorage.setItem(storageKey, JSON.stringify(trial)); status.textContent = 'Trial activated. Opening FutolStructure…'; window.setTimeout(() => { window.location.assign('v3/index.html'); }, 350); });
+            form.addEventListener('submit', event => { event.preventDefault(); const existing = getTrial(); const now = new Date(); const trial = { contract:'FutolStructure.PilotTrial.v1', name:form.elements.name.value.trim(), email:form.elements.email.value.trim().toLowerCase(), organization:form.elements.organization.value.trim(), registeredAt:existing?.registeredAt || now.toISOString(), expiresAt:existing?.expiresAt || new Date(now.getTime() + trialDays * 86400000).toISOString() }; localStorage.setItem(storageKey, JSON.stringify(trial)); trackPilotEvent('pilot_trial_activated', { returningPilot: Boolean(existing) }); status.textContent = 'Trial activated. Opening FutolStructure…'; window.setTimeout(() => { window.location.assign('v3/index.html'); }, 350); });
         })();
     </script>
 </body>
