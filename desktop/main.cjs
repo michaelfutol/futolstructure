@@ -9,6 +9,11 @@ const APP_ID = 'com.futoltech.futolstructure';
 const RECENT_PROJECT_LIMIT = 10;
 const PROJECT_EXTENSIONS = new Set(['.fstr', '.json']);
 const PREFERRED_PROJECT_DIRECTORY = 'D:\\FUTOLSTRUCTURE PROJECTS';
+const EXTERNAL_EXPORT_TYPES = Object.freeze({
+  staad: { extension: '.std', directory: 'STAAD', application: 'STAAD.Pro or another STAAD editor/viewer' },
+  dxf: { extension: '.dxf', directory: 'DXF', application: 'AutoCAD, BricsCAD, or another DXF viewer' },
+  ifc: { extension: '.ifc', directory: 'IFC', application: 'Revit, Navisworks, or another IFC-capable BIM application' }
+});
 let mainWindow = null;
 let manualUpdateCheck = false;
 let updateDownloadStarted = false;
@@ -224,6 +229,53 @@ function safeReportFilename(value) {
     .trim();
   const filename = cleaned || 'FutolStructure_Report.pdf';
   return filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`;
+}
+
+function safeExternalArtifactFilename(value, extension) {
+  const cleaned = path.basename(String(value || `FutolStructure_Export${extension}`))
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const filename = cleaned || `FutolStructure_Export${extension}`;
+  const stem = filename.toLowerCase().endsWith(extension)
+    ? filename.slice(0, -extension.length)
+    : path.parse(filename).name;
+  return `${stem || 'FutolStructure_Export'}${extension}`;
+}
+
+async function saveAndOpenExternalArtifact(event, payload) {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) {
+    return { success: false, message: 'External export request did not originate from the FutolStructure window.' };
+  }
+  const spec = EXTERNAL_EXPORT_TYPES[payload?.kind];
+  const content = payload?.content;
+  if (!spec) return { success: false, message: 'The requested external export type is unsupported.' };
+  if (typeof content !== 'string' || content.length < 16 || content.length > 100_000_000) {
+    return { success: false, message: `The ${spec.extension} export content is missing or invalid.` };
+  }
+
+  const fileName = safeExternalArtifactFilename(payload?.suggestedName, spec.extension);
+  const outputDirectory = path.join(getDefaultProjectDirectory(), 'Exports', spec.directory);
+  const filePath = path.join(outputDirectory, fileName);
+  try {
+    await fs.promises.mkdir(outputDirectory, { recursive: true });
+    await fs.promises.writeFile(filePath, content, 'utf8');
+    const openError = await shell.openPath(filePath);
+    return {
+      success: true,
+      filePath,
+      outputDirectory,
+      extension: spec.extension,
+      application: spec.application,
+      opened: !openError,
+      warning: openError
+        ? `Windows could not find an application associated with ${spec.extension}. Open this file in ${spec.application}.`
+        : ''
+    };
+  } catch (error) {
+    console.error(`FutolStructure ${spec.extension} export failed:`, error);
+    return { success: false, message: error.message };
+  }
 }
 
 async function exportPdfReport(event, payload) {
@@ -637,6 +689,7 @@ ipcMain.handle('save-project-file', async (_event, payload) => {
 });
 
 ipcMain.handle('export-pdf-report', exportPdfReport);
+ipcMain.handle('save-and-open-external-artifact', saveAndOpenExternalArtifact);
 
 ipcMain.handle('open-external', async (_event, url) => {
   if (typeof url !== 'string' || !url.startsWith('https://')) return false;
@@ -687,7 +740,7 @@ ipcMain.handle('run-etabs-export', async (_event, payload) => {
       etabsSessionStarted: success,
       message: success
         ? 'ETABS created the dated .edb and left the generated model open.'
-        : `ETABS builder did not produce a usable .edb (exit code ${result.code ?? 'unknown'}).`,
+        : `ETABS 22 did not produce a usable .edb (exit code ${result.code ?? 'unknown'}). A real .edb can only be created by ETABS through its installed API. Install/license ETABS 22, then rerun the saved builder script.`,
       stdout: result.stdout.slice(-6000),
       stderr: result.stderr.slice(-6000)
     };

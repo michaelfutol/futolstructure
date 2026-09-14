@@ -820,8 +820,13 @@ function checkDesktopETABSBridge() {
     assert(main.includes('pathToFileURL(indexPath)'), 'Desktop startup does not use a space-safe file URL');
     assert(preload.includes('runEtabsBuilder'), 'Desktop preload does not expose the ETABS builder bridge');
     assert(preload.includes('exportPdfReport'), 'Desktop preload does not expose the PDF generation bridge');
+    assert(preload.includes('saveAndOpenExternalArtifact'), 'Desktop preload does not expose the native external-artifact bridge');
     assert(index.includes('desktopBridge.runEtabsBuilder'), 'ETABS UI is not connected to the desktop bridge');
     assert(index.includes('desktopBridge.exportPdfReport') && index.includes('return generatePDFReport()'), 'Report UI is not connected to generated PDF output');
+    assert(main.includes('EXTERNAL_EXPORT_TYPES') && main.includes("extension: '.std'") && main.includes("extension: '.dxf'") && main.includes("extension: '.ifc'"), 'Desktop export types are incomplete');
+    assert(main.includes("ipcMain.handle('save-and-open-external-artifact'") && main.includes('shell.openPath(filePath)'), 'Desktop external-artifact handoff is not wired');
+    assert(index.includes("saveAndOpenDesktopArtifact('staad'") && index.includes("saveAndOpenDesktopArtifact('dxf'") && index.includes("saveAndOpenDesktopArtifact('ifc'"), 'STAAD, DXF, or IFC UI is not connected to the desktop artifact bridge');
+    assert(main.includes('A real .edb can only be created by ETABS through its installed API'), 'ETABS native-file boundary is not explicit');
     assert(index.includes('>Refresh Model</button>') && !index.includes('>Run Analysis</button>'), 'The model refresh action is still mislabeled as a solver analysis');
     assert(
         main.includes('const RECENT_PROJECT_LIMIT = 10') &&
@@ -884,8 +889,10 @@ function checkDesktopETABSBridge() {
         explicitProjectOpenOnStartup: true,
         recentProjectLimit: 10,
         nativeOpenRecentMenu: true,
-        recentProjectsOnFileOpen: true,
-        defaultProjectDirectory: 'D:\\FUTOLSTRUCTURE PROJECTS when available; Documents/FUTOLSTRUCTURE PROJECTS fallback',
+      recentProjectsOnFileOpen: true,
+      nativeArtifactOpen: ['.std', '.dxf', '.ifc'],
+      etabsNativeFileBoundary: '.edb requires installed ETABS API',
+      defaultProjectDirectory: 'D:\\FUTOLSTRUCTURE PROJECTS when available; Documents/FUTOLSTRUCTURE PROJECTS fallback',
         leftDashboardRecentProjects: false,
         desktopProjectSaveBridge: true,
         nonBlockingFileAssociationLoad: true,

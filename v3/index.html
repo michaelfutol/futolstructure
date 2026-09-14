@@ -25401,6 +25401,22 @@ function populateBOM() {
             setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
         }
 
+        async function saveAndOpenDesktopArtifact(kind, content, filename) {
+            const desktopBridge = window.FutolStructureDesktop;
+            if (!desktopBridge?.isDesktop || typeof desktopBridge.saveAndOpenExternalArtifact !== 'function') return null;
+            const result = await desktopBridge.saveAndOpenExternalArtifact({ kind, content, suggestedName: filename });
+            if (!result?.success) throw new Error(result?.message || `The ${kind} export could not be saved.`);
+            return result;
+        }
+
+        function describeDesktopArtifactResult(result, formatLabel) {
+            const opened = result?.opened
+                ? 'Windows opened the file using its registered application.'
+                : 'The file was saved, but Windows could not open it automatically.';
+            const nextStep = result?.warning ? `\n\n${result.warning}` : '';
+            return `${formatLabel} exported.\n\nFile:\n${result.filePath}\n\n${opened}${nextStep}`;
+        }
+
         // Revit-native generation starts from the same governed CSI payload as
         // ETABS and STAAD. The manifest is intentionally versioned so a Revit
         // add-in can reject unsupported source contracts instead of guessing.
@@ -25945,11 +25961,13 @@ function populateBOM() {
             return std;
         }
 
-        function exportToSTAAD() {
+        async function exportToSTAAD() {
             try {
                 const std = generateSTAADContent();
-                downloadBlob(std, 'FutolStructure_' + new Date().toISOString().split('T')[0] + '.std');
-                alert('STAAD.Pro 2024 model exported.\n\nThe .std uses the same active solver payload as ETABS:\n- Connected columns and all active beams\n- Active slab plate geometry only\n- Actual frame and slab sections\n- Fixed supports\n- Self-weight, slab SDL/live, and wall loads\n- ULS combinations and statics check\n- ACI concrete design commands\n\nThe Olango baseline passed STAAD.Pro 2024 batch analysis with zero warnings and zero errors.');
+                const filename = 'FutolStructure_' + new Date().toISOString().split('T')[0] + '.std';
+                const desktopResult = await saveAndOpenDesktopArtifact('staad', std, filename);
+                if (!desktopResult) downloadBlob(std, filename, 'text/plain;charset=utf-8');
+                alert('STAAD.Pro 2024 model exported.\n\nThe .std uses the same active solver payload as ETABS:\n- Connected columns and all active beams\n- Active slab plate geometry only\n- Actual frame and slab sections\n- Fixed supports\n- Self-weight, slab SDL/live, and wall loads\n- ULS combinations and statics check\n- ACI concrete design commands\n\nThe Olango baseline passed STAAD.Pro 2024 batch analysis with zero warnings and zero errors.' + (desktopResult ? `\n\n${describeDesktopArtifactResult(desktopResult, 'STAAD.Pro .std model')}` : ''));
             } catch (err) {
                 console.error('STAAD export failed:', err);
                 alert('Export failed: ' + err.message);
@@ -26465,19 +26483,13 @@ function populateBOM() {
             return dxf.replace(/\r?\n/g, '\r\n');
         }
 
-        function exportToDXF() {
+        async function exportToDXF() {
             try {
                 const dxf = generateDXFContent();
-                const blob = new Blob([dxf], { type: 'application/dxf' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = `FutolStructure_Plan_${ new Date().toISOString().split('T')[0] }.dxf`;
-                document.body.appendChild(a);
-                a.click();
-                setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
-                alert('✅ DXF exported!\\n\\nOpen in AutoCAD, BricsCAD, or any DXF viewer.\\n\\nStructural layers from FT_LayerMap.xlsx:\\n• S-GRID\\n• S-CONC-COL\\n• S-CONC-BEAM\\n• S-CONC-STAIR\\n• S-CONC-SLAB\\n• S-TEXT');
+                const filename = `FutolStructure_Plan_${ new Date().toISOString().split('T')[0] }.dxf`;
+                const desktopResult = await saveAndOpenDesktopArtifact('dxf', dxf, filename);
+                if (!desktopResult) downloadBlob(dxf, filename, 'application/dxf');
+                alert('✅ DXF exported!\\n\\nOpen in AutoCAD, BricsCAD, or any DXF viewer.\\n\\nStructural layers from FT_LayerMap.xlsx:\\n• S-GRID\\n• S-CONC-COL\\n• S-CONC-BEAM\\n• S-CONC-STAIR\\n• S-CONC-SLAB\\n• S-TEXT' + (desktopResult ? `\\n\\n${describeDesktopArtifactResult(desktopResult, 'DXF drawing')}` : ''));
             } catch (err) {
                 console.error('DXF export failed:', err);
                 alert('❌ Export failed: ' + err.message);
@@ -29320,10 +29332,12 @@ try {
             return lines.join('\n') + '\n';
         }
 
-        function exportToIFC() {
+        async function exportToIFC() {
             try {
                 const ifc = generateIFCContent();
-                downloadBlob(ifc, `FutolStructure_Model_${new Date().toISOString().split('T')[0]}.ifc`, 'application/x-step');
+                const filename = `FutolStructure_Model_${new Date().toISOString().split('T')[0]}.ifc`;
+                const desktopResult = await saveAndOpenDesktopArtifact('ifc', ifc, filename);
+                if (!desktopResult) downloadBlob(ifc, filename, 'application/x-step');
                 const audit = window.lastIFCExportAudit;
                 const blocked = audit.topologyValidation?.summary?.blocked || 0;
                 const sizeBlocked = audit.memberSizeGovernance?.summary?.blocked || 0;
@@ -29347,7 +29361,8 @@ try {
                     `- ${audit.counts.stairBeams || 0} stair/landing beams\n` +
                     `- ${audit.counts.stairSlabs || 0} stair flight/landing slabs\n` +
                     `- ${audit.counts.stairOpenings || 0} stair openings` +
-                    `${coordinationWarning}\n\nUse Revit -> Open -> IFC for a converted RVT, or Insert -> Link IFC for coordination.`
+                    `${coordinationWarning}\n\nUse Revit -> Open -> IFC for a converted RVT, or Insert -> Link IFC for coordination.` +
+                    (desktopResult ? `\n\n${describeDesktopArtifactResult(desktopResult, 'IFC2x3 coordination model')}` : '')
                 );
             } catch (err) {
                 alert('Export failed: ' + err.message);
