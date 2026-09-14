@@ -694,12 +694,15 @@ function checkUserGuideSourceContract() {
     assert(html.includes('function drawFoundationPlanTitleBlock()') && html.includes('drawFoundationPlanTitleBlock();'), 'Foundation-plan title is not drawn in a dedicated clear band');
     assert(html.includes('state.foundationScheduleHitBox') && html.includes("setPlanTab('footingSchedule')"), 'Foundation-plan schedule does not open the editable footing schedule');
     assert(html.includes("min=\"300\" step=\"25\"") && html.includes('Manual footing thickness override in mm; 300 mm minimum'), 'Footing schedule does not enforce the 300 mm thickness baseline');
+    assert(html.includes('columnFootingScheduleBtn') && html.includes('function openSelectedColumnFootingSchedule()') && !html.includes('columnFootingOverrideBtn'), 'Column context menu does not use the footing schedule as the single footing editor');
+    assert(html.includes('relative move') && html.includes("scheduleProjectAutosave('column-nudge')") && html.includes("scheduleProjectAutosave('beam-nudge')"), 'Column or beam nudge commands are not governed as persistent relative moves');
     return {
         tab: 'User Manual',
         refreshAction: 'Refresh Model',
         solverBoundary: 'external-solver-authority',
         contextMenus: 'viewport-aware',
-        foundationSchedule: 'editable-governed-w-l-d'
+        foundationSchedule: 'editable-governed-w-l-d',
+        nudges: 'persistent-relative-moves'
     };
 }
 

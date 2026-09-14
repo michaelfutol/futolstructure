@@ -1729,6 +1729,11 @@
             color: #0f172a;
         }
 
+        .schedule-table tbody tr.schedule-row-focus td {
+            background: #d1fae5;
+            box-shadow: inset 0 2px 0 #10b981, inset 0 -2px 0 #10b981;
+        }
+
         .schedule-table input {
             width: 100%;
             border: none;
@@ -4772,8 +4777,7 @@
         <button class="ctx-menu-btn" onclick="rotateSelectedColumn90()">Rotate +90&deg;</button>
         <button class="ctx-menu-btn" onclick="resetSelectedColumnOrientation()">Reset Rotation</button>
         <div style="border-top:1px solid rgba(255,255,255,0.1); margin:4px 0;"></div>
-        <button id="columnFootingOverrideBtn" class="ctx-menu-btn" onclick="editSelectedFootingOverride()">Footing Override...</button>
-        <button id="columnFootingResetBtn" class="ctx-menu-btn" onclick="resetSelectedFootingOverride()">Reset Footing to Auto</button>
+        <button id="columnFootingScheduleBtn" class="ctx-menu-btn" onclick="openSelectedColumnFootingSchedule()">Open Footing Schedule</button>
         <div style="border-top:1px solid rgba(255,255,255,0.1); margin:4px 0;"></div>
         <button class="ctx-menu-btn" onclick="moveAllColumns()">Move All Columns...</button>
         <button class="ctx-menu-btn" onclick="resetAllColumnPositions()">Reset All Column Positions</button>
@@ -29705,18 +29709,12 @@ try {
             const title = document.getElementById('columnMenuTitle');
             const optionsDiv = document.getElementById('plantedFloorOptions');
             const selectedColumn = state.columns.find(column => column.id === colId);
-            const footingOverrideBtn = document.getElementById('columnFootingOverrideBtn');
-            const footingResetBtn = document.getElementById('columnFootingResetBtn');
+            const footingScheduleBtn = document.getElementById('columnFootingScheduleBtn');
 
             // Set title
             title.textContent = `Column ${ colId } | ${getColumnOrientationDeg(selectedColumn)} deg`;
             const footingAvailable = !!selectedColumn && !selectedColumn.startFloor && !selectedColumn.isPlanted;
-            if (footingOverrideBtn) footingOverrideBtn.style.display = footingAvailable ? '' : 'none';
-            if (footingResetBtn) {
-                footingResetBtn.style.display = footingAvailable && selectedColumn?.footingOverride?.enabled === true
-                    ? ''
-                    : 'none';
-            }
+            if (footingScheduleBtn) footingScheduleBtn.style.display = footingAvailable ? '' : 'none';
 
             // Populate planted floor options (all floors except GF which is ground)
             optionsDiv.innerHTML = '';
@@ -29988,7 +29986,7 @@ try {
             if (restoreBtn) restoreBtn.style.display = type === 'foundationTieBeam' ? 'none' : '';
             if (moveBtn) {
                 moveBtn.style.display = canOffset ? '' : 'none';
-                moveBtn.textContent = type === 'foundationTieBeam' ? 'Tie Beam Offset...' : 'Beam Offset...';
+                moveBtn.textContent = type === 'foundationTieBeam' ? 'Tie Beam Move / Nudge...' : 'Beam Move / Nudge...';
             }
             if (resetOffsetBtn) {
                 resetOffsetBtn.style.display = canOffset ? '' : 'none';
@@ -30093,19 +30091,19 @@ try {
             hideColumnMenu();
 
             const current = state.columnPositionOverrides?.[col.id] || {};
-            const dxMm = promptNumberMm(`Column ${col.id} X nudge in mm (+ right, - left)`, Number(current.dx) || 0);
+            const dxMm = promptNumberMm(`Column ${col.id} X nudge in mm (+ right, - left; relative move)`, 0);
             if (dxMm === null) return;
-            const dyCurrentUserM = -(Number(current.dy) || 0);
-            const dyMm = promptNumberMm(`Column ${col.id} Y nudge in mm (+ up, - down)`, dyCurrentUserM);
+            const dyMm = promptNumberMm(`Column ${col.id} Y nudge in mm (+ up, - down; relative move)`, 0);
             if (dyMm === null) return;
 
             saveStateSnapshot();
             if (!state.columnPositionOverrides) state.columnPositionOverrides = {};
             state.columnPositionOverrides[col.id] = {
-                dx: dxMm / 1000,
-                dy: -dyMm / 1000
+                dx: (Number(current.dx) || 0) + dxMm / 1000,
+                dy: (Number(current.dy) || 0) - dyMm / 1000
             };
             calculate();
+            scheduleProjectAutosave('column-nudge');
         }
 
         function resetSelectedColumnPosition() {
@@ -30183,48 +30181,20 @@ try {
             scheduleProjectAutosave('column-rotation-reset');
         }
 
-        function editSelectedFootingOverride() {
-            if (!selectedColumnId) return;
-            const col = state.columns.find(column => column.id === selectedColumnId);
-            if (!col || col.startFloor || col.isPlanted) return;
+        function openSelectedColumnFootingSchedule() {
+            const columnId = selectedColumnId;
             hideColumnMenu();
-            const current = getFootingDimensionsM(col);
-            const widthMm = promptNumberMm(
-                `Footing F-${col.id} width W in mm (plan X; minimum 600)`,
-                current.width
-            );
-            if (widthMm === null) return;
-            const lengthMm = promptNumberMm(
-                `Footing F-${col.id} length L in mm (plan Y; minimum 600)`,
-                current.length
-            );
-            if (lengthMm === null) return;
-            const thicknessMm = promptNumberMm(
-                `Footing F-${col.id} thickness D in mm (minimum 300)`,
-                current.thickness
-            );
-            if (thicknessMm === null) return;
-            saveStateSnapshot();
-            applyFootingOverrideToColumn(col, widthMm / 1000, lengthMm / 1000, thicknessMm / 1000);
-            calculate();
-            scheduleProjectAutosave('footing-manual-override');
-        }
-
-        function resetSelectedFootingOverride() {
-            if (!selectedColumnId) return;
-            const col = state.columns.find(column => column.id === selectedColumnId);
-            if (!col?.footingOverride?.enabled) {
-                hideColumnMenu();
-                return;
-            }
-            hideColumnMenu();
-            saveStateSnapshot();
-            delete col.footingOverride;
-            delete col.footingW;
-            delete col.footingL;
-            delete col.footingD;
-            calculate();
-            scheduleProjectAutosave('footing-auto-reset');
+            if (!columnId) return;
+            setPlanTab('footingSchedule');
+            requestAnimationFrame(() => {
+                const columnSelector = window.CSS?.escape
+                    ? window.CSS.escape(String(columnId))
+                    : String(columnId).replace(/["\\]/g, '\\$&');
+                const row = document.querySelector(`#footingScheduleBody tr[data-footing-column-id="${columnSelector}"]`);
+                row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                row?.classList.add('schedule-row-focus');
+                window.setTimeout(() => row?.classList.remove('schedule-row-focus'), 1600);
+            });
         }
 
         function moveAllColumns() {
@@ -30237,19 +30207,21 @@ try {
                 return;
             }
             hideColumnMenu();
-            const dxMm = promptNumberMm('All columns X nudge in mm (+ right, - left)', 0);
+            const dxMm = promptNumberMm('All columns X nudge in mm (+ right, - left; relative move)', 0);
             if (dxMm === null) return;
-            const dyMm = promptNumberMm('All columns Y nudge in mm (+ up, - down)', 0);
+            const dyMm = promptNumberMm('All columns Y nudge in mm (+ up, - down; relative move)', 0);
             if (dyMm === null) return;
             saveStateSnapshot();
             if (!state.columnPositionOverrides) state.columnPositionOverrides = {};
             (state.columns || []).forEach(col => {
+                const current = state.columnPositionOverrides[col.id] || {};
                 state.columnPositionOverrides[col.id] = {
-                    dx: dxMm / 1000,
-                    dy: -dyMm / 1000
+                    dx: (Number(current.dx) || 0) + dxMm / 1000,
+                    dy: (Number(current.dy) || 0) - dyMm / 1000
                 };
             });
             calculate();
+            scheduleProjectAutosave('all-column-nudge');
         }
 
         function resetAllColumnPositions() {
@@ -30299,19 +30271,22 @@ try {
                 const direction = getFoundationTieBeamMemberDirection(selectedMemberId);
                 if (!direction) return;
                 const currentModelOffset = getFoundationTieBeamAlignmentOffset(selectedMemberId);
-                const currentUserOffset = direction === 'X' ? -currentModelOffset : currentModelOffset;
-                const offsetMm = promptNumberMm(
+                const nudgeMm = promptNumberMm(
                     direction === 'X'
-                        ? 'Foundation tie beam offset in mm (+Y up, -Y down)'
-                        : 'Foundation tie beam offset in mm (+X right, -X left)',
-                    currentUserOffset
+                        ? 'Foundation tie beam Y nudge in mm (+ up, - down; relative move)'
+                        : 'Foundation tie beam X nudge in mm (+ right, - left; relative move)',
+                    0
                 );
-                if (offsetMm === null) return;
+                if (nudgeMm === null) return;
                 saveStateSnapshot();
                 if (!state.foundationTieBeamAlignmentOverrides) state.foundationTieBeamAlignmentOverrides = {};
+                const currentUserOffset = direction === 'X' ? -currentModelOffset : currentModelOffset;
                 state.foundationTieBeamAlignmentOverrides[selectedMemberId] =
-                    direction === 'X' ? -(offsetMm / 1000) : (offsetMm / 1000);
+                    direction === 'X'
+                        ? -((currentUserOffset + nudgeMm / 1000))
+                        : currentUserOffset + nudgeMm / 1000;
                 draw();
+                scheduleProjectAutosave('foundation-tie-beam-nudge');
                 return;
             }
 
@@ -30322,17 +30297,22 @@ try {
                 return;
             }
 
-            const offsetMm = promptNumberMm(
+            const nudgeMm = promptNumberMm(
                 beam.direction === 'X'
-                    ? `Beam ${beam.id} offset in mm (+Y up, -Y down)`
-                    : `Beam ${beam.id} offset in mm (+X right, -X left)`,
-                getBeamUserTransverseOffsetM(beam, floorId)
+                    ? `Beam ${beam.id} Y nudge in mm (+ up, - down; relative move)`
+                    : `Beam ${beam.id} X nudge in mm (+ right, - left; relative move)`,
+                0
             );
-            if (offsetMm === null) return;
+            if (nudgeMm === null) return;
 
             saveStateSnapshot();
-            setBeamUserTransverseOffset(beam, floorId, offsetMm);
+            setBeamUserTransverseOffset(
+                beam,
+                floorId,
+                (getBeamUserTransverseOffsetM(beam, floorId) + nudgeMm / 1000) * 1000
+            );
             calculate();
+            scheduleProjectAutosave('beam-nudge');
         }
 
         function resetSelectedBeamAlignment() {
@@ -30361,15 +30341,20 @@ try {
         function moveAllGeneratedBeamsOnCurrentFloor() {
             hideMemberMenu();
             const floorId = state.floors[state.currentFloorIndex]?.id;
-            const offsetMm = promptNumberMm('Offset all generated regular beams on this floor in mm. X-beams: + up. Y-beams: + right.', 0);
-            if (offsetMm === null) return;
+            const nudgeMm = promptNumberMm('Nudge all generated regular beams on this floor in mm. X-beams: + up. Y-beams: + right.', 0);
+            if (nudgeMm === null) return;
             const lockedCount = (state.beams || []).filter(beam => isGeneratedBeamAlignmentCandidate(beam) && isBeamLocked(beam.id, floorId)).length;
             const beams = (state.beams || []).filter(beam => isGeneratedBeamAlignmentCandidate(beam) && !isBeamLocked(beam.id, floorId));
             if (!beams.length) return;
             saveStateSnapshot();
-            beams.forEach(beam => setBeamUserTransverseOffset(beam, floorId, offsetMm));
+            beams.forEach(beam => setBeamUserTransverseOffset(
+                beam,
+                floorId,
+                (getBeamUserTransverseOffsetM(beam, floorId) + nudgeMm / 1000) * 1000
+            ));
             if (lockedCount) console.warn(`FS safety: ${lockedCount} locked beam(s) skipped during all-beam offset.`);
             calculate();
+            scheduleProjectAutosave('all-beam-nudge');
         }
 
         function resetAllGeneratedBeamAlignmentsOnCurrentFloor() {
@@ -32065,7 +32050,7 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                     const colID = `C-${col.id}`;
 
                     tbody.innerHTML += `
-                        <tr>
+                        <tr data-footing-column-id="${escapeInfoText(col.id)}">
                             <td class="row-num">${rowNum}</td>
                             <td>${ftID}</td>
                             <td><strong>${mark}</strong></td>
