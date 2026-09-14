@@ -29605,6 +29605,60 @@ try {
         // ========================================
 
         let selectedColumnId = null;  // Currently selected column for context menu
+        let activeContextMenuPlacement = null;
+
+        function getContextMenuViewportBounds() {
+            const header = document.querySelector('.header');
+            const statusBar = document.getElementById('statusBar');
+            const headerRect = header?.getBoundingClientRect();
+            const statusRect = statusBar?.getBoundingClientRect();
+            const headerBottom = headerRect && headerRect.height > 0 ? headerRect.bottom + 8 : 8;
+            const statusTop = statusRect && statusRect.height > 0 ? statusRect.top - 8 : window.innerHeight - 8;
+            return {
+                left: 8,
+                top: Math.max(8, headerBottom),
+                right: Math.max(8, window.innerWidth - 8),
+                bottom: Math.max(8, statusTop)
+            };
+        }
+
+        function clampContextMenuCoordinate(value, minimum, maximum) {
+            return Math.max(minimum, Math.min(value, Math.max(minimum, maximum)));
+        }
+
+        function positionContextMenu(menu, screenX, screenY) {
+            const bounds = getContextMenuViewportBounds();
+            const gap = 12;
+            menu.style.display = 'block';
+            menu.style.visibility = 'hidden';
+            menu.style.maxHeight = `${Math.max(1, bounds.bottom - bounds.top)}px`;
+            menu.style.overflowY = 'auto';
+
+            const rect = menu.getBoundingClientRect();
+            const preferredLeft = screenX + gap;
+            const preferredTop = screenY + gap;
+            const left = preferredLeft + rect.width <= bounds.right
+                ? preferredLeft
+                : screenX - rect.width - gap;
+            const top = preferredTop + rect.height <= bounds.bottom
+                ? preferredTop
+                : screenY - rect.height - gap;
+
+            menu.style.left = `${Math.round(clampContextMenuCoordinate(left, bounds.left, bounds.right - rect.width))}px`;
+            menu.style.top = `${Math.round(clampContextMenuCoordinate(top, bounds.top, bounds.bottom - rect.height))}px`;
+            menu.style.visibility = 'visible';
+            activeContextMenuPlacement = { menuId: menu.id, screenX, screenY };
+        }
+
+        function repositionActiveContextMenu() {
+            if (!activeContextMenuPlacement) return;
+            const menu = document.getElementById(activeContextMenuPlacement.menuId);
+            if (!menu || menu.style.display === 'none') return;
+            positionContextMenu(menu, activeContextMenuPlacement.screenX, activeContextMenuPlacement.screenY);
+        }
+
+        window.addEventListener('resize', repositionActiveContextMenu);
+        window.visualViewport?.addEventListener('resize', repositionActiveContextMenu);
 
         /**
          * Show column context menu at click position
@@ -29639,10 +29693,8 @@ try {
                 optionsDiv.appendChild(btn);
             });
 
-            // Position and show menu
-            menu.style.left = screenX + 'px';
-            menu.style.top = screenY + 'px';
-            menu.style.display = 'block';
+            // Place beside the selected member, flipping/clamping inside the plan viewport.
+            positionContextMenu(menu, screenX, screenY);
 
             // Close on click outside
             setTimeout(() => {
@@ -29654,7 +29706,9 @@ try {
          * Hide column context menu
          */
         function hideColumnMenu() {
-            document.getElementById('columnContextMenu').style.display = 'none';
+            const menu = document.getElementById('columnContextMenu');
+            menu.style.display = 'none';
+            if (activeContextMenuPlacement?.menuId === menu.id) activeContextMenuPlacement = null;
         }
 
         let pendingColumnIntent = null;
@@ -29907,10 +29961,8 @@ try {
             if (moveAllBtn) moveAllBtn.style.display = (type === 'beam' && canOffset) ? '' : 'none';
             if (resetAllOffsetBtn) resetAllOffsetBtn.style.display = (type === 'beam' && canOffset) ? '' : 'none';
 
-            // Position and show menu
-            menu.style.left = screenX + 'px';
-            menu.style.top = screenY + 'px';
-            menu.style.display = 'block';
+            // Place beside the selected member, flipping/clamping inside the plan viewport.
+            positionContextMenu(menu, screenX, screenY);
 
             // Close on click outside
             setTimeout(() => {
@@ -29922,7 +29974,9 @@ try {
          * Hide member context menu
          */
         function hideMemberMenu() {
-            document.getElementById('memberContextMenu').style.display = 'none';
+            const menu = document.getElementById('memberContextMenu');
+            menu.style.display = 'none';
+            if (activeContextMenuPlacement?.menuId === menu.id) activeContextMenuPlacement = null;
         }
 
         function promptNumberMm(message, currentValueM = 0) {

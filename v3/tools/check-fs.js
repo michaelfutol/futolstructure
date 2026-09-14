@@ -689,10 +689,13 @@ function checkUserGuideSourceContract() {
     assert(html.includes('does not run ETABS, STAAD, PyNite, OpenSees, or any external finite-element solver'), 'Refresh Model scope is not explicit');
     assert(html.includes('The browser build downloads portable artifacts and does not launch installed applications'), 'Browser versus desktop handoff boundary is not documented');
     assert(html.includes('proposal-only') && html.includes('never rewrite the canonical model'), 'QUBO governance is not documented');
+    assert(html.includes('function positionContextMenu(') && html.includes('getContextMenuViewportBounds') && html.includes('repositionActiveContextMenu'), 'Viewport-aware plan context-menu placement is missing');
+    assert(html.includes('positionContextMenu(menu, screenX, screenY);'), 'Column/member context menus do not use viewport-aware placement');
     return {
         tab: 'User Manual',
         refreshAction: 'Refresh Model',
-        solverBoundary: 'external-solver-authority'
+        solverBoundary: 'external-solver-authority',
+        contextMenus: 'viewport-aware'
     };
 }
 
