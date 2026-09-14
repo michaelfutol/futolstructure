@@ -5981,6 +5981,7 @@
             soilBearing: 150,  // effective kPa used by preliminary footing sizing
             foundationMode: 'plan', // plan | baseReactionsOnly
             plotSettings: normalizePlotSettings(),
+            foundationScheduleHitBox: null,
 
             // v2.6: GF suspended toggle
             gfSuspended: false,  // If false, GF slab loads excluded (ground-bearing)
@@ -12722,6 +12723,14 @@
             const clickX = pointer.x;
             const clickY = pointer.y;
 
+            const scheduleHitBox = state.foundationScheduleHitBox;
+            if (currentPlanTab === 'foundation' && scheduleHitBox &&
+                clickX >= scheduleHitBox.left && clickX <= scheduleHitBox.right &&
+                clickY >= scheduleHitBox.top && clickY <= scheduleHitBox.bottom) {
+                setPlanTab('footingSchedule');
+                return;
+            }
+
             // Convert to world coordinates
             const worldX = (clickX - state.offsetX) / state.scale;
             const worldY = (clickY - state.offsetY) / state.scale;
@@ -13016,6 +13025,7 @@
             if (currentPlanTab === 'foundation') {
                 drawFoundationPlan();
                 drawPlanDimensions();
+                drawFoundationPlanTitleBlock();
                 return; // Skip wireframe mode
             }
 
@@ -15073,7 +15083,7 @@
                 if (!footingTypes[sizeKey]) {
                     footingTypes[sizeKey] = {
                         ...footing,
-                        typeId: `F${ Object.keys(footingTypes).length + 1 } `,
+                        typeId: `F${Object.keys(footingTypes).length + 1}`,
                         columns: []
                     };
                 }
@@ -15440,7 +15450,7 @@
             const scheduleX = totalX * state.scale + state.offsetX + 80 * scaleFactor;
             const scheduleY = state.offsetY;
             const rowHeight = 14 * scaleFactor;
-            const colWidths = [40 * scaleFactor, 60 * scaleFactor, 40 * scaleFactor];
+            const colWidths = [40 * scaleFactor, 78 * scaleFactor, 48 * scaleFactor];
 
             // Table header
             ctx.fillStyle = COLOR_TEXT;
@@ -15452,8 +15462,8 @@
             ctx.font = `bold ${ Math.round(6 * scaleFactor) }px Arial`;
             let tableRow = 0;
             ctx.fillText('TYPE', scheduleX, scheduleY + rowHeight * tableRow);
-            ctx.fillText('SIZE (mm)', scheduleX + colWidths[0], scheduleY + rowHeight * tableRow);
-            ctx.fillText('THK', scheduleX + colWidths[0] + colWidths[1], scheduleY + rowHeight * tableRow);
+            ctx.fillText('L x W (mm)', scheduleX + colWidths[0], scheduleY + rowHeight * tableRow);
+            ctx.fillText('D (mm)', scheduleX + colWidths[0] + colWidths[1], scheduleY + rowHeight * tableRow);
 
             // Draw header underline
             ctx.strokeStyle = COLOR_OUTLINE;
@@ -15467,32 +15477,58 @@
             ctx.font = `${ Math.round(6 * scaleFactor) }px Arial`;
             tableRow = 1;
             Object.values(footingTypes).forEach(ft => {
-                const thicknessMm = 300;  // v3.2: Fixed 300mm for all (NSCP/NBC minimum)
-                const sizeMm = Math.round(ft.size * 1000);
+                const lengthMm = Math.round(ft.length * 1000);
+                const widthMm = Math.round(ft.width * 1000);
+                const thicknessMm = Math.max(RESIDENTIAL_FOOTING_THICKNESS_MM, Math.round(ft.thickness * 1000));
 
                 ctx.fillText(ft.typeId, scheduleX, scheduleY + rowHeight * tableRow);
-                ctx.fillText(`${ sizeMm }×${ sizeMm } `, scheduleX + colWidths[0], scheduleY + rowHeight * tableRow);
+                ctx.fillText(`${ lengthMm }×${ widthMm } `, scheduleX + colWidths[0], scheduleY + rowHeight * tableRow);
                 ctx.fillText(`${ thicknessMm } `, scheduleX + colWidths[0] + colWidths[1], scheduleY + rowHeight * tableRow);
                 tableRow++;
             });
 
-            // ========== DRAW TITLE ==========
-            ctx.fillStyle = COLOR_TEXT;
-            ctx.font = `bold ${ Math.round(10 * scaleFactor) }px Arial`;
-            ctx.textAlign = 'center';
-            ctx.fillText('FOUNDATION PLAN', state.offsetX + totalX * state.scale / 2, state.offsetY - 85 * scaleFactor);
+            state.foundationScheduleHitBox = {
+                left: scheduleX - 8 * scaleFactor,
+                top: scheduleY - 26 * scaleFactor,
+                right: scheduleX + colWidths.reduce((sum, width) => sum + width, 0) + 8 * scaleFactor,
+                bottom: scheduleY + rowHeight * (tableRow + 0.6)
+            };
+        }
 
-            ctx.font = `${ Math.round(7 * scaleFactor) }px Arial`;
-            ctx.fillStyle = COLOR_DIM;
-            ctx.fillText(`Tie Beam: ${ state.tieBeamWidth || 200 }×${ state.tieBeamDepth || 350 } mm`,
-                state.offsetX + totalX * state.scale / 2, state.offsetY - 72 * scaleFactor);
+        function drawFoundationPlanTitleBlock() {
+            if (!ctx) return;
+            const palette = getWorkspaceDrawingPalette();
+            const totalX = state.xSpans.reduce((sum, span) => sum + span, 0);
+            const scaleFactor = Math.max(state.scale / 50, 0.5);
+            const textScaleFactor = Math.max(0.6, Math.min(2.0, state.scale / 50));
+            const bubbleRadius = 14 * textScaleFactor;
+            const bubbleOffset = getGridBubbleOffsetPx();
+            const topBubbleY = state.offsetY - 70 - bubbleOffset - bubbleRadius;
+            const dimensionY = state.offsetY - 45 - bubbleOffset * 0.25;
+            const clearBottomY = Math.min(topBubbleY, dimensionY) - 10 * scaleFactor;
+            const titleY = clearBottomY - 30 * scaleFactor;
+            const tieBeamY = clearBottomY - 17 * scaleFactor;
+            const datumY = clearBottomY - 6 * scaleFactor;
+            const centerX = state.offsetX + totalX * state.scale / 2;
             const verticalDatums = syncGovernedFloorElevations();
+
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'alphabetic';
+            ctx.fillStyle = palette.text;
+            ctx.font = `bold ${Math.round(10 * scaleFactor)}px Arial`;
+            ctx.fillText('FOUNDATION PLAN', centerX, titleY);
+
+            ctx.fillStyle = palette.dim;
+            ctx.font = `${Math.round(7 * scaleFactor)}px Arial`;
+            ctx.fillText(`Tie Beam: ${state.tieBeamWidth || 200}×${state.tieBeamDepth || 350} mm`, centerX, tieBeamY);
             ctx.font = `${Math.round(6 * scaleFactor)}px Arial`;
             ctx.fillText(
                 `GRADE EL ${verticalDatums.gradeElevation.toFixed(3)} | BASE EL ${verticalDatums.baseSupportElevation.toFixed(3)} | FOOTING TOP EL ${verticalDatums.footingTopElevation.toFixed(3)}`,
-                state.offsetX + totalX * state.scale / 2,
-                state.offsetY - 61 * scaleFactor
+                centerX,
+                datumY
             );
+            ctx.restore();
         }
 
         // ========== CONTROLS ==========
@@ -32033,9 +32069,9 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                             <td class="row-num">${rowNum}</td>
                             <td>${ftID}</td>
                             <td><strong>${mark}</strong></td>
-                            <td><input type="number" value="${ftL}" onchange="updateFootingParam('${col.id}', 'footingL', this.value)" style="width:45px;"></td>
-                            <td><input type="number" value="${ftW}" onchange="updateFootingParam('${col.id}', 'footingW', this.value)" style="width:45px;"></td>
-                            <td><input type="number" value="${ftD}" onchange="updateFootingParam('${col.id}', 'footingD', this.value)" style="width:45px;"></td>
+                            <td><input type="number" min="600" step="25" value="${ftL}" title="Manual footing length override in mm" onchange="updateFootingParam('${col.id}', 'footingL', this.value)" style="width:58px;"></td>
+                            <td><input type="number" min="600" step="25" value="${ftW}" title="Manual footing width override in mm" onchange="updateFootingParam('${col.id}', 'footingW', this.value)" style="width:58px;"></td>
+                            <td><input type="number" min="300" step="25" value="${ftD}" title="Manual footing thickness override in mm; 300 mm minimum" onchange="updateFootingParam('${col.id}', 'footingD', this.value)" style="width:58px;"></td>
                             <td>${colID}</td>
                             <td>${footing.isManual ? 'Manual' : 'Auto'}</td>
                             <td><button class="action-btn" onclick="resetFootingOverride('${col.id}')" ${footing.isManual ? '' : 'disabled'}>Auto</button></td>
@@ -32261,6 +32297,16 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                 } else if (param === 'footingW') {
                     width = Math.max(600, numValue) / 1000;
                 } else if (param === 'footingD') {
+                    const designThicknessMm = Math.max(
+                        RESIDENTIAL_FOOTING_THICKNESS_MM,
+                        Number(col.footingDesign?.h) || Math.round(current.autoThickness * 1000)
+                    );
+                    if (numValue < designThicknessMm && !confirm(
+                        `The current preliminary design calls for ${designThicknessMm} mm thickness. Apply a ${numValue} mm manual override? Engineer verification is required.`
+                    )) {
+                        if (typeof populateFootingSchedule === 'function') populateFootingSchedule();
+                        return;
+                    }
                     thickness = Math.max(300, numValue) / 1000;
                 }
 

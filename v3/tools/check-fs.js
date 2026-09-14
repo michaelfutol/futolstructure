@@ -691,11 +691,15 @@ function checkUserGuideSourceContract() {
     assert(html.includes('proposal-only') && html.includes('never rewrite the canonical model'), 'QUBO governance is not documented');
     assert(html.includes('function positionContextMenu(') && html.includes('getContextMenuViewportBounds') && html.includes('repositionActiveContextMenu'), 'Viewport-aware plan context-menu placement is missing');
     assert(html.includes('positionContextMenu(menu, screenX, screenY);'), 'Column/member context menus do not use viewport-aware placement');
+    assert(html.includes('function drawFoundationPlanTitleBlock()') && html.includes('drawFoundationPlanTitleBlock();'), 'Foundation-plan title is not drawn in a dedicated clear band');
+    assert(html.includes('state.foundationScheduleHitBox') && html.includes("setPlanTab('footingSchedule')"), 'Foundation-plan schedule does not open the editable footing schedule');
+    assert(html.includes("min=\"300\" step=\"25\"") && html.includes('Manual footing thickness override in mm; 300 mm minimum'), 'Footing schedule does not enforce the 300 mm thickness baseline');
     return {
         tab: 'User Manual',
         refreshAction: 'Refresh Model',
         solverBoundary: 'external-solver-authority',
-        contextMenus: 'viewport-aware'
+        contextMenus: 'viewport-aware',
+        foundationSchedule: 'editable-governed-w-l-d'
     };
 }
 
