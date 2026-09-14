@@ -677,6 +677,23 @@ function checkAnalysisOptimizationSourceContract() {
     };
 }
 
+function checkUserGuideSourceContract() {
+    const html = fs.readFileSync(INDEX, 'utf8');
+    assert(html.includes('data-tab-group="help"'), 'User Manual workspace group is missing');
+    assert(html.includes("help: ['tabUserGuide']"), 'User Manual group mapping is missing');
+    assert(html.includes('id="tabUserGuide"') && html.includes("setPlanTab('userGuide')"), 'User Manual tab is missing');
+    assert(html.includes('id="panelUserGuide"'), 'User Manual panel is missing');
+    assert(html.includes('>Refresh Model</button>'), 'Refresh Model command label is missing');
+    assert(html.includes('does not run ETABS, STAAD, PyNite, OpenSees, or any external finite-element solver'), 'Refresh Model scope is not explicit');
+    assert(html.includes('The browser build downloads portable artifacts and does not launch installed applications'), 'Browser versus desktop handoff boundary is not documented');
+    assert(html.includes('proposal-only') && html.includes('never rewrite the canonical model'), 'QUBO governance is not documented');
+    return {
+        tab: 'User Manual',
+        refreshAction: 'Refresh Model',
+        solverBoundary: 'external-solver-authority'
+    };
+}
+
 function checkAnalysisInputsSourceContract() {
     const html = fs.readFileSync(INDEX, 'utf8');
     const modulePath = path.join(V3, 'engine', 'analysis-inputs.js');
@@ -805,7 +822,7 @@ function checkDesktopETABSBridge() {
     assert(preload.includes('exportPdfReport'), 'Desktop preload does not expose the PDF generation bridge');
     assert(index.includes('desktopBridge.runEtabsBuilder'), 'ETABS UI is not connected to the desktop bridge');
     assert(index.includes('desktopBridge.exportPdfReport') && index.includes('return generatePDFReport()'), 'Report UI is not connected to generated PDF output');
-    assert(index.includes('>Recalculate</button>') && !index.includes('>Run Analysis</button>'), 'The model recalculation action is still mislabeled as a solver analysis');
+    assert(index.includes('>Refresh Model</button>') && !index.includes('>Run Analysis</button>'), 'The model refresh action is still mislabeled as a solver analysis');
     assert(
         main.includes('const RECENT_PROJECT_LIMIT = 10') &&
         main.includes("'recent-projects.json'") &&
@@ -7847,6 +7864,7 @@ async function main() {
         wallSolverTransferSourceContract: checkWallSolverTransferSourceContract(),
         roofFrameSourceContract: checkRoofFrameSourceContract(),
         analysisOptimizationSourceContract: checkAnalysisOptimizationSourceContract(),
+        userGuideSourceContract: checkUserGuideSourceContract(),
         desktopETABSBridge: checkDesktopETABSBridge()
     };
     const projectPath = getArgValue('--project');

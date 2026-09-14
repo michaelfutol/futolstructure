@@ -1479,6 +1479,94 @@
             font-family: var(--font-mono);
         }
 
+        .user-guide {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 4px 0 20px;
+        }
+
+        .user-guide-lead {
+            max-width: 82ch;
+            margin: 0 0 16px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .user-guide-nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 10px 0 14px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .user-guide-nav a {
+            color: var(--primary);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 5px 8px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .user-guide-nav a:hover {
+            border-color: var(--primary);
+        }
+
+        .user-guide-section {
+            display: grid;
+            grid-template-columns: minmax(155px, 0.3fr) minmax(0, 1fr);
+            gap: 18px;
+            padding: 18px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .user-guide-section h4 {
+            margin: 0;
+            color: var(--text-primary);
+            font-size: 0.88rem;
+        }
+
+        .user-guide-section p,
+        .user-guide-section li {
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+            line-height: 1.55;
+        }
+
+        .user-guide-section p {
+            margin: 0 0 8px;
+        }
+
+        .user-guide-section ol,
+        .user-guide-section ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .user-guide-section li + li {
+            margin-top: 5px;
+        }
+
+        .user-guide-note {
+            margin-top: 10px;
+            padding: 9px 10px;
+            border-left: 3px solid var(--warning);
+            background: var(--surface);
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 720px) {
+            .user-guide-section {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+        }
+
         .schedule-table-wrapper {
             overflow-x: auto;
             max-height: calc(100% - 100px);
@@ -2444,7 +2532,7 @@
         </div>
         <!-- Action Toolbar -->
         <div class="header-actions">
-            <button class="tool-btn" onclick="calculate()" title="Rebuild geometry, gravity-load paths, preliminary member checks, and dashboard totals. This does not run an external finite-element solver." style="background: var(--primary); color: #fff; font-weight: 600;">Recalculate</button>
+            <button class="tool-btn" onclick="calculate()" title="Refresh governed geometry, gravity-load paths, preliminary member checks, dashboard totals, and export data. This does not run ETABS, STAAD, PyNite, OpenSees, or any external finite-element solver." style="background: var(--primary); color: #fff; font-weight: 600;">Refresh Model</button>
             <button class="tool-btn" onclick="saveProject()" title="Save current project">Save</button>
             <button class="tool-btn" id="undoBtn" onclick="undo()" title="Undo last model edit" disabled>Undo</button>
             <button class="tool-btn" id="redoBtn" onclick="redo()" title="Redo last undone edit" disabled>Redo</button>
@@ -2806,6 +2894,7 @@
                     <button class="plan-tab-group-btn" type="button" data-tab-group="design" onclick="setPlanTabGroup('design')">Design</button>
                     <button class="plan-tab-group-btn" type="button" data-tab-group="checks" onclick="setPlanTabGroup('checks')">Checks</button>
                     <button class="plan-tab-group-btn" type="button" data-tab-group="output" onclick="setPlanTabGroup('output')">Output</button>
+                    <button class="plan-tab-group-btn" type="button" data-tab-group="help" onclick="setPlanTabGroup('help')">Help</button>
                 </div>
                 <div class="plan-tabs" id="planTabs">
                     <!-- PLANS -->
@@ -2871,6 +2960,9 @@
                     <button class="plan-tab" id="tabDashboard" onclick="setPlanTab('dashboard')">Dashboard</button>
                     <button class="plan-tab" id="tabRecovery" onclick="setPlanTab('recovery')">Recovery</button>
                     <button class="plan-tab" id="tabSettings" onclick="setPlanTab('settings')">Settings</button>
+                    <span class="plan-tab-separator" data-tab-group="output-help"></span>
+                    <span class="plan-tab-group-label" data-tab-group="help">Help</span>
+                    <button class="plan-tab" id="tabUserGuide" onclick="setPlanTab('userGuide')">User Manual</button>
                     <button class="plan-tab" id="tabAIAssistant" onclick="setPlanTab('aiAssistant')" style="display:none;" aria-hidden="true" title="AI review is disabled in the public technical preview">AI</button>
                 </div>
 
@@ -4071,7 +4163,117 @@
                     </div>
                     <button onclick="applySettings()"
                         style="margin-top:12px; padding:8px 24px; background:#2563eb; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">Apply
-                        Settings & Recalculate</button>
+                        Settings & Refresh Model</button>
+                </div>
+            </div>
+
+            <div id="panelUserGuide" class="schedule-panel" style="display:none;">
+                <div class="schedule-header">
+                    <h3>FutolStructure User Manual</h3>
+                </div>
+                <div class="user-guide">
+                    <p class="user-guide-lead">Use this workspace to build a governed structural model, review its preliminary load path, and hand it off to the appropriate external tool. FutolStructure is local-first: save the source model, preserve the warnings, and use the external solver as the final analysis authority.</p>
+                    <nav class="user-guide-nav" aria-label="User manual sections">
+                        <a href="#guide-start">Start</a>
+                        <a href="#guide-model">Model</a>
+                        <a href="#guide-loads">Loads</a>
+                        <a href="#guide-refresh">Refresh</a>
+                        <a href="#guide-review">Review</a>
+                        <a href="#guide-save">Save</a>
+                        <a href="#guide-export">Export</a>
+                        <a href="#guide-boundary">Boundary</a>
+                    </nav>
+
+                    <section class="user-guide-section" id="guide-start">
+                        <h4>1. Start a project</h4>
+                        <div>
+                            <ol>
+                                <li>Use <strong>File &gt; New</strong> for a new model or <strong>File &gt; Open</strong> for an existing <code>.fstr</code> project.</li>
+                                <li>Set X and Y spans, add floors, and confirm each floor's elevation, height, slab settings, and typical-floor relationship.</li>
+                                <li>Use <strong>Layout</strong> to establish the framing plan before moving into design, reporting, or exports.</li>
+                            </ol>
+                            <div class="user-guide-note">The Windows desktop app can retain up to 10 recent projects under <strong>File &gt; Open</strong>. The browser build remains local-first: keep the downloaded <code>.fstr</code> as your project record.</div>
+                        </div>
+                    </section>
+
+                    <section class="user-guide-section" id="guide-model">
+                        <h4>2. Model the framing</h4>
+                        <div>
+                            <ul>
+                                <li>Place or edit columns, beams, edge beams, cantilevers, slabs, stairs, walls, and roof framing in their dedicated workspaces.</li>
+                                <li>Use <strong>Osnap</strong> for grids, column centers/faces, beam axes/faces, slab edges, and footing geometry. Use <strong>Grid Snap</strong> for controlled placement increments, including 5 cm.</li>
+                                <li>Use member property controls for section dimensions, column orientation, canonical alignment, and explicit footing overrides. Locked members intentionally prevent geometry edits until unlocked.</li>
+                                <li>Canonical geometry represents the actual framing/drafting location. The governed analytical export resolves the solver joints, eccentricities, and insertion/cardinal-point data from that model.</li>
+                            </ul>
+                        </div>
+                    </section>
+
+                    <section class="user-guide-section" id="guide-loads">
+                        <h4>3. Assign loads</h4>
+                        <div>
+                            <ul>
+                                <li>Set slab dead and live loads by floor, then review the tributary path in <strong>Tributary</strong> and <strong>Loads</strong>.</li>
+                                <li>Model CHB walls in <strong>Wall Elev.</strong> with thickness, plaster, alignment, openings, and lintels. A wall is coordination geometry in FS; when solver transfer is enabled, its derived line load is assigned to the supporting canonical beam tributary load.</li>
+                                <li>Review roof-frame support assignments and explicit roof dead/live line loads before exporting a steel roof system.</li>
+                            </ul>
+                            <div class="user-guide-note">Wall shells are not silently exported as ETABS/STAAD structural wall elements. Verify the derived beam line load and any unresolved wall-to-beam connection warning.</div>
+                        </div>
+                    </section>
+
+                    <section class="user-guide-section" id="guide-refresh">
+                        <h4>4. Refresh Model</h4>
+                        <div>
+                            <p><strong>Refresh Model</strong> rebuilds governed geometry, the preliminary gravity/tributary load path, preliminary member and footing values, dashboard totals, the 2D/3D presentation, and the export basis.</p>
+                            <p>Most direct edits refresh automatically. Use it after a bulk edit, a settings change, opening an older file, or whenever the review data does not reflect the latest model.</p>
+                            <div class="user-guide-note"><strong>It is not an analysis run.</strong> Refresh Model does not run ETABS, STAAD, PyNite, OpenSees, or any external finite-element solver.</div>
+                        </div>
+                    </section>
+
+                    <section class="user-guide-section" id="guide-review">
+                        <h4>5. Review before handoff</h4>
+                        <div>
+                            <ul>
+                                <li>Check the <strong>QA</strong> and Model Readiness warnings first. Resolve blockers, then confirm floors, grids, member counts, support conditions, and dimensions.</li>
+                                <li>Use <strong>Schedules</strong>, <strong>Foundation</strong>, <strong>Dashboard</strong>, and the 3D view to inspect the physical/canonical model. Use <strong>Tributary</strong> to inspect the gravity load path.</li>
+                                <li>Use the <strong>Recovery</strong> workspace to understand retained deleted, void, quarantined, or cantilever data before a new export.</li>
+                            </ul>
+                        </div>
+                    </section>
+
+                    <section class="user-guide-section" id="guide-save">
+                        <h4>6. Save and recover</h4>
+                        <div>
+                            <ul>
+                                <li>Save regularly as <code>.fstr</code>. On desktop, configure the default project folder as <code>D:\FUTOLSTRUCTURE PROJECTS</code> when prompted; new installations can choose their own folder.</li>
+                                <li>Use <strong>File &gt; Open</strong> to reopen a source project. Recent projects belong in that Open workflow, not the modeling dashboard.</li>
+                                <li>Use <strong>Recovery</strong> for an inspection of the persisted model state. It is a review tool, not a replacement for keeping versioned project files.</li>
+                            </ul>
+                        </div>
+                    </section>
+
+                    <section class="user-guide-section" id="guide-export">
+                        <h4>7. Export and handoff</h4>
+                        <div>
+                            <ul>
+                                <li><strong>PDF</strong>, <strong>DXF</strong>, and <strong>IFC</strong> provide document and coordination output. IFC is suitable for concrete coordination geometry in Revit; it is not a substitute for approved reinforcement detailing.</li>
+                                <li><strong>ETABS</strong> and <strong>STAAD</strong> export a governed solver model after readiness validation. Verify levels, sections, offsets, loading, supports, and solver warnings in the target program before using results.</li>
+                                <li><strong>ETABS Audit</strong> compares an audit payload; it does not automatically overwrite the FS model or apply solver results.</li>
+                                <li>The Revit bridge and native solver automation require the configured Windows desktop app. The browser build downloads portable artifacts and does not launch installed applications.</li>
+                            </ul>
+                        </div>
+                    </section>
+
+                    <section class="user-guide-section" id="guide-boundary">
+                        <h4>8. Analysis and engineering boundary</h4>
+                        <div>
+                            <ul>
+                                <li>The <strong>Analysis Workbench</strong> prepares governed drafts and run requests. Current PyNite/OpenSees work is adapter-boundary preparation, not a browser-side final solver workflow.</li>
+                                <li>The <strong>QUBO</strong> workspace is proposal-only. It must never rewrite the canonical model or fabricate final member sizes without an engineer-approved solver/result loop.</li>
+                                <li>Use ETABS or STAAD as the current final-analysis authority, then carry approved dimensions and results back through a reviewed round trip.</li>
+                            </ul>
+                            <div class="user-guide-note">FutolStructure output supports engineering work; it does not replace licensed professional judgment, code checks, target-solver review, or signed design responsibility.</div>
+                        </div>
+                    </section>
                 </div>
             </div>
 
@@ -7915,7 +8117,8 @@
             optimization: ['tabOptimization'],
             design: ['tabBeamDesign', 'tabColDesign', 'tabSlabDesign', 'tabWaterTank', 'tabRetainingWall', 'tabCombinedFtg'],
             checks: ['tabCrackWidth', 'tabSlenderness', 'tabDuctile', 'tabDeflection', 'tabDevLength', 'tabTorsion', 'tabFdnStability'],
-            output: ['tabBOM', 'tabSteelSummary', 'tabCostEstimate', 'tabMixDesign', 'tabPDFReport', 'tabDashboard', 'tabRecovery', 'tabSettings']
+            output: ['tabBOM', 'tabSteelSummary', 'tabCostEstimate', 'tabMixDesign', 'tabPDFReport', 'tabDashboard', 'tabRecovery', 'tabSettings'],
+            help: ['tabUserGuide']
         };
         const PLAN_TAB_GROUP_STORAGE_KEY = 'FutolStructure.planTabGroup.v1';
         let activePlanTabGroup = 'model';
@@ -7931,7 +8134,7 @@
                 crackWidth: 'tabCrackWidth', slenderness: 'tabSlenderness', ductile: 'tabDuctile', deflection: 'tabDeflection',
                 devLength: 'tabDevLength', torsion: 'tabTorsion', fdnStability: 'tabFdnStability', bom: 'tabBOM',
                 steelSummary: 'tabSteelSummary', costEstimate: 'tabCostEstimate', mixDesign: 'tabMixDesign', pdfReport: 'tabPDFReport',
-                dashboard: 'tabDashboard', recovery: 'tabRecovery', settings: 'tabSettings', retainingWall: 'tabRetainingWall',
+                dashboard: 'tabDashboard', recovery: 'tabRecovery', settings: 'tabSettings', userGuide: 'tabUserGuide', retainingWall: 'tabRetainingWall',
                 combinedFtg: 'tabCombinedFtg', analysisWorkbench: 'tabAnalysisWorkbench', optimization: 'tabOptimization'
             };
             return tabBtnMap[tab];
@@ -8025,7 +8228,7 @@
             }
 
             // Hide all schedule panels
-            const schedulePanels = ['panelColSchedule', 'panelBeamSchedule', 'panelFootingSchedule', 'panelSlabSchedule', 'panelBlockwall', 'panelWallElevations', 'panelRoofFrame', 'panelLoadSummary', 'panelRebarSchedule', 'panelBOM', 'panelSeismic', 'panelWind', 'panelBeamDesign', 'panelColDesign', 'panelSlabDesign', 'panelStaircase', 'panelWaterTank', 'panelBBS', 'panelCrackWidth', 'panelSlenderness', 'panelDuctile', 'panelDeflection', 'panelLoadCombos', 'panelDevLength', 'panelFdnStability', 'panelPDFReport', 'panelDashboard', 'panelRecovery', 'panelSettings', 'panelCostEstimate', 'panelSteelSummary', 'panelRetainingWall', 'panelCombinedFtg', 'panelTorsion', 'panelMixDesign', 'panelAIAssistant', 'panelAnalysisWorkbench', 'panelOptimization'];
+            const schedulePanels = ['panelColSchedule', 'panelBeamSchedule', 'panelFootingSchedule', 'panelSlabSchedule', 'panelBlockwall', 'panelWallElevations', 'panelRoofFrame', 'panelLoadSummary', 'panelRebarSchedule', 'panelBOM', 'panelSeismic', 'panelWind', 'panelBeamDesign', 'panelColDesign', 'panelSlabDesign', 'panelStaircase', 'panelWaterTank', 'panelBBS', 'panelCrackWidth', 'panelSlenderness', 'panelDuctile', 'panelDeflection', 'panelLoadCombos', 'panelDevLength', 'panelFdnStability', 'panelPDFReport', 'panelDashboard', 'panelRecovery', 'panelSettings', 'panelUserGuide', 'panelCostEstimate', 'panelSteelSummary', 'panelRetainingWall', 'panelCombinedFtg', 'panelTorsion', 'panelMixDesign', 'panelAIAssistant', 'panelAnalysisWorkbench', 'panelOptimization'];
             schedulePanels.forEach(id => {
                 const panel = document.getElementById(id);
                 if (panel) panel.style.display = 'none';
@@ -8036,7 +8239,7 @@
             const container3D = document.getElementById('container3D');
 
             // v3.8: Handle schedule tabs
-            const isScheduleTab = ['colSchedule', 'beamSchedule', 'footingSchedule', 'slabSchedule', 'blockwall', 'wallElevations', 'roofFrame', 'loadSummary', 'rebarSchedule', 'bom', 'seismic', 'wind', 'beamDesign', 'colDesign', 'slabDesign', 'staircase', 'waterTank', 'bbs', 'crackWidth', 'slenderness', 'ductile', 'deflection', 'loadCombos', 'devLength', 'fdnStability', 'pdfReport', 'dashboard', 'recovery', 'settings', 'costEstimate', 'steelSummary', 'retainingWall', 'combinedFtg', 'torsion', 'mixDesign', 'aiAssistant', 'analysisWorkbench', 'optimization'].includes(tab);
+            const isScheduleTab = ['colSchedule', 'beamSchedule', 'footingSchedule', 'slabSchedule', 'blockwall', 'wallElevations', 'roofFrame', 'loadSummary', 'rebarSchedule', 'bom', 'seismic', 'wind', 'beamDesign', 'colDesign', 'slabDesign', 'staircase', 'waterTank', 'bbs', 'crackWidth', 'slenderness', 'ductile', 'deflection', 'loadCombos', 'devLength', 'fdnStability', 'pdfReport', 'dashboard', 'recovery', 'settings', 'userGuide', 'costEstimate', 'steelSummary', 'retainingWall', 'combinedFtg', 'torsion', 'mixDesign', 'aiAssistant', 'analysisWorkbench', 'optimization'].includes(tab);
 
             if (isScheduleTab) {
                 document.getElementById('planModelTools').hidden = true;
@@ -8134,6 +8337,8 @@
                     } else if (tab === 'settings') {
                         document.getElementById('panelSettings').style.display = 'block';
                         loadSettings();
+                    } else if (tab === 'userGuide') {
+                        document.getElementById('panelUserGuide').style.display = 'block';
                     } else if (tab === 'costEstimate') {
                         document.getElementById('panelCostEstimate').style.display = 'block';
                         calculateCost();
@@ -10239,7 +10444,7 @@
 
             if (indicator) indicator.style.background = reviewStatus ? 'var(--warning)' : 'var(--success)';
             if (statusText) {
-                statusText.textContent = reviewStatus ? reviewStatus.label : 'Analysis Complete';
+                statusText.textContent = reviewStatus ? reviewStatus.label : 'Model Updated';
                 statusText.title = reviewStatus ? reviewStatus.detail : '';
             }
 
