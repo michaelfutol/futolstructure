@@ -706,6 +706,7 @@ function checkLandingPageContract() {
     assert(landing.includes('registration and the 30-day expiry are stored only in this browser'), 'Landing page does not disclose the pilot-only local registration boundary');
     assert(landing.includes("window.location.assign('v3/index.html')"), 'Landing page trial flow does not launch the FutolStructure workspace');
     assert(landing.includes('/_vercel/insights/script.js') && landing.includes("window.va('beforeSend'"), 'Landing page Vercel analytics collector or privacy filter is missing');
+    assert(landing.includes("fsAnalyticsOptOutKey = 'FutolStructure.analyticsOptOut.v1'") && landing.includes("analyticsMode === 'off'") && landing.includes('return null'), 'Landing page internal-traffic opt-out gate is missing');
     assert(landing.includes("trackPilotEvent('trial_dialog_opened'") && landing.includes("trackPilotEvent('pilot_trial_activated'") && landing.includes("trackPilotEvent('workspace_opened'"), 'Landing page pilot funnel events are missing');
     assert(landing.includes('Anonymous usage analytics do not receive these details.'), 'Landing page does not disclose the analytics privacy boundary');
     assert(!/http-equiv="refresh"/i.test(landing), 'Landing page still redirects before users can see it');

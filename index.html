@@ -16,8 +16,19 @@
     <link rel="canonical" href="https://futolstructure.futoltech.com/">
     <link rel="icon" type="image/png" href="v3/assets/futolstructure-icon.png">
     <script>
+        const fsAnalyticsOptOutKey = 'FutolStructure.analyticsOptOut.v1';
+        try {
+            const analyticsMode = new URLSearchParams(window.location.search).get('fs_analytics');
+            if (analyticsMode === 'off' || analyticsMode === 'on') {
+                localStorage.setItem(fsAnalyticsOptOutKey, analyticsMode === 'off' ? '1' : '0');
+                const cleanUrl = new URL(window.location.href);
+                cleanUrl.searchParams.delete('fs_analytics');
+                window.history.replaceState({}, '', cleanUrl);
+            }
+        } catch (_error) { }
         window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
         window.va('beforeSend', function (event) {
+            try { if (localStorage.getItem(fsAnalyticsOptOutKey) === '1') return null; } catch (_error) { }
             const url = new URL(event.url);
             url.search = '';
             return Object.assign({}, event, { url: url.toString() });
