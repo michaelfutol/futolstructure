@@ -8433,6 +8433,177 @@
 
         let lastAnalysisOptimizationJob = null;
 
+        function buildSharedAnalyticalTransformAudit(model) {
+            const toleranceM = 0.000001;
+            const transform = model?.coordinateTransform || {};
+            const xSign = Number(transform.xSign);
+            const ySign = Number(transform.ySign);
+            const transformValid = Number.isFinite(xSign) && Number.isFinite(ySign) && xSign === 1 && ySign === -1;
+            const sections = new Map((model?.frameSections || []).map(section => [String(section.name), section]));
+            const levels = new Map((model?.levels || []).map(level => [String(level.id), Number(level.elevation)]));
+            const near = (actual, expected, tolerance = toleranceM) =>
+                Number.isFinite(Number(actual)) && Number.isFinite(Number(expected)) &&
+                Math.abs(Number(actual) - Number(expected)) <= tolerance;
+            const angleNear = (actual, expected) => {
+                if (!Number.isFinite(Number(actual)) || !Number.isFinite(Number(expected))) return false;
+                const delta = ((Number(actual) - Number(expected) + 180) % 360 + 360) % 360 - 180;
+                return Math.abs(delta) <= 0.001;
+            };
+            const solverPoint = point => transformValid && point &&
+                Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y))
+                ? { x: Number(point.x) * xSign, y: Number(point.y) * ySign }
+                : null;
+            const summarizeRows = rows => ({
+                total: rows.length,
+                matched: rows.filter(row => row.status === 'MATCH').length,
+                failed: rows.filter(row => row.status !== 'MATCH').length
+            });
+            const row = (kind, item, checks, details = {}) => {
+                const failedChecks = Object.keys(checks).filter(name => checks[name] !== true);
+                return {
+                    kind,
+                    id: String(item?.id || ''),
+                    sourceId: String(item?.sourceId || item?.id || ''),
+                    floorId: String(item?.floorId || ''),
+                    status: failedChecks.length ? 'REVIEW' : 'MATCH',
+                    checks,
+                    failedChecks,
+                    ...details
+                };
+            };
+            const columns = (model?.columns || []).map(column => {
+                const point = solverPoint({ x: column.sourcePlanX, y: column.sourcePlanY });
+                const section = sections.get(String(column.section));
+                const orientation = Number(column.sourceOrientationDeg);
+                return row('column', column, {
+                    coordinateTransform: !!point,
+                    centroidPosition: !!point && near(column.x, point.x) && near(column.y, point.y),
+                    columnCardinal: Number(column.analyticalCardinalPoint) === 5,
+                    sourceOrientation: near(column.orientationDeg, orientation),
+                    etabsAxisOrientation: angleNear(column.etabsLocalAxisAngleDeg, -orientation),
+                    sectionAxes: !!section && section.type === 'column' &&
+                        near(section.bMm, column.sourceSizeBmm, 0.001) &&
+                        near(section.hMm, column.sourceSizeHmm, 0.001) &&
+                        near(section.etabsT2Mm, column.sourceSizeHmm, 0.001) &&
+                        near(section.etabsT3Mm, column.sourceSizeBmm, 0.001),
+                    elevations: Number.isFinite(Number(column.z1)) && Number.isFinite(Number(column.z2)) &&
+                        Number(column.z2) > Number(column.z1) &&
+                        (!levels.has(String(column.startLevel)) || near(column.z1, levels.get(String(column.startLevel)))) &&
+                        (!levels.has(String(column.endLevel)) || near(column.z2, levels.get(String(column.endLevel))))
+                }, {
+                    orientationDeg: column.orientationDeg,
+                    etabsLocalAxisAngleDeg: column.etabsLocalAxisAngleDeg
+                });
+            });
+            const beams = (model?.beams || []).map(beam => {
+                const physical = beam.physicalPlanAxis || {};
+                const analytical = beam.analyticalPlanAxis || {};
+                const drawing = beam.drawingAxis || {};
+                const offsets = beam.jointOffsets || {};
+                const shared = offsets.sharedSolverPlan || {};
+                const source = offsets.sourcePlan || {};
+                const section = sections.get(String(beam.section));
+                const physicalStart = solverPoint({ x: physical.x1, y: physical.y1 });
+                const physicalEnd = solverPoint({ x: physical.x2, y: physical.y2 });
+                const analyticalStart = solverPoint({ x: analytical.x1, y: analytical.y1 });
+                const analyticalEnd = solverPoint({ x: analytical.x2, y: analytical.y2 });
+                const sourceStart = source.start || {};
+                const sourceEnd = source.end || {};
+                const sharedStart = shared.start || {};
+                const sharedEnd = shared.end || {};
+                const expectedVerticalOffset = section
+                    ? -Math.max(0, (Number(section.hMm) - Number(beam.slabThicknessMm)) / 2000)
+                    : NaN;
+                const endpoints = [
+                    { physical: physicalStart, analytical: analyticalStart, drawingX: drawing.x1, drawingY: drawing.y1, nodeX: beam.x1, nodeY: beam.y1, source: sourceStart, shared: sharedStart },
+                    { physical: physicalEnd, analytical: analyticalEnd, drawingX: drawing.x2, drawingY: drawing.y2, nodeX: beam.x2, nodeY: beam.y2, source: sourceEnd, shared: sharedEnd }
+                ];
+                const endpointChecks = endpoints.map(endpoint => ({
+                    physicalTransform: !!endpoint.physical && near(endpoint.drawingX, endpoint.physical.x) && near(endpoint.drawingY, endpoint.physical.y),
+                    analyticalTransform: !!endpoint.analytical && near(endpoint.nodeX, endpoint.analytical.x) && near(endpoint.nodeY, endpoint.analytical.y),
+                    sourceOffset: !!endpoint.physical && !!endpoint.analytical &&
+                        near(endpoint.source.dx, Number(endpoint.physical.x) / xSign - Number(endpoint.analytical.x) / xSign) &&
+                        near(endpoint.source.dy, Number(endpoint.physical.y) / ySign - Number(endpoint.analytical.y) / ySign),
+                    sharedOffset: !!endpoint.physical && !!endpoint.analytical &&
+                        near(endpoint.shared.dx, endpoint.physical.x - endpoint.analytical.x) &&
+                        near(endpoint.shared.dy, endpoint.physical.y - endpoint.analytical.y),
+                    reconstructsPhysicalAxis: !!endpoint.physical &&
+                        near(Number(endpoint.nodeX) + Number(endpoint.shared.dx), endpoint.drawingX) &&
+                        near(Number(endpoint.nodeY) + Number(endpoint.shared.dy), endpoint.drawingY)
+                }));
+                const endpointChecksPass = key => endpointChecks.every(check => check[key]);
+                return row('beam', beam, {
+                    coordinateTransform: transformValid,
+                    physicalAxisTransform: endpointChecksPass('physicalTransform'),
+                    analyticalJointTransform: endpointChecksPass('analyticalTransform'),
+                    sourceOffsets: endpointChecksPass('sourceOffset'),
+                    sharedOffsets: endpointChecksPass('sharedOffset'),
+                    offsetReconstruction: endpointChecksPass('reconstructsPhysicalAxis'),
+                    beamCardinal: Number(beam.analyticalCardinalPoint) === 8,
+                    level: near(beam.z, beam.floorElevationM) && near(beam.z, beam.beamTopElevationM) &&
+                        (!levels.has(String(beam.levelId)) || near(beam.z, levels.get(String(beam.levelId)))),
+                    verticalInsertionOffset: near(beam.verticalInsertionOffsetM, expectedVerticalOffset),
+                    noPlanVerticalOffsetDuplication: near(sharedStart.dz || 0, 0) && near(sharedEnd.dz || 0, 0),
+                    sectionAxes: !!section && section.type === 'beam' &&
+                        near(section.bMm, beam.sourceSizeBmm, 0.001) &&
+                        near(section.hMm, beam.sourceSizeHmm, 0.001) &&
+                        near(section.etabsT2Mm, beam.sourceSizeBmm, 0.001) &&
+                        near(section.etabsT3Mm, beam.sourceSizeHmm, 0.001)
+                }, {
+                    analyticalCardinalPoint: beam.analyticalCardinalPoint,
+                    sharedOffsets: { start: sharedStart, end: sharedEnd },
+                    verticalInsertionOffsetM: beam.verticalInsertionOffsetM
+                });
+            });
+            const polygonMatches = (expected, actual) => {
+                if (!Array.isArray(expected) || !Array.isArray(actual) || expected.length < 3 || expected.length !== actual.length) return false;
+                for (const reverse of [false, true]) {
+                    for (let shift = 0; shift < expected.length; shift += 1) {
+                        const matched = expected.every((point, index) => {
+                            const actualIndex = reverse
+                                ? (shift - index + actual.length) % actual.length
+                                : (shift + index) % actual.length;
+                            return near(point.x, actual[actualIndex]?.x) && near(point.y, actual[actualIndex]?.y);
+                        });
+                        if (matched) return true;
+                    }
+                }
+                return false;
+            };
+            const slabs = (model?.slabs || []).map(slab => {
+                const expectedPoints = (slab.canonicalPlanBoundary || []).map(solverPoint);
+                return row('slab', slab, {
+                    coordinateTransform: transformValid && expectedPoints.every(Boolean),
+                    canonicalBoundary: polygonMatches(expectedPoints, slab.points || []),
+                    level: near(slab.z, slab.floorElevationM) && near(slab.z, slab.slabReferenceElevationM) &&
+                        (!levels.has(String(slab.levelId)) || near(slab.z, levels.get(String(slab.levelId)))),
+                    cantileverMetadata: slab.canonicalBoundaryRole !== 'cantilever-slab' ||
+                        ['top', 'bottom', 'left', 'right', 'corner'].includes(String(slab.canonicalCantileverEdge))
+                }, {
+                    canonicalBoundaryRole: slab.canonicalBoundaryRole || 'regular-slab',
+                    canonicalCantileverEdge: slab.canonicalCantileverEdge || null
+                });
+            });
+            const allRows = [...columns, ...beams, ...slabs];
+            const failures = allRows.filter(item => item.status !== 'MATCH');
+            return {
+                contract: 'FutolStructure.SharedAnalyticalTransformAudit.v1',
+                status: transformValid && failures.length === 0 ? 'PASS' : 'REVIEW',
+                toleranceM,
+                coordinateTransform: { source: transform.source || '', solver: transform.solver || '', xSign, ySign },
+                summary: {
+                    columns: summarizeRows(columns),
+                    beams: summarizeRows(beams),
+                    slabs: summarizeRows(slabs),
+                    total: allRows.length,
+                    matched: allRows.length - failures.length,
+                    failed: failures.length
+                },
+                rows: { columns, beams, slabs },
+                failures
+            };
+        }
+
         function buildCanonicalAnalyticalAudit(model) {
             const source = model || {};
             const geometry = source.analyticalGeometry || {};
@@ -8462,10 +8633,12 @@
                     Math.hypot(Number(point.dx) || 0, Number(point.dy) || 0) > 1e-9);
             }).length;
             const topologyBlocked = Number(source.topologyValidation?.summary?.blocked || 0);
+            const transformAudit = geometry.sharedTransformAudit || null;
             const checks = {
                 centroidNodes: geometry.beamEndpointPolicy === 'column-centroid-joints',
                 columnCardinal: Number(geometry.columnCardinalPoint) === 5,
                 beamCardinal: Number(geometry.beamCardinalPoint) === 8,
+                sharedTransforms: transformAudit?.status === 'PASS',
                 governedLevels: levels.length > 0,
                 finiteGrid: (grid.xLines || []).every(line => Number.isFinite(Number(line.coordinateM))) &&
                     (grid.yLines || []).every(line => Number.isFinite(Number(line.coordinateM))),
@@ -8475,6 +8648,7 @@
                 counts: { columns: columns.length, beams: beams.length, slabs: slabs.length, nodes: nodes.size, levels: levels.length, offsetMembers },
                 checks,
                 status: Object.values(checks).every(Boolean) ? 'READY_FOR_SOLVER_REVIEW' : 'BLOCKED_OR_REVIEW_REQUIRED',
+                transformAudit,
                 policies: {
                     node: geometry.nodePolicy || 'missing',
                     physical: geometry.physicalGeometryPolicy || 'missing',
@@ -8494,7 +8668,11 @@
                 `Canonical inventory: ${audit.counts.columns} columns | ${audit.counts.beams} beams | ${audit.counts.slabs} slabs | ${audit.counts.levels} governed levels`,
                 `Analytical registry: ${audit.counts.nodes} unique joints | ${audit.counts.offsetMembers} beam member(s) with physical-to-analytical offsets`,
                 `Rules: centroid joints ${pass(audit.checks.centroidNodes)} | column cardinal 5 ${pass(audit.checks.columnCardinal)} | beam top-center cardinal 8 ${pass(audit.checks.beamCardinal)}`,
-                `Integrity: levels ${pass(audit.checks.governedLevels)} | grid ordinates ${pass(audit.checks.finiteGrid)} | topology blockers ${audit.checks.topology ? '0' : 'present'}`,
+                `Per-member transform: ${pass(audit.checks.sharedTransforms)} | columns ${audit.transformAudit?.summary?.columns?.matched || 0}/${audit.transformAudit?.summary?.columns?.total || 0} | beams ${audit.transformAudit?.summary?.beams?.matched || 0}/${audit.transformAudit?.summary?.beams?.total || 0} | slabs ${audit.transformAudit?.summary?.slabs?.matched || 0}/${audit.transformAudit?.summary?.slabs?.total || 0}`,
+                `Integrity: levels ${pass(audit.checks.governedLevels)} | grid ordinates ${pass(audit.checks.finiteGrid)} | topology blockers ${audit.checks.topology ? '0' : 'present'} | transform issues ${audit.transformAudit?.summary?.failed ?? 'not reported'}`,
+                ...(audit.transformAudit?.failures?.length
+                    ? [`Transform review: ${audit.transformAudit.failures.slice(0, 8).map(item => `${item.kind} ${item.id}: ${item.failedChecks.join(', ')}`).join(' | ')}`]
+                    : []),
                 `Physical view: ${audit.policies.physical}`,
                 `Solver view: ${audit.policies.node}; offsets ${audit.policies.offsets}`
             ].join('\n');
@@ -26080,6 +26258,7 @@ function populateBOM() {
 
             window.lastSTAADExportAudit = {
                 coordinateTransform: staadCoordinateTransform,
+                sharedTransformAudit: model.analyticalGeometry?.sharedTransformAudit || null,
                 orientationProbe,
                 counts: {
                     stories: model.counts.stories,
@@ -27207,6 +27386,8 @@ function populateBOM() {
                             id: sanitizeCSIName(`${floorId}-${beam.id}`, `B-${beams.length + 1}`),
                             sourceId: beam.id,
                             floorId,
+                            sourceSizeBmm: size.b,
+                            sourceSizeHmm: size.h,
                             type: governanceType,
                             topologyStatus: beam.topologyStatus || 'resolved',
                             memberStatus: getBeamMemberStatus(beam, floorId),
@@ -27500,6 +27681,8 @@ function populateBOM() {
                     tieBeams: foundation.tieBeams.length
                 }
             };
+
+            model.analyticalGeometry.sharedTransformAudit = buildSharedAnalyticalTransformAudit(model);
 
             // Attach one governed analytical-input contract to the canonical export model.
             // ETABS, STAAD, PyNite, and OpenSees adapters must consume this contract rather
@@ -28793,6 +28976,7 @@ try {
             beamEndpointPolicy = 'column-centroid-joints'
             columnCardinalPoint = 5
             beamCardinalPoint = 8
+            sharedTransformAudit = $model.analyticalGeometry.sharedTransformAudit
             canonicalPointCount = $pointByCoordinate.Count
             columnsAddedByPoint = $true
             beamsAddedByPoint = $true
@@ -28861,7 +29045,7 @@ try {
         frameObjectsInETABS = $sap.FrameObj.Count('All')
         areaObjectsInETABS = $sap.AreaObj.Count()
     }
-    [IO.File]::WriteAllText($auditPath, ($audit | ConvertTo-Json -Depth 6))
+    [IO.File]::WriteAllText($auditPath, ($audit | ConvertTo-Json -Depth 10))
     $success = $true
     Write-Host ('ETABS model created: ' + $edbPath)
     Write-Host ('Native E2K created: ' + $e2kPath)
