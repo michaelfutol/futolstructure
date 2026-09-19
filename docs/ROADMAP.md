@@ -1,6 +1,6 @@
 # FutolStructure Delivery Tracker
 
-Updated: 2026-09-14. Update this file after each verified milestone; retain evidence links and unresolved blockers.
+Updated: 2026-09-19. Update this file after each verified milestone; retain evidence links and unresolved blockers.
 
 Governing direction: [Drive roadmap](https://docs.google.com/document/d/1l4THhH7AIRu_SW5WWB0ixpKqgR0jLG21cRenhR96Xc4/edit).
 Detailed scope: [September delivery plan](FS_DELIVERY_ROADMAP_2026-09-05.md).
@@ -10,7 +10,7 @@ Integrated analysis/optimization specification: [PRD v1](FS_INTEGRATED_ANALYSIS_
 Statuses: Planned, In Progress, Locally Verified, Native Acceptance Pending, Released.
 Locally Verified does not imply a published installer or a production deployment.
 
-Current working candidate: `feature/fs-125-shared-analytical-inputs`, packaged and installed as `3.16.125-rc.7 / FS-125-RC7`. Source, focused geometry, and installed-app tests pass: edge beams resolve to the cantilever-beam faces, 1.2 m projections display as `1200`, and direct typing with Enter commit works in both the left member-size inputs and Columns/Beams schedules. Implementation commit `118b6f2` is pushed to the feature branch. See [UI control audit](UI-CONTROL-AUDIT-2026-09-13.md) for completed cleanup and proposed follow-ups.
+Current local candidate: `feature/fs-125-shared-analytical-inputs`, packaged and installed as `3.16.125-rc.9 / FS-125-RC9` from source checkpoint `99877c4`. This local build includes the pending close/save confirmation, DXF polyline/tag updates, and manual footing-override propagation into DXF geometry, labels, schedule, bounds, and quantities. Installer creation and per-user installation completed on 2026-09-19. The RC9 regression suite and native CAD inspection were not run; treat those acceptance gates as pending. This candidate has not been pushed to GitHub or deployed to the production website. See [UI control audit](UI-CONTROL-AUDIT-2026-09-13.md) for completed cleanup and proposed follow-ups.
 
 Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_ULTRA_SUPER_IMPROVEMENT_AUDIT_V2.md](FUTOLSTRUCTURE_ASTRA_ULTRA_SUPER_IMPROVEMENT_AUDIT_V2.md). Phase 1A has a focused local regression passing for unit-contract source checks, finite support validation, incomplete ETABS evidence, signed/zero-safe comparison, and per-floor dashboard source behavior. The first Phase 1B boundary is now explicit: PyNite accepts the governed zero-offset horizontal baseline but blocks physical joint offsets, vertical insertion offsets, and sloped members until equivalent mapping is implemented. The old PyNite result artifact is not a post-fix acceptance result and must be regenerated in the pinned environment.
 
@@ -37,7 +37,7 @@ Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_U
 | IMPORT-03 | PDF/CAD underlay and assisted model entry | Planned | Calibration, user-confirmed inference and preserved source drawing |
 | DOC-01 | Coordinated DXF/IFC/A4 and quantities | A4 PDF Verified - Native BIM Pending | [PDF report acceptance](PDF_REPORT_ACCEPTANCE_2026-09-06.md) verifies a real three-page A4 PDF with Arial and visual inspection; DXF/IFC native CAD/Revit inspection remains |
 | DETAIL-01 | Solver-approved reinforcement and fabrication handoff | Contract Pending - Legacy BBS Is Preliminary | Existing Rebar/BBS/BOM panels remain preliminary. Next gate is governed `RebarHandoff.v1` from ETABS/STAAD (RCDC optional on the STAAD route), followed by FS audit and Tekla Structures fabrication/detailing. Revit rebar remains optional documentation output, not the current fabrication authority |
-| RELEASE-01 | FS-125-RC5 GitHub candidate and local Windows install | Locally Verified | RC5 adds working Measure support on Layout, Tributary, and Foundation; explicit Object Snap and Grid Snap controls with 5/10/25/50 cm increments; and display-scale-safe canvas pointer transforms. Full source/browser and isolated installed-app acceptance pass. GitHub feature-branch publication remains; native ETABS/STAAD/Revit acceptance stays tracked separately |
+| RELEASE-01 | FS-125-RC9 local Windows candidate | Installed - acceptance pending | RC9 packages the current source checkpoint and was installed per-user on 2026-09-19. Functional/regression and native CAD acceptance were not run for this packaging step; GitHub publication and production deployment remain separate |
 | RELEASE-02 | Production web and public Windows update | Planned | Merge/release after candidate acceptance; matching version/provenance across both |
 | CLOUD-01 | Authentication and private project storage | Planned | Project ownership, access isolation, recovery and security tests before cloud sync |
 
@@ -68,6 +68,7 @@ Audit v2 execution status: Phase 0 evidence is frozen in [FUTOLSTRUCTURE_ASTRA_U
 - RC5 installed smoke: `3.16.125-rc.5 / FS-125-RC5`, isolated profile, source checkpoint `e05d915bd97fd8d6f81366416ae0541b9efc011b`, and zero page errors; `output/playwright/desktop/desktop-smoke.json`.
 - Installed smoke: passed with isolated profile, correct source revision and no page errors; output/playwright/desktop/desktop-smoke.json.
 - Installer SHA256: C4C85B76DC1E3C39011DD68695E093205BF494ED64C8E58765AA505D8E9600E2.
+- RC9 installer: `output/desktop/FutolStructure-Setup-3.16.125-rc.9-x64.exe`; SHA256 `B3658E9DE978F1D6AE3875CAA902813BBA060460BEF2B873C6810C0D02056EE3`; installed to `%LOCALAPPDATA%/Programs/FutolStructure` on 2026-09-19. Executable metadata reports `3.16.125-rc.9`; no RC9 functional test or native CAD inspection was run.
 - Browser workspace regression: RC3 command emitted `ok:true`; the canonical fixture audit reports `PASS`, with 30 checks covering counts, levels, grids, representative columns/beams, offsets, section axes, and unique analytical joints. The 2026-09-08 edge fixture reports 50/50 canonical slab boundaries, 26 cantilever boundaries, 50 STAAD shell plates, cardinal 5/8, and ETABS slab-boundary audit code. Native acceptance for the same edge fixture also passed in ETABS 22 and STAAD.Pro 2024; the STAAD run reports 0 engine errors and 26 separate design/cover warnings. Existing test-only PDF stub errors remain in the regression log and are not release blockers.
 - Canonical/analytical fixture evidence: [FS-side fixture acceptance](CANONICAL_ANALYTICAL_FIXTURE_ACCEPTANCE_2026-09-07.md); the exact dated ETABS and STAAD native readback passed.
 - Canonical solver artifacts: `output/acceptance/fs125-canonical-analytical-2026-09-07/`; the fixture-specific `.ps1`, `.std`, model snapshot, ETABS EDB/audit, and STAAD ANL/LOG are hash-recorded in the acceptance document, with both native gates passed.
