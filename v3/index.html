@@ -1601,6 +1601,43 @@
             color: #fde68a;
         }
 
+        .beam-flush-audit-wrap {
+            max-width: 100%;
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--panel-bg);
+        }
+
+        .beam-flush-audit-table {
+            width: max-content;
+            min-width: 100%;
+            border-collapse: collapse;
+            font: 0.68rem/1.35 var(--font-mono);
+            white-space: nowrap;
+        }
+
+        .beam-flush-audit-table th,
+        .beam-flush-audit-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+        }
+
+        .beam-flush-audit-table th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: var(--toolbar-bg);
+            color: var(--text-muted);
+        }
+
+        .beam-flush-audit-table .flush-status-match { color: #34d399; }
+        .beam-flush-audit-table .flush-status-review,
+        .beam-flush-audit-table .flush-status-skewed_face,
+        .beam-flush-audit-table .flush-status-no_support { color: #fbbf24; }
+        .beam-flush-audit-table .flush-status-manual_offset { color: #60a5fa; }
+
         .capability-badge {
             display: inline-block;
             margin-left: 6px;
@@ -3182,6 +3219,22 @@
                     </div>
                     <div id="analysisOptimizationModelSummary" class="analysis-workbench-status" role="status">Model inventory pending.</div>
                     <div id="canonicalAnalyticalAudit" class="analysis-workbench-status" role="status" style="white-space:pre-line; margin-top:8px;">Canonical / analytical audit pending.</div>
+                    <details id="beamFlushAuditDetails" style="margin-top:8px;">
+                        <summary id="beamFlushAuditSummary">Beam exterior-face offsets</summary>
+                        <div class="beam-flush-audit-wrap" style="margin-top:8px;">
+                            <table class="beam-flush-audit-table">
+                                <thead><tr>
+                                    <th>Floor</th><th>Beam</th><th>End / Column</th><th>Face</th>
+                                    <th>Beam B (mm)</th><th>Column B×H / θ</th><th>ETABS CP</th>
+                                    <th>Analytical node (solver m)</th><th>Canonical axis (solver m)</th><th>Flush target (solver m)</th>
+                                    <th>ΔX (solver mm)</th><th>ΔY (solver mm)</th><th title="Actual transverse offset minus the calculated exterior-face flush offset">Flush Δ (mm)</th>
+                                    <th title="Signed manual transverse offset projected onto the selected exterior face normal">Manual ΔN (mm)</th>
+                                    <th>STAAD vertical insertion (mm)</th><th>Status</th>
+                                </tr></thead>
+                                <tbody id="beamFlushAuditRows"></tbody>
+                            </table>
+                        </div>
+                    </details>
                     <div class="analysis-workbench-status" style="white-space:pre-line; margin-top:8px; color:#fbbf24;">Parked scope: wall, roof-frame, stair, tank, blockwall, and preliminary design panels remain coordination/draft tools until their geometry and loads are connected to the canonical CSI model and pass native ETABS/STAAD readback.</div>
                     <div id="analysisOptimizationStatus" class="analysis-workbench-status" role="status" hidden></div>
                     <details><summary>Draft details</summary><pre id="analysisOptimizationJob" class="analysis-workbench-job" hidden></pre></details>
@@ -8441,6 +8494,7 @@
             const transformValid = Number.isFinite(xSign) && Number.isFinite(ySign) && xSign === 1 && ySign === -1;
             const sections = new Map((model?.frameSections || []).map(section => [String(section.name), section]));
             const levels = new Map((model?.levels || []).map(level => [String(level.id), Number(level.elevation)]));
+            const sourceColumns = new Map((model?.columns || []).map(column => [`${column.floorId}|${column.sourceId}`, column]));
             const near = (actual, expected, tolerance = toleranceM) =>
                 Number.isFinite(Number(actual)) && Number.isFinite(Number(expected)) &&
                 Math.abs(Number(actual) - Number(expected)) <= tolerance;
@@ -8511,6 +8565,8 @@
                 const sourceEnd = source.end || {};
                 const sharedStart = shared.start || {};
                 const sharedEnd = shared.end || {};
+                const flush = beam.exteriorFlushAlignment || {};
+                const flushEndpoints = Array.isArray(flush.endpoints) ? flush.endpoints : [];
                 const expectedVerticalOffset = section
                     ? -Math.max(0, (Number(section.hMm) - Number(beam.slabThicknessMm)) / 2000)
                     : NaN;
@@ -8532,6 +8588,74 @@
                         near(Number(endpoint.nodeY) + Number(endpoint.shared.dy), endpoint.drawingY)
                 }));
                 const endpointChecksPass = key => endpointChecks.every(check => check[key]);
+                const flushEndpointChecks = flushEndpoints.map(endpoint => {
+                    const support = sourceColumns.get(`${beam.floorId}|${endpoint.supportColumnId || ''}`);
+                    const normal = endpoint.normalSolver || {};
+                    const normalLength = Math.hypot(Number(normal.x), Number(normal.y));
+                    const sharedEndpoint = endpoint.end === 'START' ? sharedStart : sharedEnd;
+                    const drawingPoint = endpoint.end === 'START'
+                        ? { x: drawing.x1, y: drawing.y1 }
+                        : { x: drawing.x2, y: drawing.y2 };
+                    const analyticalPoint = endpoint.end === 'START'
+                        ? { x: beam.x1, y: beam.y1 }
+                        : { x: beam.x2, y: beam.y2 };
+                    if (!support || !endpoint.targetFace || normalLength < 0.999 || normalLength > 1.001) {
+                        return { ledger: !endpoint.requested, flush: !endpoint.requested };
+                    }
+                    const angle = -Number(support.orientationDeg || 0) * Math.PI / 180;
+                    const axisB = { x: Math.cos(angle), y: Math.sin(angle) };
+                    const axisH = { x: -Math.sin(angle), y: Math.cos(angle) };
+                    const projectionRadius = Math.abs(Number(normal.x) * axisB.x + Number(normal.y) * axisB.y) *
+                            Number(support.sourceSizeBmm) / 2000 +
+                        Math.abs(Number(normal.x) * axisH.x + Number(normal.y) * axisH.y) *
+                            Number(support.sourceSizeHmm) / 2000;
+                    const expectedOffset = projectionRadius - Number(beam.sourceSizeBmm) / 2000;
+                    const actualOffset = Number(sharedEndpoint.dx) * Number(normal.x) +
+                        Number(sharedEndpoint.dy) * Number(normal.y);
+                    const residual = actualOffset - expectedOffset;
+                    const manualDirection = String(beam.direction).toUpperCase() === 'X' ? { x: 0, y: -1 } : { x: 1, y: 0 };
+                    const expectedManualResidual = Number(endpoint.manualOffsetM || 0) *
+                        (manualDirection.x * Number(normal.x) + manualDirection.y * Number(normal.y));
+                    const targetPoint = endpoint.flushTargetPoint || {};
+                    const faceParallel = Math.max(
+                        Math.abs(Number(normal.x) * axisB.x + Number(normal.y) * axisB.y),
+                        Math.abs(Number(normal.x) * axisH.x + Number(normal.y) * axisH.y)
+                    ) >= Math.cos(0.5 * Math.PI / 180);
+                    const expectedStatus = !faceParallel
+                        ? 'SKEWED_FACE'
+                        : Math.abs(residual) <= toleranceM
+                            ? 'MATCH'
+                            : Math.abs(Number(endpoint.manualOffsetM)) > toleranceM &&
+                                Math.abs(residual - expectedManualResidual) <= toleranceM
+                                ? 'MANUAL_OFFSET'
+                                : 'REVIEW';
+                    return {
+                        ledger: Number(endpoint.cardinalPoint) === Number(beam.analyticalCardinalPoint) &&
+                            near(endpoint.beamWidthMm, beam.sourceSizeBmm, 0.001) &&
+                            near(endpoint.columnSizeBmm, support.sourceSizeBmm, 0.001) &&
+                            near(endpoint.columnSizeHmm, support.sourceSizeHmm, 0.001) &&
+                            angleNear(endpoint.columnOrientationDeg, support.orientationDeg) &&
+                            near(endpoint.planOffsetM?.dx, sharedEndpoint.dx) &&
+                            near(endpoint.planOffsetM?.dy, sharedEndpoint.dy) &&
+                            near(endpoint.analyticalPoint?.x, analyticalPoint.x) &&
+                            near(endpoint.analyticalPoint?.y, analyticalPoint.y) &&
+                            near(endpoint.canonicalPoint?.x, drawingPoint.x) &&
+                            near(endpoint.canonicalPoint?.y, drawingPoint.y) &&
+                            near(endpoint.supportRadiusM, projectionRadius) &&
+                            near(endpoint.expectedTransverseOffsetM, expectedOffset) &&
+                            near(endpoint.actualTransverseOffsetM, actualOffset) &&
+                            near(endpoint.flushResidualM, residual) &&
+                            near(endpoint.expectedManualResidualM, expectedManualResidual) &&
+                            near(targetPoint.x, Number(drawingPoint.x) + Number(normal.x) * (expectedOffset - actualOffset)) &&
+                            near(targetPoint.y, Number(drawingPoint.y) + Number(normal.y) * (expectedOffset - actualOffset)) &&
+                            endpoint.faceParallel === faceParallel,
+                        flush: !endpoint.requested || ['MATCH', 'MANUAL_OFFSET'].includes(expectedStatus) && endpoint.status === expectedStatus
+                    };
+                });
+                const flushLedgerValid = flush.contract === 'FutolStructure.ExteriorBeamFlushAudit.v1' &&
+                    flushEndpoints.length === 2 && flushEndpointChecks.length === 2 &&
+                    flushEndpointChecks.every(check => check.ledger);
+                const exteriorFlushValid = flushEndpointChecks.every(check => check.flush);
                 return row('beam', beam, {
                     coordinateTransform: transformValid,
                     physicalAxisTransform: endpointChecksPass('physicalTransform'),
@@ -8544,6 +8668,8 @@
                         (!levels.has(String(beam.levelId)) || near(beam.z, levels.get(String(beam.levelId)))),
                     verticalInsertionOffset: near(beam.verticalInsertionOffsetM, expectedVerticalOffset),
                     noPlanVerticalOffsetDuplication: near(sharedStart.dz || 0, 0) && near(sharedEnd.dz || 0, 0),
+                    exteriorFlushLedger: flushLedgerValid,
+                    exteriorFaceFlush: exteriorFlushValid,
                     sectionAxes: !!section && section.type === 'beam' &&
                         near(section.bMm, beam.sourceSizeBmm, 0.001) &&
                         near(section.hMm, beam.sourceSizeHmm, 0.001) &&
@@ -8552,7 +8678,8 @@
                 }, {
                     analyticalCardinalPoint: beam.analyticalCardinalPoint,
                     sharedOffsets: { start: sharedStart, end: sharedEnd },
-                    verticalInsertionOffsetM: beam.verticalInsertionOffsetM
+                    verticalInsertionOffsetM: beam.verticalInsertionOffsetM,
+                    exteriorFlushAlignment: flush
                 });
             });
             const polygonMatches = (expected, actual) => {
@@ -8586,6 +8713,8 @@
             });
             const allRows = [...columns, ...beams, ...slabs];
             const failures = allRows.filter(item => item.status !== 'MATCH');
+            const flushRows = beams.flatMap(beam => beam.exteriorFlushAlignment?.endpoints || []);
+            const requestedFlushRows = flushRows.filter(endpoint => endpoint.requested);
             return {
                 contract: 'FutolStructure.SharedAnalyticalTransformAudit.v1',
                 status: transformValid && failures.length === 0 ? 'PASS' : 'REVIEW',
@@ -8595,6 +8724,16 @@
                     columns: summarizeRows(columns),
                     beams: summarizeRows(beams),
                     slabs: summarizeRows(slabs),
+                    exteriorFlush: {
+                        endpoints: flushRows.length,
+                        requested: requestedFlushRows.length,
+                        matched: requestedFlushRows.filter(endpoint => endpoint.status === 'MATCH').length,
+                        manualOverrides: requestedFlushRows.filter(endpoint => endpoint.status === 'MANUAL_OFFSET').length,
+                        skewedFaces: requestedFlushRows.filter(endpoint => endpoint.status === 'SKEWED_FACE').length,
+                        review: requestedFlushRows.filter(endpoint => ['REVIEW', 'NO_SUPPORT'].includes(endpoint.status)).length,
+                        notRequested: flushRows.filter(endpoint => endpoint.status === 'NOT_REQUESTED').length,
+                        notApplicable: flushRows.filter(endpoint => ['NO_TARGET', 'NOT_APPLICABLE'].includes(endpoint.status)).length
+                    },
                     total: allRows.length,
                     matched: allRows.length - failures.length,
                     failed: failures.length
@@ -8657,11 +8796,63 @@
             };
         }
 
+        function renderBeamFlushAlignmentTable(sharedAudit) {
+            const body = document.getElementById('beamFlushAuditRows');
+            const summary = document.getElementById('beamFlushAuditSummary');
+            if (!body || !summary) return;
+            const beams = sharedAudit?.rows?.beams || [];
+            const rows = beams.flatMap(beam => (beam.exteriorFlushAlignment?.endpoints || []).map(endpoint => ({ beam, endpoint })));
+            const flushSummary = sharedAudit?.summary?.exteriorFlush || {};
+            summary.textContent = `Beam exterior-face offsets · ${rows.length} ends · ${flushSummary.matched || 0}/${flushSummary.requested || 0} flush · ${flushSummary.manualOverrides || 0} manual · ${flushSummary.skewedFaces || 0} skewed`;
+            const formatPoint = point => point && Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y))
+                ? `${Number(point.x).toFixed(3)}, ${Number(point.y).toFixed(3)}`
+                : '—';
+            const formatMm = value => value != null && Number.isFinite(Number(value)) ? (Number(value) * 1000).toFixed(1) : '—';
+            const formatNumber = value => value != null && Number.isFinite(Number(value)) ? Number(value).toFixed(0) : '—';
+            const fragment = document.createDocumentFragment();
+            rows.forEach(({ beam, endpoint }) => {
+                const tr = document.createElement('tr');
+                const supportSize = endpoint.columnSizeBmm == null
+                    ? '—'
+                    : `${formatNumber(endpoint.columnSizeBmm)}×${formatNumber(endpoint.columnSizeHmm)} / ${Number(endpoint.columnOrientationDeg || 0).toFixed(1)}°`;
+                const values = [
+                    beam.floorId || '—',
+                    beam.sourceId || beam.id || '—',
+                    `${endpoint.end || '—'} / ${endpoint.supportColumnId || '—'}`,
+                    endpoint.targetFace || '—',
+                    formatNumber(endpoint.beamWidthMm),
+                    supportSize,
+                    endpoint.cardinalPoint ?? '—',
+                    formatPoint(endpoint.analyticalPoint),
+                    formatPoint(endpoint.canonicalPoint),
+                    formatPoint(endpoint.flushTargetPoint),
+                    endpoint.planOffsetM ? formatMm(endpoint.planOffsetM.dx) : '—',
+                    endpoint.planOffsetM ? formatMm(endpoint.planOffsetM.dy) : '—',
+                    formatMm(endpoint.flushResidualM),
+                    formatMm(endpoint.expectedManualResidualM),
+                    formatMm(endpoint.verticalInsertionOffsetM),
+                    endpoint.status || 'REVIEW'
+                ];
+                values.forEach((value, index) => {
+                    const td = document.createElement('td');
+                    td.textContent = String(value);
+                    if (index === values.length - 1) {
+                        td.className = `flush-status-${String(endpoint.status || 'review').toLowerCase()}`;
+                    }
+                    tr.appendChild(td);
+                });
+                fragment.appendChild(tr);
+            });
+            body.replaceChildren(fragment);
+        }
+
         function renderCanonicalAnalyticalAudit(model) {
             const target = document.getElementById('canonicalAnalyticalAudit');
             if (!target) return;
             const audit = buildCanonicalAnalyticalAudit(model);
+            renderBeamFlushAlignmentTable(audit.transformAudit);
             const pass = value => value ? 'PASS' : 'REVIEW';
+            const flush = audit.transformAudit?.summary?.exteriorFlush || {};
             target.className = `analysis-workbench-status ${audit.status === 'READY_FOR_SOLVER_REVIEW' ? 'ready' : 'blocked'}`;
             target.textContent = [
                 `Canonical / analytical contract: ${audit.status}`,
@@ -8669,6 +8860,7 @@
                 `Analytical registry: ${audit.counts.nodes} unique joints | ${audit.counts.offsetMembers} beam member(s) with physical-to-analytical offsets`,
                 `Rules: centroid joints ${pass(audit.checks.centroidNodes)} | column cardinal 5 ${pass(audit.checks.columnCardinal)} | beam top-center cardinal 8 ${pass(audit.checks.beamCardinal)}`,
                 `Per-member transform: ${pass(audit.checks.sharedTransforms)} | columns ${audit.transformAudit?.summary?.columns?.matched || 0}/${audit.transformAudit?.summary?.columns?.total || 0} | beams ${audit.transformAudit?.summary?.beams?.matched || 0}/${audit.transformAudit?.summary?.beams?.total || 0} | slabs ${audit.transformAudit?.summary?.slabs?.matched || 0}/${audit.transformAudit?.summary?.slabs?.total || 0}`,
+                `Exterior flush: ${flush.matched || 0}/${flush.requested || 0} match | ${flush.manualOverrides || 0} manual offsets | ${flush.skewedFaces || 0} skewed faces | ${flush.review || 0} review`,
                 `Integrity: levels ${pass(audit.checks.governedLevels)} | grid ordinates ${pass(audit.checks.finiteGrid)} | topology blockers ${audit.checks.topology ? '0' : 'present'} | transform issues ${audit.transformAudit?.summary?.failed ?? 'not reported'}`,
                 ...(audit.transformAudit?.failures?.length
                     ? [`Transform review: ${audit.transformAudit.failures.slice(0, 8).map(item => `${item.kind} ${item.id}: ${item.failedChecks.join(', ')}`).join(' | ')}`]
@@ -27161,6 +27353,135 @@ function populateBOM() {
                 }
                 return slabSectionMap.get(key).name;
             };
+            const buildExteriorBeamFlushAlignment = (beam, floorId, size, geometry, solverPoints, solverOffsets, verticalInsertionOffsetM) => {
+                const bounds = getPlanBounds();
+                const edgeToleranceM = 0.01;
+                const direction = String(beam?.direction || '').toUpperCase();
+                let face = null;
+                let outward = null;
+                if (direction === 'X') {
+                    const ordinate = Number(beam.y1) || 0;
+                    if (Math.abs(ordinate) <= edgeToleranceM) {
+                        face = 'TOP';
+                        outward = { x: 0, y: -1 };
+                    } else if (Math.abs(ordinate - bounds.totalY) <= edgeToleranceM) {
+                        face = 'BOTTOM';
+                        outward = { x: 0, y: 1 };
+                    }
+                } else if (direction === 'Y') {
+                    const ordinate = Number(beam.x1) || 0;
+                    if (Math.abs(ordinate) <= edgeToleranceM) {
+                        face = 'LEFT';
+                        outward = { x: -1, y: 0 };
+                    } else if (Math.abs(ordinate - bounds.totalX) <= edgeToleranceM) {
+                        face = 'RIGHT';
+                        outward = { x: 1, y: 0 };
+                    }
+                }
+                const physical = geometry.physical;
+                const analytical = geometry.analytical;
+                const tangentLength = Math.hypot(physical.x2 - physical.x1, physical.y2 - physical.y1);
+                let normal = tangentLength > 1e-9
+                    ? { x: -(physical.y2 - physical.y1) / tangentLength, y: (physical.x2 - physical.x1) / tangentLength }
+                    : null;
+                if (normal && outward && normal.x * outward.x + normal.y * outward.y < 0) {
+                    normal = { x: -normal.x, y: -normal.y };
+                }
+                const requested = state.columnAlignment === 'outer' && face !== null && getBeamGovernanceType(beam) === 'regular';
+                const halfBeamWidthM = Math.max(0, Number(size?.b) || 0) / 2000;
+                const manualOffsetM = getBeamAlignmentOverride(beam, floorId);
+                const manualDirection = direction === 'X' ? { x: 0, y: 1 } : { x: 1, y: 0 };
+                const endpoints = ['start', 'end'].map((end, index) => {
+                    const supportColumnId = end === 'start' ? beam.startCol : beam.endCol;
+                    const column = state.columns.find(item => item.id === supportColumnId);
+                    const physicalPoint = index === 0
+                        ? { x: physical.x1, y: physical.y1 }
+                        : { x: physical.x2, y: physical.y2 };
+                    const analyticalPoint = index === 0
+                        ? { x: analytical.x1, y: analytical.y1 }
+                        : { x: analytical.x2, y: analytical.y2 };
+                    const solverAnalyticalPoint = index === 0 ? solverPoints.start : solverPoints.end;
+                    const solverCanonicalPoint = index === 0 ? solverPoints.physicalStart : solverPoints.physicalEnd;
+                    const solverOffset = index === 0 ? solverOffsets.start : solverOffsets.end;
+                    const footprint = column ? getColumnPlanFootprint(column) : null;
+                    let supportRadiusM = null;
+                    let expectedTransverseOffsetM = null;
+                    let actualTransverseOffsetM = null;
+                    let flushResidualM = null;
+                    let targetPoint = null;
+                    let faceParallel = null;
+                    const expectedManualResidualM = manualOffsetM *
+                        (manualDirection.x * (normal?.x || 0) + manualDirection.y * (normal?.y || 0));
+
+                    if (footprint && normal) {
+                        supportRadiusM = Math.max(...footprint.corners.map(point =>
+                            (point.x - footprint.center.x) * normal.x + (point.y - footprint.center.y) * normal.y
+                        ));
+                        expectedTransverseOffsetM = supportRadiusM - halfBeamWidthM;
+                        actualTransverseOffsetM = (physicalPoint.x - analyticalPoint.x) * normal.x +
+                            (physicalPoint.y - analyticalPoint.y) * normal.y;
+                        flushResidualM = actualTransverseOffsetM - expectedTransverseOffsetM;
+                        targetPoint = toSolverPlanPoint(
+                            physicalPoint.x + normal.x * (expectedTransverseOffsetM - actualTransverseOffsetM),
+                            physicalPoint.y + normal.y * (expectedTransverseOffsetM - actualTransverseOffsetM)
+                        );
+                        const angle = getColumnOrientationDeg(column) * Math.PI / 180;
+                        const axisB = { x: Math.cos(angle), y: Math.sin(angle) };
+                        const axisH = { x: -Math.sin(angle), y: Math.cos(angle) };
+                        const parallelTolerance = Math.cos(0.5 * Math.PI / 180);
+                        faceParallel = Math.max(
+                            Math.abs(normal.x * axisB.x + normal.y * axisB.y),
+                            Math.abs(normal.x * axisH.x + normal.y * axisH.y)
+                        ) >= parallelTolerance;
+                    }
+
+                    let status = 'NO_TARGET';
+                    if (face && state.columnAlignment !== 'outer') status = 'NOT_REQUESTED';
+                    else if (face && getBeamGovernanceType(beam) !== 'regular') status = 'NOT_APPLICABLE';
+                    else if (requested && !column) status = 'NO_SUPPORT';
+                    else if (requested && !normal) status = 'REVIEW';
+                    else if (requested && faceParallel === false) status = 'SKEWED_FACE';
+                    else if (requested && Math.abs(flushResidualM) <= 0.000001) status = 'MATCH';
+                    else if (requested && Math.abs(manualOffsetM) > 0.000001 &&
+                        Math.abs(flushResidualM - expectedManualResidualM) <= 0.000001) status = 'MANUAL_OFFSET';
+                    else if (requested) status = 'REVIEW';
+
+                    return {
+                        end: end.toUpperCase(),
+                        supportColumnId: supportColumnId || null,
+                        targetFace: face,
+                        requested,
+                        status,
+                        cardinalPoint: 8,
+                        manualOffsetM,
+                        beamWidthMm: Number(size?.b) || 0,
+                        columnSizeBmm: footprint?.size?.b ?? null,
+                        columnSizeHmm: footprint?.size?.h ?? null,
+                        columnOrientationDeg: footprint?.orientationDeg ?? null,
+                        faceParallel,
+                        supportRadiusM,
+                        expectedTransverseOffsetM,
+                        actualTransverseOffsetM,
+                        flushResidualM,
+                        expectedManualResidualM,
+                        normalSolver: normal ? { x: normal.x, y: -normal.y } : null,
+                        analyticalPoint: solverAnalyticalPoint,
+                        canonicalPoint: solverCanonicalPoint,
+                        flushTargetPoint: targetPoint,
+                        planOffsetM: { dx: solverOffset.dx, dy: solverOffset.dy },
+                        verticalInsertionOffsetM
+                    };
+                });
+
+                return {
+                    contract: 'FutolStructure.ExteriorBeamFlushAudit.v1',
+                    alignmentMode: state.columnAlignment || 'center',
+                    requested,
+                    face,
+                    manualOffsetM,
+                    endpoints
+                };
+            };
 
             // Resolve opted-in wall lines to the canonical physical beam axis.
             // The solver receives a line load on the matched frame member; the
@@ -27382,10 +27703,19 @@ function populateBOM() {
                                 dy: solverDrawingEnd.y - solverEnd.y
                             }
                         };
+                        const flushAlignment = buildExteriorBeamFlushAlignment(beam, floorId, size, beamGeometry, {
+                            start: solverStart,
+                            end: solverEnd,
+                            physicalStart: solverDrawingStart,
+                            physicalEnd: solverDrawingEnd
+                        }, solverOffset, verticalInsertionOffsetM);
                         beams.push({
                             id: sanitizeCSIName(`${floorId}-${beam.id}`, `B-${beams.length + 1}`),
                             sourceId: beam.id,
                             floorId,
+                            sourceStartColumnId: beam.startCol || null,
+                            sourceEndColumnId: beam.endCol || null,
+                            direction: String(beam.direction || '').toUpperCase(),
                             sourceSizeBmm: size.b,
                             sourceSizeHmm: size.h,
                             type: governanceType,
@@ -27410,6 +27740,7 @@ function populateBOM() {
                                 sourcePlan: sourceOffset,
                                 sharedSolverPlan: solverOffset
                             },
+                            exteriorFlushAlignment: flushAlignment,
                             analyticalAxisPolicy: beam.isEdgeBeam
                                 ? 'cantilever-side-beam-centerline-joints; top-center cardinal at FSTR floor elevation; drawingAxis face-terminated'
                                 : 'support-centerline-joints; top-center cardinal at FSTR floor elevation',
