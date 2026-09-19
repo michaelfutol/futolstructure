@@ -8,6 +8,15 @@ contextBridge.exposeInMainWorld('FutolStructureDesktop', Object.freeze({
     ipcRenderer.on('desktop-request-open-project', listener);
     return () => ipcRenderer.removeListener('desktop-request-open-project', listener);
   },
+  onCloseRequested: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = () => callback();
+    ipcRenderer.on('desktop-request-close-confirmation', listener);
+    return () => ipcRenderer.removeListener('desktop-request-close-confirmation', listener);
+  },
+  respondToCloseRequest: (shouldClose) => {
+    ipcRenderer.send('desktop-close-response', shouldClose === true);
+  },
   getInfo: () => ipcRenderer.invoke('desktop-info'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),

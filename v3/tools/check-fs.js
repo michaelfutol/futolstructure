@@ -172,11 +172,14 @@ function checkDxfSourceContract() {
     const requirementsPath = path.join(V3, 'tools', 'requirements-dxf.txt');
     assert(!html.includes('AC1015') && !writer.includes('AC1015'), 'DXF source still advertises AutoCAD 2000 while using the R12 writer');
     assert(html.includes('AC1009') && writer.includes('AC1009'), 'DXF source does not advertise AutoCAD R12');
+    assert(writer.includes('0\\nPOLYLINE\\n') && writer.includes('0\\nVERTEX\\n') && writer.includes('0\\nSEQEND\\n') && !writer.includes('0\\nLINE\\n'), 'DXF source must emit classic R12 polylines instead of LINE entities');
+    assert(html.includes('const dxfPolyline = (points, layer, closed = false)') && !html.includes('`0\\nLINE\\n'), 'DXF fallback must emit polylines instead of LINE entities');
     assert(html.includes('BYLAYER') && html.includes('BYBLOCK') && html.includes('arial.ttf'), 'DXF R12 standard table records or Arial text style are incomplete');
     assert(!html.includes('\\n370\\n') && !writer.includes('\\n370\\n'), 'DXF R12 writer still emits the R2000 lineweight group');
     assert(!html.includes('\\n74\\n') && !writer.includes('\\n74\\n'), 'DXF R12 writer still emits unsupported linetype alignment groups');
     assert(fs.existsSync(DXF_VALIDATOR), 'DXF strict validator is missing', { path: DXF_VALIDATOR });
     assert(fs.existsSync(requirementsPath) && fs.readFileSync(requirementsPath, 'utf8').includes('ezdxf'), 'DXF parser dependency is not pinned');
+    assert(html.includes('const beamLabelClearanceFactor = 0.25') && writer.includes('DXF_BEAM_TAG_CLEARANCE_FACTOR = 0.25') && writer.includes('allEntitiesLayered'), 'Compact beam-tag clearance or entity-layer audit is missing');
     return {
         version: 'AC1009',
         validator: path.relative(ROOT, DXF_VALIDATOR),
@@ -695,7 +698,7 @@ function checkUserGuideSourceContract() {
     assert(html.includes('state.foundationScheduleHitBox') && html.includes("setPlanTab('footingSchedule')"), 'Foundation-plan schedule does not open the editable footing schedule');
     assert(html.includes("min=\"300\" step=\"25\"") && html.includes('Manual footing thickness override in mm; 300 mm minimum'), 'Footing schedule does not enforce the 300 mm thickness baseline');
     assert(html.includes('columnFootingScheduleBtn') && html.includes('function openSelectedColumnFootingSchedule()') && !html.includes('columnFootingOverrideBtn'), 'Column context menu does not use the footing schedule as the single footing editor');
-    assert(html.includes('relative move') && html.includes("scheduleProjectAutosave('column-nudge')") && html.includes("scheduleProjectAutosave('beam-nudge')"), 'Column or beam nudge commands are not governed as persistent relative moves');
+    assert(html.includes('relative distance') && html.includes("scheduleProjectAutosave('column-nudge')") && html.includes("'beam-nudge'"), 'Column or beam nudge commands are not governed as persistent relative moves');
     return {
         tab: 'User Manual',
         refreshAction: 'Refresh Model',
@@ -852,8 +855,16 @@ function checkDesktopETABSBridge() {
         'Desktop ETABS bridge can remain pending while the open ETABS process retains inherited output pipes'
     );
     assert(main.includes('if (hasSingleInstanceLock) {') && main.includes('app.whenReady().then'), 'Desktop lifecycle does not guard duplicate instances');
+    assert(
+        main.includes("mainWindow.on('close'") &&
+        main.includes('desktop-request-close-confirmation') &&
+        main.includes("ipcMain.on('desktop-close-response'") &&
+        main.includes('closeApproved'),
+        'Desktop close guard does not protect unsaved changes'
+    );
     assert(main.includes('pathToFileURL(indexPath)'), 'Desktop startup does not use a space-safe file URL');
     assert(preload.includes('runEtabsBuilder'), 'Desktop preload does not expose the ETABS builder bridge');
+    assert(preload.includes('onCloseRequested') && preload.includes('respondToCloseRequest'), 'Desktop preload does not expose the close-confirmation bridge');
     assert(preload.includes('exportPdfReport'), 'Desktop preload does not expose the PDF generation bridge');
     assert(preload.includes('saveAndOpenExternalArtifact'), 'Desktop preload does not expose the native external-artifact bridge');
     assert(index.includes('desktopBridge.runEtabsBuilder'), 'ETABS UI is not connected to the desktop bridge');
@@ -863,6 +874,13 @@ function checkDesktopETABSBridge() {
     assert(index.includes("saveAndOpenDesktopArtifact('staad'") && index.includes("saveAndOpenDesktopArtifact('dxf'") && index.includes("saveAndOpenDesktopArtifact('ifc'"), 'STAAD, DXF, or IFC UI is not connected to the desktop artifact bridge');
     assert(main.includes('A real .edb can only be created by ETABS through its installed API'), 'ETABS native-file boundary is not explicit');
     assert(index.includes('>Refresh Model</button>') && !index.includes('>Run Analysis</button>'), 'The model refresh action is still mislabeled as a solver analysis');
+    assert(
+        index.includes('desktopCloseConfirmModal') &&
+        index.includes('function hasUnsavedProjectChanges()') &&
+        index.includes('function resolveDesktopClose(') &&
+        index.includes("event.returnValue = ''"),
+        'Workspace close guard does not prompt before discarding unsaved changes'
+    );
     assert(
         main.includes('const RECENT_PROJECT_LIMIT = 10') &&
         main.includes("'recent-projects.json'") &&
@@ -3472,6 +3490,8 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
                     missingPlanTitles,
                     missingTableTitles: requiredTableTitles.filter(title => !normalizedDxf.includes('\\n1\\n' + title + '\\n')),
                     validTerminator: dxf.endsWith('0\\r\\nEOF\\r\\n'),
+                    allEntitiesLayered: packageAudit.allEntitiesLayered === true && packageAudit.unlayeredEntityCount === 0,
+                    allLinearGeometryPolylines: packageAudit.allLinearGeometryPolylines === true && packageAudit.hasLineEntities === false,
                     packageAudit,
                     beamLayerChunk: layerChunk('S-CONC-BEAM'),
                     columnLayerChunk: layerChunk('S-CONC-COL'),
@@ -4336,6 +4356,8 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
         );
         assert(result.dxfLayerAudit.missingRequiredLayers.length === 0, 'DXF export is missing structural layer-map layers', result.dxfLayerAudit);
         assert(result.dxfLayerAudit.missingEntityLayers.length === 0, 'DXF export did not place generated entities on structural layers', result.dxfLayerAudit);
+        assert(result.dxfLayerAudit.allEntitiesLayered === true, 'DXF export contains an entity without an assigned layer', result.dxfLayerAudit);
+        assert(result.dxfLayerAudit.allLinearGeometryPolylines === true, 'DXF export contains LINE entities instead of POLYLINE geometry', result.dxfLayerAudit);
         assert(result.dxfLayerAudit.legacyLayerHits.length === 0, 'DXF export still emits legacy layer names', result.dxfLayerAudit);
         assert(
             result.dxfLayerAudit.hasR12Version === true &&
@@ -4403,7 +4425,8 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
         const parserRequiredLayers = ['0', 'S-GRID', 'S-CONC-COL', 'S-CONC-BEAM', 'S-CONC-SLAB', 'S-TEXT'];
         assert(
             parserRequiredLayers.every(layer => dxfParserAudit.original.layers.includes(layer)) &&
-            dxfParserAudit.original.entityCounts.LINE > 0 &&
+            dxfParserAudit.original.entityCounts.POLYLINE > 0 &&
+            !dxfParserAudit.original.entityCounts.LINE &&
             dxfParserAudit.original.entityCounts.TEXT > 0 &&
             dxfParserAudit.original.entityCounts.CIRCLE > 0 &&
             Object.values(dxfParserAudit.retained).every(Boolean),

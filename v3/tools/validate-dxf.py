@@ -78,6 +78,11 @@ def main():
             "entityLayerCounts": original["entityLayerCounts"] == roundtrip["entityLayerCounts"],
             "layers": original["layers"] == roundtrip["layers"],
         }
+        result["polylinePolicy"] = {
+            "hasPolylines": original["entityCounts"].get("POLYLINE", 0) > 0,
+            "noLineEntities": original["entityCounts"].get("LINE", 0) == 0
+            and roundtrip["entityCounts"].get("LINE", 0) == 0,
+        }
         result["ok"] = all(
             (
                 original["dxfVersion"] == args.expected_version,
@@ -86,6 +91,7 @@ def main():
                 not roundtrip["auditErrors"],
                 not roundtrip["auditFixes"],
                 all(result["retained"].values()),
+                all(result["polylinePolicy"].values()),
                 result["lineEndings"]["bareLf"] == 0,
                 result["lineEndings"]["bareCr"] == 0,
                 result["validTerminator"],

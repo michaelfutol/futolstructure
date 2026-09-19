@@ -19,6 +19,9 @@ let manualUpdateCheck = false;
 let updateDownloadStarted = false;
 let initialProjectSent = false;
 let etabsExportProcess = null;
+let rendererReady = false;
+let closeRequestPending = false;
+let closeApproved = false;
 
 function findProjectArgument(argv) {
   return argv
@@ -359,6 +362,7 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
   mainWindow.webContents.on('did-finish-load', () => {
+    rendererReady = true;
     if (initialProjectPath && !initialProjectSent) {
       initialProjectSent = true;
       sendProjectToRenderer(initialProjectPath);
@@ -373,7 +377,17 @@ function createWindow() {
       dialog.showErrorBox('FutolStructure could not start', fallbackError.message);
     }
   });
+  mainWindow.on('close', (event) => {
+    if (closeApproved || !rendererReady || mainWindow.isDestroyed()) return;
+    event.preventDefault();
+    if (closeRequestPending) return;
+    closeRequestPending = true;
+    mainWindow.webContents.send('desktop-request-close-confirmation');
+  });
   mainWindow.on('closed', () => {
+    rendererReady = false;
+    closeRequestPending = false;
+    closeApproved = false;
     mainWindow = null;
   });
 }
@@ -636,6 +650,14 @@ ipcMain.handle('desktop-info', () => ({
   updateChannel: 'github-releases',
   defaultProjectDirectory: getDefaultProjectDirectory()
 }));
+
+ipcMain.on('desktop-close-response', (event, shouldClose) => {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) return;
+  closeRequestPending = false;
+  if (!shouldClose) return;
+  closeApproved = true;
+  mainWindow.close();
+});
 
 ipcMain.handle('check-for-updates', () => checkForUpdates(true));
 

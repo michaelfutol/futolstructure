@@ -4825,6 +4825,44 @@
         </div>
     </div>
 
+    <div id="nudgeInputModal" role="dialog" aria-modal="true" aria-labelledby="nudgeInputTitle"
+        style="display:none; position:fixed; inset:0; z-index:13000; background:rgba(2,6,23,0.78); align-items:center; justify-content:center; padding:20px;">
+        <div style="width:min(430px,94vw); background:#111827; border:1px solid #475569; border-radius:8px; box-shadow:0 24px 60px rgba(0,0,0,0.55); color:#e5e7eb; font-family:Arial,sans-serif;">
+            <div style="padding:16px 18px 12px; border-bottom:1px solid #334155;">
+                <h3 id="nudgeInputTitle" style="margin:0; font-size:1rem; color:#f8fafc;">Move / Nudge</h3>
+                <div id="nudgeInputSubtitle" style="margin-top:5px; font-size:0.75rem; color:#94a3b8;">Enter a relative distance in millimetres.</div>
+            </div>
+            <div style="display:grid; gap:10px; padding:16px 18px;">
+                <label id="nudgeInputXWrap" style="display:grid; gap:5px; font-size:0.78rem; color:#cbd5e1;">X movement (mm)
+                    <input id="nudgeInputX" type="number" step="5" value="0" inputmode="decimal" autocomplete="off" onkeydown="if(event.key==='Enter') applyNudgeInputDialog(); if(event.key==='Escape') closeNudgeInputDialog();" style="width:100%; box-sizing:border-box; padding:9px 10px; background:#1f2937; border:1px solid #64748b; border-radius:5px; color:#f8fafc;">
+                </label>
+                <label id="nudgeInputYWrap" style="display:grid; gap:5px; font-size:0.78rem; color:#cbd5e1;">Y movement (mm)
+                    <input id="nudgeInputY" type="number" step="5" value="0" inputmode="decimal" autocomplete="off" onkeydown="if(event.key==='Enter') applyNudgeInputDialog(); if(event.key==='Escape') closeNudgeInputDialog();" style="width:100%; box-sizing:border-box; padding:9px 10px; background:#1f2937; border:1px solid #64748b; border-radius:5px; color:#f8fafc;">
+                </label>
+                <div id="nudgeInputHint" style="font-size:0.72rem; line-height:1.4; color:#94a3b8;">Positive X = right. Positive Y = up. Values are relative to the current position.</div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; padding:12px 18px; border-top:1px solid #334155;">
+                <button type="button" onclick="closeNudgeInputDialog()" style="padding:8px 14px; border:1px solid #64748b; background:#1f2937; color:#e5e7eb; border-radius:5px; cursor:pointer;">Cancel</button>
+                <button type="button" onclick="applyNudgeInputDialog()" style="padding:8px 14px; border:1px solid #0ea5e9; background:#0284c7; color:white; border-radius:5px; cursor:pointer; font-weight:600;">Apply Move</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="desktopCloseConfirmModal" role="dialog" aria-modal="true" aria-labelledby="desktopCloseConfirmTitle"
+        style="display:none; position:fixed; inset:0; z-index:13500; background:rgba(2,6,23,0.82); align-items:center; justify-content:center; padding:20px;">
+        <div style="width:min(470px,94vw); background:#111827; border:1px solid #475569; border-radius:8px; box-shadow:0 24px 60px rgba(0,0,0,0.55); color:#e5e7eb; font-family:Arial,sans-serif;">
+            <div style="padding:18px 20px 12px; border-bottom:1px solid #334155;">
+                <h3 id="desktopCloseConfirmTitle" style="margin:0; font-size:1rem; color:#f8fafc;">Save changes before closing?</h3>
+                <div id="desktopCloseConfirmText" style="margin-top:7px; font-size:0.8rem; line-height:1.45; color:#cbd5e1;">Your current structural model has unsaved changes.</div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; padding:14px 20px; border-top:1px solid #334155;">
+                <button type="button" onclick="resolveDesktopClose('cancel')" style="padding:8px 14px; border:1px solid #64748b; background:#1f2937; color:#e5e7eb; border-radius:5px; cursor:pointer;">Cancel</button>
+                <button type="button" onclick="resolveDesktopClose('discard')" style="padding:8px 14px; border:1px solid #b45309; background:#451a03; color:#fed7aa; border-radius:5px; cursor:pointer;">Don't Save</button>
+                <button id="desktopCloseSaveBtn" type="button" onclick="resolveDesktopClose('save')" style="padding:8px 14px; border:1px solid #0ea5e9; background:#0284c7; color:white; border-radius:5px; cursor:pointer; font-weight:600;">Save & Close</button>
+            </div>
+        </div>
+    </div>
+
     <div id="solverRoundTripModal" role="dialog" aria-modal="true" aria-labelledby="solverRoundTripTitle"
         style="display:none; position:fixed; inset:0; z-index:12500; background:rgba(2,6,23,0.78); align-items:center; justify-content:center; padding:20px;">
         <div style="width:min(860px,96vw); max-height:88vh; overflow:auto; background:#111827; border:1px solid #475569; border-radius:8px; box-shadow:0 24px 60px rgba(0,0,0,0.55); color:#e5e7eb; font-family:Arial,sans-serif;">
@@ -14291,7 +14329,10 @@
                 const baseScale = 50;
                 const beamScaleFactor = Math.max(state.scale / baseScale, 0.5);
                 const beamLabelFontSize = Math.round(8 * beamScaleFactor);
-                const beamLabelClearanceFactor = 0.75;
+                // Compact drafting clearance: keep tags readable without floating away
+                // from the beam outline. This is the visible clearance as a fraction of
+                // the rendered text line-height.
+                const beamLabelClearanceFactor = 0.25;
 
                 // v3.1: Calculate grid boundaries for edge beam detection
                 const totalX = state.xSpans.reduce((a, b) => a + b, 0);
@@ -14426,7 +14467,9 @@
                             createCandidates: (fontSize, textW) => {
                                 const midX = (x1 + x2) / 2;
                                 const lineH = fontSize * 1.18;
-                                const gap = Math.max(2, fontSize * beamLabelClearanceFactor);
+                                // Keep the tag visibly clear of the beam outline by a
+                                // percentage of the rendered line-height, not raw font size.
+                                const gap = Math.max(2, lineH * beamLabelClearanceFactor);
                                 const xOptions = [Number(midX.toFixed(3))];
                                 const yOptions = [
                                     { placement: 'above', y: beamTop - gap - lineH / 2 },
@@ -14500,7 +14543,8 @@
                             createCandidates: (fontSize, textW) => {
                                 const midY = (y1 + y2) / 2;
                                 const lineH = fontSize * 1.18;
-                                const gap = Math.max(2, fontSize * beamLabelClearanceFactor);
+                                // Apply the same perpendicular clearance to vertical tags.
+                                const gap = Math.max(2, lineH * beamLabelClearanceFactor);
                                 const yOptions = [Number(midY.toFixed(3))];
                                 const xOptions = [
                                     { placement: 'left', x: beamLeft - gap - lineH / 2 },
@@ -18558,6 +18602,7 @@
         };
         let currentProjectBaselineData = null;
         let currentProjectBaselineSummary = null;
+        let currentProjectBaselineFingerprint = null;
         let currentProjectBaselineFloorCount = null;
         const PROJECT_AUTOSAVE_KEY = 'FutolStructure.autosave.v1';
         const PROJECT_LAST_HEALTHY_AUTOSAVE_KEY = 'FutolStructure.autosave.healthy.v1';
@@ -18663,6 +18708,31 @@
                 },
                 perFloor
             };
+        }
+
+        function sanitizeProjectCloseValue(value, key = '') {
+            if (key === 'savedAt' || key === 'generatedAt' || key === 'releaseManifest') return undefined;
+            if (Array.isArray(value)) return value.map(item => sanitizeProjectCloseValue(item));
+            if (!value || typeof value !== 'object') return value;
+            return Object.keys(value).sort().reduce((result, childKey) => {
+                const sanitized = sanitizeProjectCloseValue(value[childKey], childKey);
+                if (sanitized !== undefined) result[childKey] = sanitized;
+                return result;
+            }, {});
+        }
+
+        function getProjectCloseFingerprint(projectData = null) {
+            try {
+                return JSON.stringify(sanitizeProjectCloseValue(projectData || buildProjectData()));
+            } catch (error) {
+                console.warn('FutolStructure close guard could not fingerprint the current model:', error);
+                return `unavailable:${Date.now()}`;
+            }
+        }
+
+        function hasUnsavedProjectChanges() {
+            if (currentProjectBaselineFingerprint == null) return true;
+            return getProjectCloseFingerprint() !== currentProjectBaselineFingerprint;
         }
 
         function compareNumericVersions(left, right) {
@@ -18956,6 +19026,7 @@
             currentProjectRevisionId = String(projectData?.revisionMeta?.revisionId || '');
             currentProjectBaselineData = cloneSerializable(projectData, null);
             currentProjectBaselineSummary = cloneSerializable(summary || collectCurrentProjectSummary(projectData), null);
+            currentProjectBaselineFingerprint = getProjectCloseFingerprint(projectData);
             currentProjectBaselineFloorCount = state.floors.length;
         }
 
@@ -19840,6 +19911,71 @@
         }
         window.FutolStructureDesktop?.onOpenProjectRequested?.(() => void openProject());
 
+        let desktopCloseDialogOpen = false;
+
+        function sendDesktopCloseResponse(shouldClose) {
+            window.FutolStructureDesktop?.respondToCloseRequest?.(shouldClose === true);
+        }
+
+        function hideDesktopCloseDialog() {
+            const modal = document.getElementById('desktopCloseConfirmModal');
+            if (modal) modal.style.display = 'none';
+            desktopCloseDialogOpen = false;
+        }
+
+        async function resolveDesktopClose(decision) {
+            if (!desktopCloseDialogOpen) return;
+            if (decision === 'cancel') {
+                hideDesktopCloseDialog();
+                sendDesktopCloseResponse(false);
+                return;
+            }
+            if (decision === 'discard') {
+                hideDesktopCloseDialog();
+                sendDesktopCloseResponse(true);
+                return;
+            }
+
+            const saveButton = document.getElementById('desktopCloseSaveBtn');
+            if (saveButton) {
+                saveButton.disabled = true;
+                saveButton.textContent = 'Saving...';
+            }
+            try {
+                await saveProject(false);
+                if (!hasUnsavedProjectChanges()) {
+                    hideDesktopCloseDialog();
+                    sendDesktopCloseResponse(true);
+                    return;
+                }
+            } finally {
+                if (saveButton) {
+                    saveButton.disabled = false;
+                    saveButton.textContent = 'Save & Close';
+                }
+            }
+        }
+
+        function requestDesktopClose() {
+            if (!hasUnsavedProjectChanges()) {
+                sendDesktopCloseResponse(true);
+                return;
+            }
+            const modal = document.getElementById('desktopCloseConfirmModal');
+            const text = document.getElementById('desktopCloseConfirmText');
+            if (text) text.textContent = `${currentProjectFileName || 'This structural model'} has unsaved changes. Choose Save & Close, Don't Save, or Cancel.`;
+            if (modal) modal.style.display = 'flex';
+            desktopCloseDialogOpen = true;
+            document.getElementById('desktopCloseSaveBtn')?.focus();
+        }
+
+        window.FutolStructureDesktop?.onCloseRequested?.(requestDesktopClose);
+        window.addEventListener('beforeunload', (event) => {
+            if (window.FutolStructureDesktop?.isDesktop || !hasUnsavedProjectChanges()) return;
+            event.preventDefault();
+            event.returnValue = '';
+        });
+
         // ========== v3.0: RESET & REFRESH ==========
 
         /**
@@ -19884,6 +20020,7 @@
             });
             currentProjectBaselineData = null;
             currentProjectBaselineSummary = null;
+            currentProjectBaselineFingerprint = null;
             currentProjectBaselineFloorCount = null;
             state.columns = [];
             state.beams = [];
@@ -26417,13 +26554,27 @@ function populateBOM() {
             dxf += '0\nSECTION\n2\nENTITIES\n';
 
             const currentFloor = state.floors[state.currentFloorIndex];
-            const dxfLine = (x1, y1, x2, y2, layer) =>
-                `0\nLINE\n8\n${layer}\n10\n${x1.toFixed(4)}\n20\n${y1.toFixed(4)}\n30\n0\n11\n${x2.toFixed(4)}\n21\n${y2.toFixed(4)}\n31\n0\n`;
+            const dxfPolyline = (points, layer, closed = false) => {
+                const valid = (points || []).filter(point => Number.isFinite(Number(point?.x)) && Number.isFinite(Number(point?.y)));
+                if (valid.length < 2) return '';
+                let entity = `0\nPOLYLINE\n8\n${layer}\n66\n1\n70\n${closed ? 1 : 0}\n10\n0\n20\n0\n30\n0\n`;
+                valid.forEach(point => {
+                    entity += `0\nVERTEX\n8\n${layer}\n10\n${Number(point.x).toFixed(4)}\n20\n${Number(point.y).toFixed(4)}\n30\n0\n70\n0\n`;
+                });
+                return entity + `0\nSEQEND\n8\n${layer}\n`;
+            };
+            const dxfLine = (x1, y1, x2, y2, layer) => dxfPolyline([
+                { x: x1, y: y1 },
+                { x: x2, y: y2 }
+            ], layer);
             const dxfText = (x, y, text, layer, height = 0.2) =>
                 `0\nTEXT\n8\n${layer}\n10\n${x.toFixed(4)}\n20\n${y.toFixed(4)}\n30\n0\n40\n${height}\n1\n${text}\n`;
-            const dxfRect = (x1, y1, x2, y2, layer) =>
-                dxfLine(x1, y1, x2, y1, layer) + dxfLine(x2, y1, x2, y2, layer) +
-                dxfLine(x2, y2, x1, y2, layer) + dxfLine(x1, y2, x1, y1, layer);
+            const dxfRect = (x1, y1, x2, y2, layer) => dxfPolyline([
+                { x: x1, y: y1 },
+                { x: x2, y: y1 },
+                { x: x2, y: y2 },
+                { x: x1, y: y2 }
+            ], layer, true);
 
             // ----- GRID LINES -----
             // v3.0 FIX: Calculate coordinates from spans (xCoords/yCoords don't exist in state)
@@ -26463,11 +26614,9 @@ function populateBOM() {
                 if (!startCol || !endCol) return;
 
                 if (beam.direction === 'X') {
-                    dxf += dxfLine(startCol.x, startCol.y - bw, endCol.x, endCol.y - bw, DXF_LAYER.BEAM);
-                    dxf += dxfLine(startCol.x, startCol.y + bw, endCol.x, endCol.y + bw, DXF_LAYER.BEAM);
+                    dxf += dxfRect(startCol.x, startCol.y - bw, endCol.x, endCol.y + bw, DXF_LAYER.BEAM);
                 } else {
-                    dxf += dxfLine(startCol.x - bw, startCol.y, endCol.x - bw, endCol.y, DXF_LAYER.BEAM);
-                    dxf += dxfLine(startCol.x + bw, startCol.y, endCol.x + bw, endCol.y, DXF_LAYER.BEAM);
+                    dxf += dxfRect(startCol.x - bw, startCol.y, endCol.x + bw, endCol.y, DXF_LAYER.BEAM);
                 }
                 const midX = (startCol.x + endCol.x) / 2;
                 const midY = (startCol.y + endCol.y) / 2;
@@ -26479,11 +26628,9 @@ function populateBOM() {
                 currentFloor.customBeams.forEach(cb => {
                     const bw = 0.125;
                     if (cb.dir === 'X') {
-                        dxf += dxfLine(cb.start, cb.pos - bw, cb.end, cb.pos - bw, DXF_LAYER.STAIR);
-                        dxf += dxfLine(cb.start, cb.pos + bw, cb.end, cb.pos + bw, DXF_LAYER.STAIR);
+                        dxf += dxfRect(cb.start, cb.pos - bw, cb.end, cb.pos + bw, DXF_LAYER.STAIR);
                     } else {
-                        dxf += dxfLine(cb.pos - bw, cb.start, cb.pos - bw, cb.end, DXF_LAYER.STAIR);
-                        dxf += dxfLine(cb.pos + bw, cb.start, cb.pos + bw, cb.end, DXF_LAYER.STAIR);
+                        dxf += dxfRect(cb.pos - bw, cb.start, cb.pos + bw, cb.end, DXF_LAYER.STAIR);
                     }
                     const midX = cb.dir === 'X' ? (cb.start + cb.end) / 2 : cb.pos;
                     const midY = cb.dir === 'Y' ? (cb.start + cb.end) / 2 : cb.pos;
@@ -30013,16 +30160,142 @@ try {
             if (activeContextMenuPlacement?.menuId === menu.id) activeContextMenuPlacement = null;
         }
 
-        function promptNumberMm(message, currentValueM = 0) {
-            const currentMm = Math.round((Number(currentValueM) || 0) * 1000);
-            const raw = prompt(message, String(currentMm));
-            if (raw === null) return null;
-            const value = Number(raw);
-            if (!Number.isFinite(value)) {
-                alert('Please enter a valid numeric offset in mm.');
-                return null;
+        function setNudgeStatus(message) {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            if (!statusText) return;
+            if (indicator) indicator.style.background = 'var(--success)';
+            statusText.textContent = message;
+            statusText.title = message;
+            window.clearTimeout(window.nudgeStatusTimer);
+            window.nudgeStatusTimer = window.setTimeout(() => {
+                if (statusText.textContent === message && !getRecoveryReviewStatus()) {
+                    statusText.textContent = 'Ready';
+                    statusText.title = '';
+                }
+            }, 7000);
+        }
+
+        function requireNonZeroNudge(...values) {
+            if (values.some(value => Number(value) !== 0)) return true;
+            alert('No move was applied. Enter a non-zero distance in millimetres.');
+            return false;
+        }
+
+        let pendingNudgeInput = null;
+
+        function openNudgeInputDialog(config) {
+            pendingNudgeInput = config;
+            const modal = document.getElementById('nudgeInputModal');
+            const title = document.getElementById('nudgeInputTitle');
+            const subtitle = document.getElementById('nudgeInputSubtitle');
+            const xWrap = document.getElementById('nudgeInputXWrap');
+            const yWrap = document.getElementById('nudgeInputYWrap');
+            const xInput = document.getElementById('nudgeInputX');
+            const yInput = document.getElementById('nudgeInputY');
+            const hint = document.getElementById('nudgeInputHint');
+            const isTwoAxis = config.kind === 'column' || config.kind === 'all-columns';
+            const axis = config.axis || 'X';
+            title.textContent = config.title || 'Move / Nudge';
+            subtitle.textContent = 'Enter a relative distance in millimetres, then select Apply Move.';
+            xWrap.style.display = isTwoAxis ? 'grid' : '';
+            yWrap.style.display = isTwoAxis ? 'grid' : 'none';
+            if (isTwoAxis) {
+                xWrap.firstChild.textContent = 'X movement (mm)';
+                yWrap.firstChild.textContent = 'Y movement (mm)';
+                hint.textContent = 'Positive X = right. Positive Y = up. Values are relative to the current position.';
+            } else {
+                xWrap.firstChild.textContent = `${axis} movement (mm)`;
+                hint.textContent = axis === 'Y'
+                    ? 'Positive Y = up. The beam is moved perpendicular to its axis.'
+                    : 'Positive X = right. The beam is moved perpendicular to its axis.';
             }
-            return value;
+            xInput.value = '0';
+            yInput.value = '0';
+            modal.style.display = 'flex';
+            window.setTimeout(() => (isTwoAxis ? xInput : xInput).focus(), 0);
+        }
+
+        function closeNudgeInputDialog() {
+            const modal = document.getElementById('nudgeInputModal');
+            if (modal) modal.style.display = 'none';
+            pendingNudgeInput = null;
+        }
+
+        function applyNudgeInputDialog() {
+            const config = pendingNudgeInput;
+            if (!config) return;
+            const dxMm = Number(document.getElementById('nudgeInputX')?.value || 0);
+            const dyMm = Number(document.getElementById('nudgeInputY')?.value || 0);
+            closeNudgeInputDialog();
+            if (![dxMm, dyMm].every(Number.isFinite) || !requireNonZeroNudge(dxMm, dyMm)) return;
+
+            if (config.kind === 'column') {
+                const col = state.columns.find(item => item.id === config.columnId);
+                if (!col) return;
+                saveStateSnapshot();
+                if (!state.columnPositionOverrides) state.columnPositionOverrides = {};
+                const current = state.columnPositionOverrides[col.id] || {};
+                state.columnPositionOverrides[col.id] = {
+                    dx: (Number(current.dx) || 0) + dxMm / 1000,
+                    dy: (Number(current.dy) || 0) - dyMm / 1000
+                };
+                calculate();
+                scheduleProjectAutosave('column-nudge');
+                const total = getColumnManualPlanOffset(col);
+                setNudgeStatus(`Column ${col.id} moved X ${dxMm >= 0 ? '+' : ''}${dxMm} mm, Y ${dyMm >= 0 ? '+' : ''}${dyMm} mm | total X ${Math.round(total.dx * 1000)} mm, Y ${Math.round(-total.dy * 1000)} mm`);
+                return;
+            }
+
+            if (config.kind === 'all-columns') {
+                saveStateSnapshot();
+                if (!state.columnPositionOverrides) state.columnPositionOverrides = {};
+                (state.columns || []).forEach(col => {
+                    const current = state.columnPositionOverrides[col.id] || {};
+                    state.columnPositionOverrides[col.id] = {
+                        dx: (Number(current.dx) || 0) + dxMm / 1000,
+                        dy: (Number(current.dy) || 0) - dyMm / 1000
+                    };
+                });
+                calculate();
+                scheduleProjectAutosave('all-column-nudge');
+                setNudgeStatus(`All ${state.columns.length} columns moved X ${dxMm >= 0 ? '+' : ''}${dxMm} mm, Y ${dyMm >= 0 ? '+' : ''}${dyMm} mm.`);
+                return;
+            }
+
+            if (config.kind === 'all-beams') {
+                const beams = (state.beams || []).filter(beam => isGeneratedBeamAlignmentCandidate(beam) && !isBeamLocked(beam.id, config.floorId));
+                if (!beams.length) return;
+                saveStateSnapshot();
+                beams.forEach(beam => setBeamUserTransverseOffset(beam, config.floorId, (getBeamUserTransverseOffsetM(beam, config.floorId) + dxMm / 1000) * 1000));
+                calculate();
+                scheduleProjectAutosave('all-beam-nudge');
+                setNudgeStatus(`${beams.length} generated beams moved ${dxMm >= 0 ? '+' : ''}${dxMm} mm perpendicular to their axes.`);
+                return;
+            }
+
+            if (config.kind === 'foundation-tie-beam') {
+                const currentModelOffset = getFoundationTieBeamAlignmentOffset(config.memberId);
+                const currentUserOffset = config.direction === 'X' ? -currentModelOffset : currentModelOffset;
+                saveStateSnapshot();
+                if (!state.foundationTieBeamAlignmentOverrides) state.foundationTieBeamAlignmentOverrides = {};
+                state.foundationTieBeamAlignmentOverrides[config.memberId] = config.direction === 'X'
+                    ? -(currentUserOffset + dxMm / 1000)
+                    : currentUserOffset + dxMm / 1000;
+                draw();
+                scheduleProjectAutosave('foundation-tie-beam-nudge');
+                setNudgeStatus(`Tie beam ${config.memberId} moved ${dxMm >= 0 ? '+' : ''}${dxMm} mm.`);
+                return;
+            }
+
+            const beam = (state.beams || []).find(item => item.id === config.memberId);
+            if (!beam) return;
+            const floorId = config.floorId;
+            saveStateSnapshot();
+            setBeamUserTransverseOffset(beam, floorId, (getBeamUserTransverseOffsetM(beam, floorId) + dxMm / 1000) * 1000);
+            calculate();
+            scheduleProjectAutosave(config.kind === 'all-beams' ? 'all-beam-nudge' : 'beam-nudge');
+            setNudgeStatus(`Beam ${beam.id} moved ${dxMm >= 0 ? '+' : ''}${dxMm} mm perpendicular to its axis.`);
         }
 
         function toggleSelectedCornerSlab() {
@@ -30089,21 +30362,7 @@ try {
                 return;
             }
             hideColumnMenu();
-
-            const current = state.columnPositionOverrides?.[col.id] || {};
-            const dxMm = promptNumberMm(`Column ${col.id} X nudge in mm (+ right, - left; relative move)`, 0);
-            if (dxMm === null) return;
-            const dyMm = promptNumberMm(`Column ${col.id} Y nudge in mm (+ up, - down; relative move)`, 0);
-            if (dyMm === null) return;
-
-            saveStateSnapshot();
-            if (!state.columnPositionOverrides) state.columnPositionOverrides = {};
-            state.columnPositionOverrides[col.id] = {
-                dx: (Number(current.dx) || 0) + dxMm / 1000,
-                dy: (Number(current.dy) || 0) - dyMm / 1000
-            };
-            calculate();
-            scheduleProjectAutosave('column-nudge');
+            openNudgeInputDialog({ kind: 'column', columnId: col.id, title: `Move / Nudge Column ${col.id}` });
         }
 
         function resetSelectedColumnPosition() {
@@ -30121,6 +30380,7 @@ try {
             saveStateSnapshot();
             delete state.columnPositionOverrides[selectedColumnId];
             calculate();
+            setNudgeStatus(`Column ${selectedColumnId} returned to automatic alignment.`);
         }
 
         function editSelectedColumnOrientation() {
@@ -30207,21 +30467,7 @@ try {
                 return;
             }
             hideColumnMenu();
-            const dxMm = promptNumberMm('All columns X nudge in mm (+ right, - left; relative move)', 0);
-            if (dxMm === null) return;
-            const dyMm = promptNumberMm('All columns Y nudge in mm (+ up, - down; relative move)', 0);
-            if (dyMm === null) return;
-            saveStateSnapshot();
-            if (!state.columnPositionOverrides) state.columnPositionOverrides = {};
-            (state.columns || []).forEach(col => {
-                const current = state.columnPositionOverrides[col.id] || {};
-                state.columnPositionOverrides[col.id] = {
-                    dx: (Number(current.dx) || 0) + dxMm / 1000,
-                    dy: (Number(current.dy) || 0) - dyMm / 1000
-                };
-            });
-            calculate();
-            scheduleProjectAutosave('all-column-nudge');
+            openNudgeInputDialog({ kind: 'all-columns', title: 'Move / Nudge All Columns' });
         }
 
         function resetAllColumnPositions() {
@@ -30238,6 +30484,7 @@ try {
             saveStateSnapshot();
             state.columnPositionOverrides = {};
             calculate();
+            setNudgeStatus('All columns returned to automatic alignment.');
         }
 
         function getSelectedBeamForAlignment() {
@@ -30270,23 +30517,13 @@ try {
             if (selectedMemberType === 'foundationTieBeam') {
                 const direction = getFoundationTieBeamMemberDirection(selectedMemberId);
                 if (!direction) return;
-                const currentModelOffset = getFoundationTieBeamAlignmentOffset(selectedMemberId);
-                const nudgeMm = promptNumberMm(
-                    direction === 'X'
-                        ? 'Foundation tie beam Y nudge in mm (+ up, - down; relative move)'
-                        : 'Foundation tie beam X nudge in mm (+ right, - left; relative move)',
-                    0
-                );
-                if (nudgeMm === null) return;
-                saveStateSnapshot();
-                if (!state.foundationTieBeamAlignmentOverrides) state.foundationTieBeamAlignmentOverrides = {};
-                const currentUserOffset = direction === 'X' ? -currentModelOffset : currentModelOffset;
-                state.foundationTieBeamAlignmentOverrides[selectedMemberId] =
-                    direction === 'X'
-                        ? -((currentUserOffset + nudgeMm / 1000))
-                        : currentUserOffset + nudgeMm / 1000;
-                draw();
-                scheduleProjectAutosave('foundation-tie-beam-nudge');
+                openNudgeInputDialog({
+                    kind: 'foundation-tie-beam',
+                    memberId: selectedMemberId,
+                    direction,
+                    axis: direction === 'X' ? 'Y' : 'X',
+                    title: `Move / Nudge Tie Beam ${selectedMemberId}`
+                });
                 return;
             }
 
@@ -30297,22 +30534,13 @@ try {
                 return;
             }
 
-            const nudgeMm = promptNumberMm(
-                beam.direction === 'X'
-                    ? `Beam ${beam.id} Y nudge in mm (+ up, - down; relative move)`
-                    : `Beam ${beam.id} X nudge in mm (+ right, - left; relative move)`,
-                0
-            );
-            if (nudgeMm === null) return;
-
-            saveStateSnapshot();
-            setBeamUserTransverseOffset(
-                beam,
+            openNudgeInputDialog({
+                kind: 'beam',
+                memberId: beam.id,
                 floorId,
-                (getBeamUserTransverseOffsetM(beam, floorId) + nudgeMm / 1000) * 1000
-            );
-            calculate();
-            scheduleProjectAutosave('beam-nudge');
+                axis: beam.direction === 'X' ? 'Y' : 'X',
+                title: `Move / Nudge Beam ${beam.id}`
+            });
         }
 
         function resetSelectedBeamAlignment() {
@@ -30324,6 +30552,7 @@ try {
                 saveStateSnapshot();
                 delete state.foundationTieBeamAlignmentOverrides[selectedMemberId];
                 draw();
+                setNudgeStatus(`Tie beam ${selectedMemberId} returned to automatic alignment.`);
                 return;
             }
 
@@ -30336,25 +30565,15 @@ try {
             delete state.beamAlignmentOverrides[key];
             delete state.beamAlignmentOverrides[beam.id];
             calculate();
+            setNudgeStatus(`Beam ${beam.id} returned to automatic alignment.`);
         }
 
         function moveAllGeneratedBeamsOnCurrentFloor() {
             hideMemberMenu();
             const floorId = state.floors[state.currentFloorIndex]?.id;
-            const nudgeMm = promptNumberMm('Nudge all generated regular beams on this floor in mm. X-beams: + up. Y-beams: + right.', 0);
-            if (nudgeMm === null) return;
-            const lockedCount = (state.beams || []).filter(beam => isGeneratedBeamAlignmentCandidate(beam) && isBeamLocked(beam.id, floorId)).length;
             const beams = (state.beams || []).filter(beam => isGeneratedBeamAlignmentCandidate(beam) && !isBeamLocked(beam.id, floorId));
             if (!beams.length) return;
-            saveStateSnapshot();
-            beams.forEach(beam => setBeamUserTransverseOffset(
-                beam,
-                floorId,
-                (getBeamUserTransverseOffsetM(beam, floorId) + nudgeMm / 1000) * 1000
-            ));
-            if (lockedCount) console.warn(`FS safety: ${lockedCount} locked beam(s) skipped during all-beam offset.`);
-            calculate();
-            scheduleProjectAutosave('all-beam-nudge');
+            openNudgeInputDialog({ kind: 'all-beams', floorId, axis: 'X', title: `Move / Nudge ${beams.length} Beams` });
         }
 
         function resetAllGeneratedBeamAlignmentsOnCurrentFloor() {
@@ -32729,6 +32948,10 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
 
             // Init
             // If user previously opened it, keeps state... no need.
+            if (!currentProjectBaselineData) {
+                const initialProject = buildProjectData();
+                establishProjectBaseline(initialProject, collectCurrentProjectSummary(initialProject));
+            }
 
             // v3.7: Toggle permanent grid visibility
             window.toggleSubGrid = function () {

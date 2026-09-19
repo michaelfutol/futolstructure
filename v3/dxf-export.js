@@ -3,6 +3,8 @@
 
     const DXF_PACKAGE_BUILD = 'FS-119-DXF-1';
     const DXF_TEXT_LAYER = 'S-TEXT';
+    const DXF_BEAM_TAG_TEXT_HEIGHT = 0.16;
+    const DXF_BEAM_TAG_CLEARANCE_FACTOR = 0.25;
     const GRID_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 
     function finite(value, fallback = 0) {
@@ -42,15 +44,24 @@
     class DxfWriter {
         constructor() {
             this.entities = [];
-            this.entityCounts = { LINE: 0, TEXT: 0, CIRCLE: 0 };
+            this.entityCounts = { POLYLINE: 0, TEXT: 0, CIRCLE: 0 };
             this.layerUsage = {};
+            this.unlayeredEntityCount = 0;
             this.columnTopologyMarkerCount = 0;
             this.bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
         }
 
+        normalizeLayer(layer) {
+            const name = cleanText(layer);
+            if (name) return name;
+            this.unlayeredEntityCount += 1;
+            return '0';
+        }
+
         record(layer, type, points) {
+            const layerName = this.normalizeLayer(layer);
             this.entityCounts[type] = (this.entityCounts[type] || 0) + 1;
-            this.layerUsage[layer] = (this.layerUsage[layer] || 0) + 1;
+            this.layerUsage[layerName] = (this.layerUsage[layerName] || 0) + 1;
             points.forEach(point => {
                 if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
                 this.bounds.minX = Math.min(this.bounds.minX, point.x);
@@ -63,13 +74,10 @@
         line(x1, y1, x2, y2, layer, options = {}) {
             const values = [x1, y1, x2, y2].map(Number);
             if (!values.every(Number.isFinite)) return;
-            const [sx, sy, ex, ey] = values;
-            const linetype = options.linetype ? `6\n${cleanText(options.linetype)}\n` : '';
-            this.entities.push(
-                `0\nLINE\n8\n${layer}\n${linetype}10\n${fixed(sx)}\n20\n${fixed(sy)}\n30\n0\n` +
-                `11\n${fixed(ex)}\n21\n${fixed(ey)}\n31\n0\n`
-            );
-            this.record(layer, 'LINE', [{ x: sx, y: sy }, { x: ex, y: ey }]);
+            this.polyline([
+                { x: values[0], y: values[1] },
+                { x: values[2], y: values[3] }
+            ], layer, options);
         }
 
         rectangle(x1, y1, x2, y2, layer, options = {}) {
@@ -77,21 +85,31 @@
             const right = Math.max(finite(x1), finite(x2));
             const bottom = Math.min(finite(y1), finite(y2));
             const top = Math.max(finite(y1), finite(y2));
-            this.line(left, bottom, right, bottom, layer, options);
-            this.line(right, bottom, right, top, layer, options);
-            this.line(right, top, left, top, layer, options);
-            this.line(left, top, left, bottom, layer, options);
+            this.polyline([
+                { x: left, y: bottom },
+                { x: right, y: bottom },
+                { x: right, y: top },
+                { x: left, y: top }
+            ], layer, { ...options, closed: true });
         }
 
         polyline(points, layer, options = {}) {
             const valid = (points || []).filter(point => Number.isFinite(Number(point?.x)) && Number.isFinite(Number(point?.y)));
             if (valid.length < 2) return;
-            for (let index = 0; index < valid.length - 1; index += 1) {
-                this.line(valid[index].x, valid[index].y, valid[index + 1].x, valid[index + 1].y, layer, options);
-            }
-            if (options.closed) {
-                this.line(valid[valid.length - 1].x, valid[valid.length - 1].y, valid[0].x, valid[0].y, layer, options);
-            }
+            const layerName = this.normalizeLayer(layer);
+            const flags = options.closed ? 1 : 0;
+            const linetype = options.linetype ? `6\n${cleanText(options.linetype)}\n` : '';
+            // AC1009/R12 uses the classic POLYLINE/VERTEX/SEQEND record set.
+            this.entities.push(
+                `0\nPOLYLINE\n8\n${layerName}\n${linetype}66\n1\n70\n${flags}\n10\n0\n20\n0\n30\n0\n`
+            );
+            valid.forEach(point => {
+                this.entities.push(
+                    `0\nVERTEX\n8\n${layerName}\n10\n${fixed(point.x)}\n20\n${fixed(point.y)}\n30\n0\n70\n0\n`
+                );
+            });
+            this.entities.push(`0\nSEQEND\n8\n${layerName}\n`);
+            this.record(layerName, 'POLYLINE', valid);
         }
 
         circle(x, y, radius, layer) {
@@ -99,8 +117,9 @@
             const cy = Number(y);
             const r = Number(radius);
             if (![cx, cy, r].every(Number.isFinite) || r <= 0) return;
-            this.entities.push(`0\nCIRCLE\n8\n${layer}\n10\n${fixed(cx)}\n20\n${fixed(cy)}\n30\n0\n40\n${fixed(r)}\n`);
-            this.record(layer, 'CIRCLE', [{ x: cx - r, y: cy - r }, { x: cx + r, y: cy + r }]);
+            const layerName = this.normalizeLayer(layer);
+            this.entities.push(`0\nCIRCLE\n8\n${layerName}\n10\n${fixed(cx)}\n20\n${fixed(cy)}\n30\n0\n40\n${fixed(r)}\n`);
+            this.record(layerName, 'CIRCLE', [{ x: cx - r, y: cy - r }, { x: cx + r, y: cy + r }]);
         }
 
         text(x, y, value, layer = DXF_TEXT_LAYER, height = 0.2, rotation = 0) {
@@ -110,11 +129,12 @@
             if (!Number.isFinite(px) || !Number.isFinite(py) || !text) return;
             const size = Math.max(0.05, finite(height, 0.2));
             const angle = finite(rotation, 0);
+            const layerName = this.normalizeLayer(layer);
             this.entities.push(
-                `0\nTEXT\n8\n${layer}\n10\n${fixed(px)}\n20\n${fixed(py)}\n30\n0\n40\n${fixed(size)}\n` +
+                `0\nTEXT\n8\n${layerName}\n10\n${fixed(px)}\n20\n${fixed(py)}\n30\n0\n40\n${fixed(size)}\n` +
                 `1\n${text}\n50\n${fixed(angle)}\n7\nSTANDARD\n`
             );
-            this.record(layer, 'TEXT', [{ x: px, y: py }, { x: px + text.length * size * 0.65, y: py + size }]);
+            this.record(layerName, 'TEXT', [{ x: px, y: py }, { x: px + text.length * size * 0.65, y: py + size }]);
         }
 
         content() {
@@ -233,9 +253,9 @@
                 include(position.x + size.b / 2000, position.y + size.h / 2000);
             }
             if (isFoundationPlanEnabled()) {
-                const half = Math.max(0.5, finite(col.footingSize, 1) / 2);
-                include(position.x - half, position.y - half);
-                include(position.x + half, position.y + half);
+                const footing = getFootingDimensionsM(col);
+                include(position.x - footing.width / 2, position.y - footing.length / 2);
+                include(position.x + footing.width / 2, position.y + footing.length / 2);
             }
         });
         normalizeStairList(state.stairs).forEach(stair => {
@@ -368,10 +388,11 @@
             const size = geometry.beamSize;
             const tag = getBeamPlanTableTag(beam, floor.id, rowNumber);
             const label = `${tag} (${Math.round(size.b)}x${Math.round(size.h)})`;
+            const tagGap = DXF_BEAM_TAG_TEXT_HEIGHT * DXF_BEAM_TAG_CLEARANCE_FACTOR;
             if (beam.direction === 'Y') {
-                writer.text(center.x + geometry.beamWidthM * 0.5 + 0.16, center.y - 0.25, label, DXF_LAYER.TEXT, 0.16, 90);
+                writer.text(center.x + geometry.beamWidthM * 0.5 + tagGap, center.y - 0.25, label, DXF_LAYER.TEXT, DXF_BEAM_TAG_TEXT_HEIGHT, 90);
             } else {
-                writer.text(center.x - Math.min(0.7, label.length * 0.035), center.y + geometry.beamWidthM * 0.5 + 0.16, label, DXF_LAYER.TEXT, 0.16);
+                writer.text(center.x - Math.min(0.7, label.length * 0.035), center.y + geometry.beamWidthM * 0.5 + tagGap, label, DXF_LAYER.TEXT, DXF_BEAM_TAG_TEXT_HEIGHT);
             }
         }
         if (beam.topologyStatus === 'unresolved') {
@@ -517,8 +538,14 @@
     }
 
     function getFootingTypeMap(columns) {
-        const sizes = [...new Set((columns || []).map(col => finite(col.footingSize, 1).toFixed(3)))].sort((a, b) => Number(a) - Number(b));
-        return new Map(sizes.map((size, index) => [size, `F${index + 1}`]));
+        const sizeKeys = [...new Set((columns || []).map(getFootingTypeKey))]
+            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        return new Map(sizeKeys.map((key, index) => [key, `F${index + 1}`]));
+    }
+
+    function getFootingTypeKey(col) {
+        const footing = getFootingDimensionsM(col);
+        return `${Math.round(footing.length * 1000)}x${Math.round(footing.width * 1000)}x${Math.round(footing.thickness * 1000)}`;
     }
 
     function drawReactionArrow(writer, transform, x, y) {
@@ -549,17 +576,19 @@
                 });
                 columns.forEach(col => {
                     const position = getColumnPlanPosition(col);
-                    const footingSize = Math.max(0.5, finite(col.footingSize, 1));
+                    const footing = getFootingDimensionsM(col);
                     const footingRect = transform.rect(
-                        position.x - footingSize / 2,
-                        position.y - footingSize / 2,
-                        position.x + footingSize / 2,
-                        position.y + footingSize / 2
+                        position.x - footing.width / 2,
+                        position.y - footing.length / 2,
+                        position.x + footing.width / 2,
+                        position.y + footing.length / 2
                     );
                     writer.rectangle(footingRect.x1, footingRect.y1, footingRect.x2, footingRect.y2, DXF_LAYER.FOUNDATION, { linetype: 'HIDDEN2' });
-                    const mark = typeMap.get(footingSize.toFixed(3)) || 'F1';
-                    const label = transform.point(position.x - footingSize / 2, position.y - footingSize / 2 - 0.18);
-                    writer.text(label.x, label.y, `${mark}-${getColumnGridLabel(col)} ${Math.round(footingSize * 1000)}x${Math.round(footingSize * 1000)}`, DXF_LAYER.TEXT, 0.16);
+                    const mark = typeMap.get(getFootingTypeKey(col)) || 'F1';
+                    const label = transform.point(position.x - footing.width / 2, position.y - footing.length / 2 - 0.18);
+                    writer.text(label.x, label.y,
+                        `${mark}-${getColumnGridLabel(col)} ${Math.round(footing.length * 1000)}x${Math.round(footing.width * 1000)}`,
+                        DXF_LAYER.TEXT, 0.16);
                 });
             } else {
                 getBaseReactionRows().forEach(row => {
@@ -672,13 +701,12 @@
         const footingTypes = getFootingTypeMap(foundationColumns);
         const foundationRows = isFoundationPlanEnabled()
             ? foundationColumns.map(col => {
-                const size = Math.max(0.5, finite(col.footingSize, 1));
-                const thickness = finite(col.footingDesign?.h, finite(col.footingThick, 0.3) * 1000);
+                const footing = getFootingDimensionsM(col);
                 return {
-                    mark: `${footingTypes.get(size.toFixed(3)) || 'F1'}-${getColumnGridLabel(col)}`,
+                    mark: `${footingTypes.get(getFootingTypeKey(col)) || 'F1'}-${getColumnGridLabel(col)}`,
                     column: col.id,
-                    size: `${Math.round(size * 1000)}x${Math.round(size * 1000)}`,
-                    thickness: Math.round(thickness),
+                    size: `${Math.round(footing.length * 1000)}x${Math.round(footing.width * 1000)}`,
+                    thickness: Math.round(footing.thickness * 1000),
                     factored: finite(col.totalLoadWithDL || col.totalLoad).toFixed(1),
                     bearing: finite(state.soilBearing, 150).toFixed(0)
                 };
@@ -738,10 +766,9 @@
             withFloorGeometry(foundationFloor, foundationGeometry, () => {
                 const baseColumns = (state.columns || []).filter(col => isFoundationColumnForPlan(col, foundationFloor.id));
                 baseColumns.forEach(col => {
-                    const size = Math.max(0.5, finite(col.footingSize, 1));
-                    const thickness = finite(col.footingDesign?.h, finite(col.footingThick, 0.3) * 1000) / 1000;
+                    const footing = getFootingDimensionsM(col);
                     footingCount += 1;
-                    footingVolume += size * size * thickness;
+                    footingVolume += footing.width * footing.length * footing.thickness;
                 });
                 const width = finite(state.tieBeamWidth, 200) / 1000;
                 const depth = finite(state.tieBeamDepth, 350) / 1000;
@@ -1052,6 +1079,10 @@
 
         const dxf = buildDXFDocument(writer);
         audit.entityCounts = { ...writer.entityCounts };
+        audit.unlayeredEntityCount = writer.unlayeredEntityCount;
+        audit.allEntitiesLayered = writer.unlayeredEntityCount === 0;
+        audit.hasLineEntities = (writer.entityCounts.LINE || 0) > 0;
+        audit.allLinearGeometryPolylines = audit.hasLineEntities === false && (writer.entityCounts.POLYLINE || 0) > 0;
         audit.columnTopology.markerCount = writer.columnTopologyMarkerCount;
         audit.layerUsage = { ...writer.layerUsage };
         audit.bytes = new TextEncoder().encode(dxf).length;
