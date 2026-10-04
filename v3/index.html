@@ -2732,13 +2732,13 @@
                     <div class="param-item">
                         <label>Column B / X (mm)</label>
                         <input type="number" id="columnWidthInput" value="0" min="0" max="1200" step="25"
-                            onchange="state.defaultColumnB = normalizeDefaultMemberSizeMm(this.value, 0, 1200); calculate();"
+                            onchange="updateDefaultColumnSize('b', this.value)"
                             title="0 = Auto (NSCP Pu sizing)">
                     </div>
                     <div class="param-item">
                         <label>Column H / Y (mm)</label>
                         <input type="number" id="columnDepthInput" value="0" min="0" max="1200" step="25"
-                            onchange="state.defaultColumnH = normalizeDefaultMemberSizeMm(this.value, 0, 1200); calculate();"
+                            onchange="updateDefaultColumnSize('h', this.value)"
                             title="0 = Auto (same as b)">
                     </div>
                     <div class="param-item">
@@ -3034,7 +3034,7 @@
                 <button class="tool-btn" id="addBeamBtn" onclick="toggleBeamMode()" title="Add framing beam">+ Beam</button>
                 <button class="tool-btn" id="addCustomBeamBtn" onclick="showCustomBeamDialog()" title="Legacy custom/stair beam tool retained for compatibility. Use Stair Builder for new stairs." hidden aria-hidden="true" tabindex="-1">Stair Beam</button>
                 <button class="tool-btn" id="addPlantedColBtn" onclick="togglePlantedColumnMode(event)" title="Add planted column">+ Column</button>
-                <button class="tool-btn" id="colAlignBtn" onclick="toggleColumnAlignment()" title="Toggle column alignment">Col: Flush</button>
+                <button class="tool-btn" id="colAlignBtn" onclick="toggleColumnAlignment()" title="Toggle beam alignment; column centroids stay fixed">Beams: Exterior Flush</button>
                 <button class="tool-btn" id="columnLockBtn" onclick="toggleColumnPositionLock()" title="Lock all columns against nudge, move, planted edits, and deletion">Cols Free</button>
                 <button class="tool-btn" id="beamLockAllBtn" onclick="toggleAllBeamsLockedOnCurrentFloor()" title="Lock all active beams on all floors against offset, resize, and deletion">Beams Free</button>
                 </div>
@@ -4261,7 +4261,9 @@
                                 <li>Place or edit columns, beams, edge beams, cantilevers, slabs, stairs, walls, and roof framing in their dedicated workspaces.</li>
                                 <li>Use <strong>Osnap</strong> for grids, column centers/faces, beam axes/faces, slab edges, and footing geometry. Use <strong>Grid Snap</strong> for controlled placement increments, including 5 cm.</li>
                                 <li>Use member property controls for section dimensions, column orientation, canonical alignment, and explicit footing overrides. Locked members intentionally prevent geometry edits until unlocked.</li>
-                                <li>Canonical geometry represents the actual framing/drafting location. The governed analytical export resolves the solver joints, eccentricities, and insertion/cardinal-point data from that model.</li>
+                                <li>Column centroids remain fixed when section dimensions, rotation, or beam alignment change. Use column Move/Nudge to explicitly change a centroid while columns are unlocked.</li>
+                                <li><strong>Beams: Exterior Flush / Centered</strong> controls the physical framing without moving columns. Analytical beams connect at column centroids; canonical geometry retains physical face termination and eccentricity offsets.</li>
+                                <li><strong>Cols Locked</strong> freezes column positions, sizes, rotations, and grid spans. ETABS and STAAD exports lock this geometry automatically. Unlock explicitly before making geometry changes, then review the new export.</li>
                             </ul>
                         </div>
                     </section>
@@ -5214,6 +5216,7 @@
     <script src="engine/walls.js"></script>
     <script src="engine/roof-frame.js"></script>
     <script src="engine/analysis-inputs.js"></script>
+    <script src="engine/frame-geometry.js"></script>
     <script src="engine/pynite-adapter.js"></script>
     <script src="persistence/project-revisions.js"></script>
     <script src="analysis-optimization.js"></script>
@@ -5256,7 +5259,7 @@
             releaseName: FSTR_RELEASE_NAME,
             fstrSchemaVersion: FSTR_SCHEMA_VERSION,
             releaseChannel: 'candidate',
-            gitCommit: '99877c4aa7e4a8601cdc4aabaf7583a7487df290',
+            gitCommit: '0bbd6af32198f60b2684753effc66168bc4d2d7c',
             buildDate: '2026-09-19',
             validatedFixtures: [
                 'legacy-v2.8-2floor',
@@ -6102,6 +6105,7 @@
             beamSizeOverrides: {}, // floorId::beamId -> { webW, webD, memberStatus }
             columnPositionOverrides: {}, // columnId -> { dx, dy } from grid, meters
             columnPositionLocked: false,
+            columnGeometryLock: null,
             beamAlignmentOverrides: {},  // floorId::beamId -> transverse offset, meters
             foundationTieBeamAlignmentOverrides: {}, // foundation tie-beam key -> transverse offset, meters
 
@@ -6130,10 +6134,8 @@
             // v3.0: Undo stack for restoring deleted items
             undoStack: [],           // Array of {type, data, floorId} for undo operations
 
-            // v3.1: Column alignment relative to gridlines
-            // 'center' = column center on gridline
-            // 'outer' = outer face of edge columns on gridline
-            // 'inner' = inner face on gridline
+            // Retained project key: beam alignment after legacy column centroids are captured.
+            // 'center' = centroid beam axes; 'outer' = exterior column-face alignment.
             columnAlignment: 'outer'
         };
 
@@ -6318,6 +6320,8 @@
         }
 
         function getColumnSizeMm(col) {
+            const locked = getLockedColumnGeometry(col);
+            if (locked) return { b: locked.b, h: locked.h };
             const b = normalizeMemberSizeMm(
                 firstPositive(col?.webB, col?.overrideB, col?.b, col?.suggestedB, state.defaultColumnB),
                 COLUMN_PRACTICAL_MIN_MM,
@@ -6348,6 +6352,8 @@
         }
 
         function getColumnOrientationDeg(col) {
+            const locked = getLockedColumnGeometry(col);
+            if (locked) return locked.orientationDeg;
             const orientation = Number(col?.orientationDeg);
             return Number.isFinite(orientation) ? orientation : 0;
         }
@@ -6794,6 +6800,13 @@
 
         function getColumnPlanOffset(col) {
             if (!col) return { dx: 0, dy: 0 };
+            const locked = getLockedColumnGeometry(col);
+            if (locked) return { dx: locked.x - Number(col.x), dy: locked.y - Number(col.y) };
+            const reference = col.centroidReference;
+            if (reference && Number.isFinite(reference.dx) && Number.isFinite(reference.dy)) {
+                const manual = getColumnManualPlanOffset(col);
+                return { dx: reference.dx + manual.dx, dy: reference.dy + manual.dy };
+            }
             const { totalX, totalY } = getPlanBounds();
             const halfExtents = getColumnPlanHalfExtentsM(col);
             const tol = 0.01;
@@ -6907,16 +6920,24 @@
             const rawEnd = { x: Number(beam?.x2) || 0, y: Number(beam?.y2) || 0 };
             const startPos = startCol ? getColumnPlanPosition(startCol) : rawStart;
             const endPos = endCol ? getColumnPlanPosition(endCol) : rawEnd;
-            const startManual = getColumnManualPlanOffset(startCol);
-            const endManual = getColumnManualPlanOffset(endCol);
             const defaultStart = { x: startPos.x, y: startPos.y };
             const defaultEnd = { x: endPos.x, y: endPos.y };
             if (beam?.direction === 'X') {
-                defaultStart.y = rawStart.y + startManual.dy;
-                defaultEnd.y = rawEnd.y + endManual.dy;
+                if (state.columnAlignment === 'outer' && !beam.isCustom) {
+                    const { totalY } = getPlanBounds();
+                    const faceSign = Math.abs(rawStart.y) < 0.01 ? -1 :
+                        (Math.abs(rawStart.y - totalY) < 0.01 ? 1 : 0);
+                    if (startCol) defaultStart.y += faceSign * getColumnPlanHalfExtentsM(startCol).y;
+                    if (endCol) defaultEnd.y += faceSign * getColumnPlanHalfExtentsM(endCol).y;
+                }
             } else if (beam?.direction === 'Y') {
-                defaultStart.x = rawStart.x + startManual.dx;
-                defaultEnd.x = rawEnd.x + endManual.dx;
+                if (state.columnAlignment === 'outer' && !beam.isCustom) {
+                    const { totalX } = getPlanBounds();
+                    const faceSign = Math.abs(rawStart.x) < 0.01 ? -1 :
+                        (Math.abs(rawStart.x - totalX) < 0.01 ? 1 : 0);
+                    if (startCol) defaultStart.x += faceSign * getColumnPlanHalfExtentsM(startCol).x;
+                    if (endCol) defaultEnd.x += faceSign * getColumnPlanHalfExtentsM(endCol).x;
+                }
             }
             const segment = {
                 x1: Number.isFinite(Number(beam?.renderX1)) ? Number(beam.renderX1) : defaultStart.x,
@@ -7148,16 +7169,19 @@
             if (trimMode) {
                 const startSupport = startCol && (!floorId || isColumnActiveOnFloor(startCol, floorId)) ? startCol : null;
                 const endSupport = endCol && (!floorId || isColumnActiveOnFloor(endCol, floorId)) ? endCol : null;
-                const startTrim = getBeamEndpointTrimAlongAxis(beam, startSupport, floorId, trimMode);
-                const endTrim = getBeamEndpointTrimAlongAxis(beam, endSupport, floorId, trimMode);
-                if (beam?.direction === 'X') {
-                    const sign = x2 >= x1 ? 1 : -1;
-                    x1 += sign * startTrim;
-                    x2 -= sign * endTrim;
-                } else {
-                    const sign = y2 >= y1 ? 1 : -1;
-                    y1 += sign * startTrim;
-                    y2 -= sign * endTrim;
+                const start = { x: x1, y: y1 }, end = { x: x2, y: y2 };
+                const dx = x2 - x1, dy = y2 - y1, length = Math.hypot(dx, dy);
+                const interval = col => col ? EngineFrameGeometry.columnLineInterval(start, end, getColumnPlanFootprint(col)) : null;
+                const startInterval = interval(startSupport), endInterval = interval(endSupport);
+                const junctionLimit = col => getBeamEndpointTrimAlongAxis(beam, col, floorId, 'junction') / Math.max(length, 1e-9);
+                const startT = startInterval ? Math.max(0, startInterval.exit) : 0;
+                const endT = endInterval ? Math.max(0, 1 - endInterval.enter) : 0;
+                const trimStart = trimMode === 'junction' ? Math.min(startT, junctionLimit(startSupport)) : startT;
+                const trimEnd = trimMode === 'junction' ? Math.min(endT, junctionLimit(endSupport)) : endT;
+                // An axis that misses a support stays explicit for alignment review.
+                if (trimStart + trimEnd < 1) {
+                    x1 += dx * trimStart; y1 += dy * trimStart;
+                    x2 -= dx * trimEnd; y2 -= dy * trimEnd;
                 }
             }
 
@@ -7167,14 +7191,11 @@
             x2 = terminated.x2;
             y2 = terminated.y2;
 
-            const half = beamWidthM / 2;
-            const minX = Math.min(x1, x2);
-            const maxX = Math.max(x1, x2);
-            const minY = Math.min(y1, y2);
-            const maxY = Math.max(y1, y2);
-            const rect = beam?.direction === 'X'
-                ? { left: minX, right: maxX, top: y1 - half, bottom: y1 + half }
-                : { left: x1 - half, right: x1 + half, top: minY, bottom: maxY };
+            const corners = EngineFrameGeometry.beamCorners({ x1, y1, x2, y2 }, beamWidthM);
+            const rect = {
+                left: Math.min(...corners.map(point => point.x)), right: Math.max(...corners.map(point => point.x)),
+                top: Math.min(...corners.map(point => point.y)), bottom: Math.max(...corners.map(point => point.y))
+            };
 
             return {
                 beamSize,
@@ -7186,6 +7207,7 @@
                 cx: (x1 + x2) / 2,
                 cy: (y1 + y2) / 2,
                 rect,
+                corners,
                 startCol,
                 endCol
             };
@@ -8019,6 +8041,9 @@
                 defaultEdgeBeamH: state.defaultEdgeBeamH,
                 beamSizeOverrides: JSON.parse(JSON.stringify(state.beamSizeOverrides || {})),
                 columnPositionOverrides: JSON.parse(JSON.stringify(state.columnPositionOverrides || {})),
+                columnPositionLocked: !!state.columnPositionLocked,
+                columnGeometryLock: cloneSerializable(state.columnGeometryLock, null),
+                columnAlignment: state.columnAlignment,
                 beamAlignmentOverrides: JSON.parse(JSON.stringify(state.beamAlignmentOverrides || {})),
                 foundationTieBeamAlignmentOverrides: JSON.parse(JSON.stringify(state.foundationTieBeamAlignmentOverrides || {})),
                 roofFrame: cloneSerializable(state.roofFrame, { enabled: false, members: [] }),
@@ -8066,6 +8091,9 @@
             state.memberSizePolicy = normalizeMemberSizePolicy(snapshot.memberSizePolicy);
             state.beamSizeOverrides = cloneSerializable(snapshot.beamSizeOverrides, {});
             state.columnPositionOverrides = cloneSerializable(snapshot.columnPositionOverrides, {});
+            state.columnPositionLocked = !!snapshot.columnPositionLocked;
+            state.columnGeometryLock = cloneSerializable(snapshot.columnGeometryLock, null);
+            state.columnAlignment = snapshot.columnAlignment || 'outer';
             state.beamAlignmentOverrides = cloneSerializable(snapshot.beamAlignmentOverrides, {});
             state.foundationTieBeamAlignmentOverrides = cloneSerializable(snapshot.foundationTieBeamAlignmentOverrides, {});
             state.foundationMode = normalizeFoundationMode(snapshot.foundationMode);
@@ -8743,6 +8771,99 @@
             };
         }
 
+        function getLockedColumnGeometry(col) {
+            return state.columnPositionLocked ? state.columnGeometryLock?.columns?.[col?.id] || null : null;
+        }
+
+        function preserveColumnCentroids() {
+            for (const col of state.columns || []) {
+                if (col.centroidReference) continue;
+                const offset = getColumnPlanOffset(col);
+                const manual = getColumnManualPlanOffset(col);
+                col.centroidReference = { dx: offset.dx - manual.dx, dy: offset.dy - manual.dy };
+            }
+        }
+
+        function captureColumnGeometryLock() {
+            preserveColumnCentroids();
+            const columns = {};
+            for (const col of state.columns || []) {
+                const position = getColumnPlanPosition(col);
+                const size = getColumnSizeMm(col);
+                columns[col.id] = {
+                    ...position, ...size, orientationDeg: getColumnOrientationDeg(col),
+                    gridX: Number(col.x), gridY: Number(col.y),
+                    manual: getColumnManualPlanOffset(col),
+                    centroidReference: { ...col.centroidReference }
+                };
+            }
+            return { schema: 'FutolStructure.ColumnGeometryLock.v1', columns,
+                xSpans: [...state.xSpans], ySpans: [...state.ySpans] };
+        }
+
+        function assertColumnGeometryUnchanged() {
+            if (!state.columnPositionLocked || !state.columnGeometryLock) return;
+            const snapshot = state.columnGeometryLock;
+            const failures = [];
+            if (JSON.stringify(snapshot.xSpans) !== JSON.stringify(state.xSpans) ||
+                JSON.stringify(snapshot.ySpans) !== JSON.stringify(state.ySpans)) failures.push('grid spans');
+            if (Object.keys(snapshot.columns).length !== state.columns.length) failures.push('column inventory');
+            for (const col of state.columns) {
+                const saved = snapshot.columns[col.id];
+                if (!saved) { failures.push(col.id); continue; }
+                const manual = getColumnManualPlanOffset(col);
+                const reference = col.centroidReference;
+                const differs = (a, b) => !Number.isFinite(Number(a)) || !Number.isFinite(Number(b)) || Math.abs(Number(a) - Number(b)) > 1e-9;
+                if (differs(col.x, saved.gridX) || differs(col.y, saved.gridY) ||
+                    differs(manual.dx, saved.manual.dx) || differs(manual.dy, saved.manual.dy) ||
+                    differs(reference?.dx, saved.centroidReference.dx) || differs(reference?.dy, saved.centroidReference.dy) ||
+                    differs(col.orientationDeg ?? 0, saved.orientationDeg) ||
+                    ['webB', 'overrideB', 'b', 'suggestedB'].some(key => col[key] != null && differs(col[key], saved.b)) ||
+                    ['webD', 'overrideH', 'h', 'suggestedH'].some(key => col[key] != null && differs(col[key], saved.h))) {
+                    failures.push(col.id);
+                }
+            }
+            if (failures.length) throw new Error(`Locked column geometry changed (${failures.join(', ')}). Unlock columns and review the model before exporting.`);
+        }
+
+        function prepareSolverColumnGeometry(model) {
+            if (!state.columnPositionLocked || !state.columnGeometryLock) toggleColumnPositionLock(true);
+            assertColumnGeometryUnchanged();
+            for (const exported of model.columns || []) {
+                const locked = state.columnGeometryLock.columns[exported.sourceId];
+                const solverPosition = locked ? toSolverPlanPoint(locked.x, locked.y) : null;
+                const section = (model.frameSections || []).find(item => item.name === exported.section);
+                const different = (a, b) => !Number.isFinite(a) || Math.abs(a - b) > 1e-8;
+                if (!locked || !Number.isFinite(exported.sourcePlanX) || !Number.isFinite(exported.sourcePlanY) ||
+                    Math.abs(exported.sourcePlanX - locked.x) > 1e-8 ||
+                    Math.abs(exported.sourcePlanY - locked.y) > 1e-8 ||
+                    exported.sourceSizeBmm !== locked.b || exported.sourceSizeHmm !== locked.h ||
+                    exported.sourceOrientationDeg !== locked.orientationDeg ||
+                    different(exported.x, solverPosition.x) || different(exported.y, solverPosition.y) ||
+                    exported.orientationDeg !== locked.orientationDeg || exported.analyticalCardinalPoint !== 5 ||
+                    !section || section.bMm !== locked.b || section.hMm !== locked.h ||
+                    different(exported.etabsLocalAxisAngleDeg, getETABSColumnLocalAxisAngleDeg({ orientationDeg: locked.orientationDeg }))) {
+                    throw new Error(`Solver payload for ${exported.sourceId} differs from the locked column geometry. Refresh the export.`);
+                }
+            }
+            for (const beam of model.beams || []) {
+                for (const end of ['Start', 'End']) {
+                    const id = beam[`source${end}ColumnId`];
+                    if (!id) continue;
+                    const locked = state.columnGeometryLock.columns[id];
+                    const point = locked ? toSolverPlanPoint(locked.x, locked.y) : null;
+                    const index = end === 'Start' ? '1' : '2';
+                    if (!point || !Number.isFinite(beam[`x${index}`]) || !Number.isFinite(beam[`y${index}`]) ||
+                        Math.abs(beam[`x${index}`] - point.x) > 1e-8 ||
+                        Math.abs(beam[`y${index}`] - point.y) > 1e-8) {
+                        throw new Error(`Beam ${beam.id} analytical ${end.toLowerCase()} is not on column ${id}'s locked centroid.`);
+                    }
+                }
+            }
+            model.columnGeometryAuthority = cloneSerializable(state.columnGeometryLock, null);
+            model.analyticalGeometry.sourceColumnPositionLocked = true;
+        }
+
         function buildCanonicalAnalyticalAudit(model) {
             const source = model || {};
             const geometry = source.analyticalGeometry || {};
@@ -9008,18 +9129,19 @@
         }
 
         // ========== v3.1: COLUMN GRID ALIGNMENT ==========
-        // Toggle between centered and outer-aligned edge columns
+        // Beam alignment never relocates the authoritative column centroids.
         function syncColumnAlignmentButton() {
             const btn = document.getElementById('colAlignBtn');
             if (!btn) return;
+            btn.title = 'Align beams to exterior column faces or column centroids';
 
             if (state.columnAlignment === 'outer') {
-                btn.textContent = '📍 Col: Flush';
+                btn.textContent = 'Beams: Exterior Flush';
                 btn.style.background = 'linear-gradient(135deg, #10b981, #047857)';
                 btn.style.color = 'white';
                 btn.style.borderColor = '#10b981';
             } else {
-                btn.textContent = '📍 Col: Center';
+                btn.textContent = 'Beams: Centered';
                 btn.style.background = 'transparent';
                 btn.style.color = '#10b981';
                 btn.style.borderColor = '#10b981';
@@ -9037,26 +9159,49 @@
             btn.textContent = locked ? 'Cols Locked' : 'Cols Free';
             btn.classList.toggle('active', locked);
             btn.title = locked
-                ? 'Columns are locked against nudge, planted edits, and deletion'
-                : 'Columns are unlocked for nudge, planted edits, and deletion';
+                ? 'Column centroids, sizes, rotations, and grid are locked for solver export'
+                : 'Column centroids, sizes, and rotations are editable';
             btn.style.background = locked ? 'linear-gradient(135deg, #64748b, #475569)' : '';
             btn.style.color = locked ? 'white' : '';
             btn.style.borderColor = locked ? '#94a3b8' : '';
+            ['columnWidthInput', 'columnDepthInput', 'dimColB', 'dimColD'].forEach(id => {
+                const input = document.getElementById(id);
+                if (input) input.disabled = locked;
+            });
         }
 
         function columnLockBlocks(actionLabel = 'Column edit') {
             if (!isColumnPositionLocked()) return false;
             console.warn(`FS safety: ${actionLabel} blocked because columns are globally locked.`);
+            setNudgeStatus(`${actionLabel} blocked: columns locked.`, 'warning');
             return true;
         }
 
         function toggleColumnPositionLock(force = null) {
-            state.columnPositionLocked = force === null ? !isColumnPositionLocked() : !!force;
+            const nextLocked = force === null ? !isColumnPositionLocked() : !!force;
+            if (nextLocked && state.columnGeometryLock && isColumnPositionLocked()) {
+                assertColumnGeometryUnchanged();
+                return;
+            }
+            if (force === null) saveStateSnapshot();
+            if (nextLocked) {
+                preserveColumnCentroids();
+                for (const col of state.columns || []) {
+                    const size = getColumnSizeMm(col);
+                    applyColumnSizeMm(col, size.b, size.h);
+                }
+                state.columnGeometryLock = captureColumnGeometryLock();
+            } else {
+                state.columnGeometryLock = null;
+            }
+            state.columnPositionLocked = nextLocked;
             if (state.columnPositionLocked && placingPlantedColumn) {
                 exitPlantedColumnMode();
             }
             hideColumnMenu();
             syncColumnPositionLockButton();
+            if (typeof populateColumnSchedule === 'function') populateColumnSchedule();
+            if (typeof renderScheduleColumns === 'function') renderScheduleColumns();
             draw();
             if (typeof render3DFrame === 'function' && view3DInitialized) {
                 render3DFrame();
@@ -9174,6 +9319,7 @@
         }
 
         function toggleColumnAlignment() {
+            preserveColumnCentroids();
             if (state.columnAlignment === 'center') {
                 state.columnAlignment = 'outer';
             } else {
@@ -9248,6 +9394,7 @@
         }
 
         function updateSpan(dir, index, value) {
+            if (columnLockBlocks('Grid change')) { renderSpans(); return; }
             const spans = dir === 'x' ? state.xSpans : state.ySpans;
             spans[index] = sanitizeSpan(value, spans[index] || 4.0);
             if (typeof ensureCantileverDashboardMatchesGrid === 'function') {
@@ -9257,6 +9404,7 @@
         }
 
         function addSpan(dir) {
+            if (columnLockBlocks('Grid change')) return;
             const spans = dir === 'x' ? state.xSpans : state.ySpans;
             spans.push(4.0);
             syncCantileversToSpans();  // v3.0: Keep cantilever arrays in sync
@@ -9266,6 +9414,7 @@
         }
 
         function removeSpan(dir, index) {
+            if (columnLockBlocks('Grid change')) return;
             const spans = dir === 'x' ? state.xSpans : state.ySpans;
             if (spans.length > 1) {
                 spans.splice(index, 1);
@@ -9610,6 +9759,13 @@
         }
 
         // Update member dimensions from the table and sync with left panel
+        function updateDefaultColumnSize(dimension, value) {
+            if (columnLockBlocks('Column size change')) { syncDimensionTable(); return; }
+            preserveColumnCentroids();
+            state[dimension === 'b' ? 'defaultColumnB' : 'defaultColumnH'] = normalizeDefaultMemberSizeMm(value, 0, 1200);
+            calculate();
+        }
+
         function updateMemberDimensions() {
             // Read values from dimension table
             const colB = normalizeDefaultMemberSizeMm(document.getElementById('dimColB')?.value, 250, 1200);
@@ -9618,8 +9774,11 @@
             const beamD = normalizeDefaultMemberSizeMm(document.getElementById('dimBeamD')?.value, 400, 2000);
 
             // Update state
-            state.defaultColumnB = colB;
-            state.defaultColumnH = colD;
+            if (!isColumnPositionLocked()) {
+                preserveColumnCentroids();
+                state.defaultColumnB = colB;
+                state.defaultColumnH = colD;
+            }
             state.defaultBeamB = beamB;
             state.defaultBeamH = beamD;
 
@@ -9629,8 +9788,9 @@
             const beamBInput = document.getElementById('beamWidthInput');
             const beamDInput = document.getElementById('beamDepthInput');
 
-            if (colBInput) colBInput.value = colB;
-            if (colDInput) colDInput.value = colD;
+            if (colBInput) colBInput.value = state.defaultColumnB;
+            if (colDInput) colDInput.value = state.defaultColumnH;
+            syncDimensionTable();
             if (beamBInput) beamBInput.value = beamB;
             if (beamDInput) beamDInput.value = beamD;
 
@@ -10694,6 +10854,7 @@
          * v2.3: Calculates per-floor and cumulative across floors
          */
         function calculate() {
+            assertColumnGeometryUnchanged();
             syncFoundationModeUI();
             const verticalDatums = syncGovernedFloorElevations();
             if (!verticalDatums.valid) {
@@ -10780,6 +10941,10 @@
             generateSlabs(currentFloor.id);
             generateBeams(puDisplay, currentFloor.wallLoad || 0, currentFloor); // Use display PU
             sizeMembers(currentFloor.id);
+            preserveColumnCentroids();
+            if (state.columnPositionLocked && !state.columnGeometryLock) {
+                toggleColumnPositionLock(true);
+            }
             calculateBeamReactions();
 
             // Update UI from the current floor's final display geometry
@@ -14775,6 +14940,23 @@
                         isRightEdge = Math.abs(beam.x1 - totalX) < 0.01 || (beam.isEdgeBeam && beam.cantileverEdge === 'right');
                     }
 
+                    const skewedOutline = Math.abs(beamGeom.x2 - beamGeom.x1) > 1e-8 && Math.abs(beamGeom.y2 - beamGeom.y1) > 1e-8;
+                    if (skewedOutline) {
+                        const screenCorners = beamGeom.corners.map(point => ({
+                            x: point.x * state.scale + state.offsetX, y: point.y * state.scale + state.offsetY
+                        }));
+                        const outerNormal = isTopEdge ? { x: 0, y: -1 } : isBottomEdge ? { x: 0, y: 1 } :
+                            isLeftEdge ? { x: -1, y: 0 } : isRightEdge ? { x: 1, y: 0 } : null;
+                        screenCorners.forEach((point, index) => {
+                            const next = screenCorners[(index + 1) % 4];
+                            const outside = outerNormal && (index === 0 || index === 2) &&
+                                (((point.x + next.x) / 2 - (beamGeom.cx * state.scale + state.offsetX)) * outerNormal.x +
+                                 ((point.y + next.y) / 2 - (beamGeom.cy * state.scale + state.offsetY)) * outerNormal.y > 0);
+                            ctx.setLineDash(outside && !isHiddenByCornerSlab ? [] : [dashLength, gapLength]);
+                            ctx.beginPath(); ctx.moveTo(point.x, point.y); ctx.lineTo(next.x, next.y); ctx.stroke();
+                        });
+                    }
+
                     // Trim drafting outlines only as far as needed to keep beam/column junctions closed.
                     if (beam.direction === 'X') {
                         // Horizontal beam
@@ -14789,7 +14971,9 @@
                         // Edge beams: SOLID outside, DASHED inside
                         ctx.beginPath();
 
-                        if (isHiddenByCornerSlab) {
+                        if (skewedOutline) {
+                            // The shared polygon above already draws this skewed member.
+                        } else if (isHiddenByCornerSlab) {
                             ctx.setLineDash([dashLength, gapLength]);
                             ctx.strokeRect(x1, beamTop, x2 - x1, beamWidthPx);
                         } else if (isTopEdge) {
@@ -14864,7 +15048,9 @@
                         // v3.2: Draw beam with proper line styles
                         ctx.beginPath();
 
-                        if (isHiddenByCornerSlab) {
+                        if (skewedOutline) {
+                            // The shared polygon above already draws this skewed member.
+                        } else if (isHiddenByCornerSlab) {
                             ctx.setLineDash([dashLength, gapLength]);
                             ctx.strokeRect(beamLeft, y1, beamWidthPx, y2 - y1);
                         } else if (isLeftEdge) {
@@ -19297,6 +19483,7 @@
                     supportType: c.supportType || (c.isPlanted ? 'unresolved_support' : 'continuous_column'),
                     supportStatus: c.supportStatus || (c.isPlanted ? 'unresolved' : 'continuous'),
                     orientationDeg: Number(c.orientationDeg) || 0,
+                    centroidReference: cloneSerializable(c.centroidReference, null),
                     memberStatus: c.memberStatus || 'proposed_new',
                     overrideB: c.overrideB,
                     overrideH: c.overrideH,
@@ -19337,6 +19524,7 @@
                 beamSizeOverrides: state.beamSizeOverrides || {},
                 columnPositionOverrides: state.columnPositionOverrides || {},
                 columnPositionLocked: !!state.columnPositionLocked,
+                columnGeometryLock: cloneSerializable(state.columnGeometryLock, null),
                 beamAlignmentOverrides: state.beamAlignmentOverrides || {},
                 foundationTieBeamAlignmentOverrides: state.foundationTieBeamAlignmentOverrides || {},
                 foundationMode: normalizeFoundationMode(state.foundationMode),
@@ -19916,10 +20104,11 @@
             state.beamSizeOverrides = projectData.beamSizeOverrides || {};
             state.columnPositionOverrides = projectData.columnPositionOverrides || {};
             state.columnPositionLocked = !!projectData.columnPositionLocked;
+            state.columnGeometryLock = cloneSerializable(projectData.columnGeometryLock, null);
             state.beamAlignmentOverrides = projectData.beamAlignmentOverrides || {};
             state.foundationTieBeamAlignmentOverrides = projectData.foundationTieBeamAlignmentOverrides || {};
             state.foundationMode = normalizeFoundationMode(projectData.foundationMode);
-            if (projectData.columnAlignment) state.columnAlignment = projectData.columnAlignment;
+            state.columnAlignment = projectData.columnAlignment || 'outer';
             if (projectData.tieBeamWidth != null) {
                 state.tieBeamWidth = normalizeMemberSizeMm(
                     projectData.tieBeamWidth,
@@ -20405,6 +20594,9 @@
             state.memberSizePolicy = { ...DEFAULT_MEMBER_SIZE_POLICY };
             state.beamSizeOverrides = {};
             state.columnPositionOverrides = {};
+            state.columnPositionLocked = false;
+            state.columnGeometryLock = null;
+            state.columnAlignment = 'outer';
             state.beamAlignmentOverrides = {};
             state.foundationTieBeamAlignmentOverrides = {};
             state.foundationMode = 'plan';
@@ -20440,6 +20632,8 @@
             syncFoundationModeUI();
 
             // Re-render UI
+            syncColumnPositionLockButton();
+            syncColumnAlignmentButton();
             renderSpans();
             renderCantileverInputs();
             renderFloorTabs();
@@ -26051,6 +26245,7 @@ function populateBOM() {
             assertSolverMemberSizeReady('STAAD');
             const model = modelData;
             assertSolverStairTopologyReady('STAAD', model.stairTopologyValidation);
+            prepareSolverColumnGeometry(model);
             const nodes = [];
             const nodeByCoordinate = new Map();
             const frameNodeIds = new Set();
@@ -27086,7 +27281,7 @@ function populateBOM() {
         // drafting uses X-right/Y-down, so a plan rotation is reflected when it
         // is applied to a vertical rectangular column in ETABS.
         function getETABSColumnLocalAxisAngleDeg(column) {
-            const sourceAngle = Number(column?.orientationDeg) || 0;
+            const sourceAngle = getColumnOrientationDeg(column);
             let angle = ((-sourceAngle % 360) + 360) % 360;
             if (angle > 180) angle -= 360;
             return Math.abs(angle) < 1e-10 ? 0 : angle;
@@ -27299,6 +27494,7 @@ function populateBOM() {
         }
 
         function collectCSIExportModelData() {
+            assertColumnGeometryUnchanged();
             const verticalDatums = syncGovernedFloorElevations();
             if (!verticalDatums.valid) {
                 throw new Error(`Vertical datum contract is invalid: ${verticalDatums.issues.join(' ')}`);
@@ -27643,13 +27839,13 @@ function populateBOM() {
                             isPlanted: !!col.isPlanted,
                             isTerminated: !!col.terminationLevelId && col.terminationLevelId === floorId,
                             memberStatus: normalizeMemberStatus(col.memberStatus),
-                            orientationDeg: Number(col.orientationDeg) || 0,
+                            orientationDeg: getColumnOrientationDeg(col),
                             etabsLocalAxisAngleDeg: getETABSColumnLocalAxisAngleDeg(col),
                             analyticalCardinalPoint: 5,
                             exportStatus: segmentValidation.status,
                             sourcePlanX: position.x,
                             sourcePlanY: position.y,
-                            sourceOrientationDeg: Number(col.orientationDeg) || 0,
+                            sourceOrientationDeg: getColumnOrientationDeg(col),
                             sourceSizeBmm: size.b,
                             sourceSizeHmm: size.h,
                             x: solverPosition.x,
@@ -27933,6 +28129,7 @@ function populateBOM() {
                     xSign: 1,
                     ySign: -1
                 },
+                columnGeometryAuthority: cloneSerializable(state.columnGeometryLock, null),
                 analyticalGeometry: {
                     nodePolicy: 'canonical-coordinate-registry',
                     beamEndpointPolicy: 'column-centroid-joints',
@@ -28040,6 +28237,7 @@ function populateBOM() {
             assertSolverColumnTopologyReady('ETABS');
             assertSolverMemberSizeReady('ETABS');
             assertSolverStairTopologyReady('ETABS', modelData.stairTopologyValidation);
+            prepareSolverColumnGeometry(modelData);
             const encodedModel = encodeUtf8Base64(JSON.stringify(modelData));
             return String.raw`param(
     [string]$OutputDirectory = (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'FutolStructure ETABS Exports'),
@@ -30675,11 +30873,11 @@ try {
             if (activeContextMenuPlacement?.menuId === menu.id) activeContextMenuPlacement = null;
         }
 
-        function setNudgeStatus(message) {
+        function setNudgeStatus(message, tone = 'success') {
             const indicator = document.getElementById('statusIndicator');
             const statusText = document.getElementById('statusText');
             if (!statusText) return;
-            if (indicator) indicator.style.background = 'var(--success)';
+            if (indicator) indicator.style.background = `var(--${tone})`;
             statusText.textContent = message;
             statusText.title = message;
             window.clearTimeout(window.nudgeStatusTimer);
@@ -32617,10 +32815,10 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                             <td>${escapeInfoText(governance.endLevel)}</td>
                             <td>${escapeInfoText(governance.supportType.replace(/_/g, ' '))}</td>
                             <td>${escapeInfoText(governance.hostMemberId)}</td>
-                            <td><input type="number" value="${colW}" onchange="updateColumnParam('${col.id}', 'webB', this.value)" style="width:45px;"></td>
-                            <td><input type="number" value="${colD}" onchange="updateColumnParam('${col.id}', 'webD', this.value)" style="width:45px;"></td>
+                            <td><input type="number" value="${colW}" ${isColumnPositionLocked() ? 'disabled' : ''} onchange="updateColumnParam('${col.id}', 'webB', this.value)" style="width:45px;"></td>
+                            <td><input type="number" value="${colD}" ${isColumnPositionLocked() ? 'disabled' : ''} onchange="updateColumnParam('${col.id}', 'webD', this.value)" style="width:45px;"></td>
                             <td><input type="number" value="${governance.orientationDeg}" min="-360" max="360" step="90"
-                                onchange="updateColumnParam('${col.id}', 'orientationDeg', this.value)" style="width:48px;"></td>
+                                ${isColumnPositionLocked() ? 'disabled' : ''} onchange="updateColumnParam('${col.id}', 'orientationDeg', this.value)" style="width:48px;"></td>
                             <td><select onchange="updateColumnParam('${col.id}', 'memberStatus', this.value)"
                                 style="width:118px;">${getMemberStatusOptionsHtml(col.memberStatus)}</select></td>
                             <td>${escapeInfoText(governance.status)}</td>
@@ -32905,6 +33103,11 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
             window.updateColumnParam = function (colId, param, value) {
                 const col = state.columns.find(c => c.id === colId);
                 if (!col) return;
+                if (['webB', 'webD', 'b', 'h', 'orientationDeg'].includes(param)) {
+                    if (columnLockBlocks('Column geometry change')) { populateColumnSchedule(); return; }
+                    preserveColumnCentroids();
+                    saveStateSnapshot();
+                }
 
                 const size = getColumnSizeMm(col);
                 if (param === 'memberStatus') {
@@ -33282,11 +33485,11 @@ Reference NSCP sections when applicable.Format numbers with units(kN, mm, m).`,
                         <td style="${cellStyle}">${(col.type || 'Corner').toUpperCase()}</td>
                         <td style="${cellStyle} width:80px;">
                             <input type="number" value="${colSize.b}" step="25" min="25" style="${inputStyle}"
-                                   onchange="updateColumnParam('${col.id}', 'b', this.value)">
+                                   ${isColumnPositionLocked() ? 'disabled' : ''} onchange="updateColumnParam('${col.id}', 'b', this.value)">
                         </td>
                         <td style="${cellStyle} width:80px;">
                             <input type="number" value="${colSize.h}" step="25" min="25" style="${inputStyle}"
-                                   onchange="updateColumnParam('${col.id}', 'h', this.value)">
+                                   ${isColumnPositionLocked() ? 'disabled' : ''} onchange="updateColumnParam('${col.id}', 'h', this.value)">
                         </td>
                         <td style="${cellStyle}">${(col.P_total || 0).toFixed(1)}</td>
                         <td style="${cellStyle}">${col.isPlanted ? 'YES' : 'NO'}</td>

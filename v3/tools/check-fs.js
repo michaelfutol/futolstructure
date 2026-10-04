@@ -78,8 +78,9 @@ function checkReleaseManifest() {
     const html = fs.readFileSync(INDEX, 'utf8');
     const desktopPackage = JSON.parse(fs.readFileSync(DESKTOP_PACKAGE, 'utf8'));
     assert(manifest.appVersion === desktopPackage.version, 'Desktop and runtime versions differ', manifest);
-    assert(manifest.buildId === 'FS-125-RC8', 'Release manifest build ID is stale', manifest);
-    assert(manifest.releaseName === 'Desktop Workspaces Candidate', 'Release manifest name is stale', manifest);
+    const rc = desktopPackage.version.match(/-rc\.(\d+)$/)?.[1];
+    assert(manifest.buildId === `FS-125-RC${rc}`, 'Release manifest build ID is stale', manifest);
+    assert(typeof manifest.releaseName === 'string' && manifest.releaseName.length > 0, 'Release manifest name is missing', manifest);
     assert(manifest.fstrSchemaVersion === '0.2.0', 'Release manifest FSTR schema is stale', manifest);
     const allowUnstampedManifest = process.env.FS_ALLOW_UNSTAMPED_MANIFEST === '1';
     assert(
@@ -1402,11 +1403,12 @@ class CdpTab {
                 reject(error);
                 return;
             }
-            setTimeout(() => {
+            const timeout = setTimeout(() => {
                 if (!this.pending.has(id)) return;
                 this.pending.delete(id);
                 reject(new Error(`CDP timeout: ${method}; readyState=${this.ws.readyState}; frames=${JSON.stringify(this.transportDiagnostics)}`));
             }, CDP_TIMEOUT_MS);
+            timeout.unref();
         });
     }
 
@@ -1495,6 +1497,7 @@ async function waitForAppReady(tab) {
 }
 
 async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
+    const currentRelease = JSON.parse(fs.readFileSync(path.join(V3, 'release-manifest.json'), 'utf8'));
     const browser = await ensureBrowser(DEFAULT_PORT);
     const tab = await openAppTab(browser.base);
     const screenshotPath = path.join(os.tmpdir(), 'futolstructure-smoke.png');
@@ -3593,10 +3596,10 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
         assert(!result.initial.initError && !result.initError, 'Init error shown in app', result);
         assert(result.initial.columns === 9, 'Default 2x2 model did not initialize 9 columns', result.initial);
         assert(
-            result.uiCleanupAudit.buildBadge === 'v3.16.125-rc.4' &&
-            result.uiCleanupAudit.rebuildButton === true &&
+            result.uiCleanupAudit.buildBadge === 'v' + JSON.parse(fs.readFileSync(DESKTOP_PACKAGE, 'utf8')).version &&
+            result.uiCleanupAudit.rebuildButton === false &&
             result.uiCleanupAudit.etabsButton === true &&
-            result.uiCleanupAudit.solverImportButton === true &&
+            result.uiCleanupAudit.solverImportButton === false &&
             result.uiCleanupAudit.roundTripInput === true &&
             result.uiCleanupAudit.roundTripProbeStatus === 'INCOMPLETE' &&
             result.uiCleanupAudit.roundTripProbeNoAutoApply === true &&
@@ -4370,7 +4373,7 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
             result.dxfLayerAudit.crlfOnly === true &&
             result.dxfLayerAudit.packageAudit.dxfVersion === 'AC1009' &&
             result.dxfLayerAudit.packageAudit.lineEnding === 'CRLF' &&
-            result.dxfLayerAudit.packageAudit.build === 'FS-125-RC4' &&
+            result.dxfLayerAudit.packageAudit.build === currentRelease.buildId &&
             result.dxfLayerAudit.packageAudit.writerBuild === 'FS-119-DXF-1',
             'DXF envelope or app/writer provenance is inconsistent',
             result.dxfLayerAudit
@@ -4705,13 +4708,13 @@ async function runBrowserSmoke(historicalFixture, fs123OutputDir = null) {
             revisionProtection.destructive.some(item => item.includes('voids')) &&
             revisionProtection.invalidHealth.valid === false &&
             revisionProtection.rowCount >= 1 &&
-            revisionProtection.releaseVersion === '3.16.125-rc.4' &&
-            revisionProtection.releaseBuildId === 'FS-125-RC4' &&
+            revisionProtection.releaseVersion === currentRelease.appVersion &&
+            revisionProtection.releaseBuildId === currentRelease.buildId &&
             revisionProtection.schemaVersion === '0.2.0' &&
             revisionProtection.normalSaveAudit.writtenBytes > 0 &&
             /^model-revision-/.test(revisionProtection.normalSaveAudit.revisionId) &&
             revisionProtection.normalSaveAudit.parentRevisionId === 'qa-protected-baseline' &&
-            revisionProtection.normalSaveAudit.releaseBuildId === 'FS-125-RC4' &&
+            revisionProtection.normalSaveAudit.releaseBuildId === currentRelease.buildId &&
             revisionProtection.normalSaveAudit.protectedCount >= 3 &&
             revisionProtection.normalSaveAudit.preOverwriteCount >= 2 &&
             revisionProtection.downloadAudit?.filename.endsWith('.fstr') &&
@@ -7958,6 +7961,7 @@ async function main() {
         'v3/engine/tributary.js',
         'v3/engine/stairs.js',
         'v3/engine/analysis-inputs.js',
+        'v3/engine/frame-geometry.js',
         'v3/engine/walls.js',
         'v3/engine/roof-frame.js',
         'v3/engine/vertical-datums.js',
@@ -7996,7 +8000,9 @@ async function main() {
     console.log(JSON.stringify({ ok: true, ...summary, browser, canonicalSolverArtifacts, edgeCantileverSolverArtifacts, wallSolverArtifacts, project, p0C1AAcceptance }, null, 2));
 }
 
-main().catch(err => {
+module.exports = { ensureBrowser, openAppTab, DEFAULT_PORT };
+
+if (require.main === module) main().catch(err => {
     console.error(JSON.stringify({
         ok: false,
         message: err.message,

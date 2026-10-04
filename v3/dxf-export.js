@@ -373,11 +373,11 @@
     function drawBeam(writer, transform, beam, floor, rowNumber, hiddenBeamIds, tributary = false) {
         if (!beam || beam.deleted) return null;
         const geometry = getBeamPlanDrawGeometry(beam, floor.id, { trimToJunction: true });
-        const rect = transform.rect(geometry.rect.left, geometry.rect.top, geometry.rect.right, geometry.rect.bottom);
         const hidden = hiddenBeamIds?.has(beam.id);
         const lineOptions = hidden ? { linetype: 'HIDDEN2' } : {};
         const beamLayer = getBeamGovernanceType(beam) === 'stair' ? DXF_LAYER.STAIR : DXF_LAYER.BEAM;
-        writer.rectangle(rect.x1, rect.y1, rect.x2, rect.y2, beamLayer, lineOptions);
+        writer.polyline(geometry.corners.map(point => transform.point(point.x, point.y)),
+            beamLayer, { ...lineOptions, closed: true });
 
         const center = transform.point(geometry.cx, geometry.cy);
         if (tributary) {
