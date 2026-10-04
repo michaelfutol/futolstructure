@@ -101,6 +101,10 @@ async function main() {
         fs.writeFileSync(path.join(output, 'desktop-smoke.json'), JSON.stringify(result, null, 2));
         console.log(JSON.stringify(result));
     } finally {
+        // Only this disposable profile is discarded; normal close-save protection stays active.
+        await app.evaluate(({ BrowserWindow }) => {
+            BrowserWindow.getAllWindows().forEach(window => window.destroy());
+        }).catch(() => {});
         await app.close();
     }
 }

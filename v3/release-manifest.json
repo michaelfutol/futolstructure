@@ -1,11 +1,11 @@
 {
-  "appVersion": "3.16.125-rc.11",
-  "buildId": "FS-125-RC11",
-  "releaseName": "FS-125 RC11 Local Candidate",
+  "appVersion": "3.16.125-rc.12",
+  "buildId": "FS-125-RC12",
+  "releaseName": "FS-125 RC12 Column Authority Candidate",
   "fstrSchemaVersion": "0.2.0",
   "releaseChannel": "candidate",
-  "gitCommit": "0bbd6af32198f60b2684753effc66168bc4d2d7c",
-  "buildDate": "2026-09-19",
+  "gitCommit": "5548699d5899da19060ee77afb6e01eec199c641",
+  "buildDate": "2026-10-04",
   "validatedFixtures": [
     "legacy-v2.8-2floor",
     "regular-v2.8-3floor-pre-p0c",

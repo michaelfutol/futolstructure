@@ -2,7 +2,7 @@
 
 Date: 2026-10-04
 Candidate: FS-125-RC12 / 3.16.125-rc.12
-Status: FS-side focused acceptance passed; native mixed-orientation acceptance pending.
+Status: FS-side focused acceptance and installed Windows smoke passed; native mixed-orientation acceptance pending.
 
 ## Geometry Contract
 
@@ -45,3 +45,14 @@ python v3/tools/validate-dxf.py output/acceptance/rc12-column-authority/column-a
 4. Test orientation/size changes returned from approved solver design through a reviewed new revision. Automatic native model application remains outside this milestone.
 
 No new GitHub publication or production website deployment is included in this local candidate.
+
+## Installed Windows Evidence
+
+- Source checkpoint: `5548699d5899da19060ee77afb6e01eec199c641`.
+- Installer: `output/desktop/FutolStructure-Setup-3.16.125-rc.12-x64.exe`.
+- Installer SHA256: `98CC7F39FF67F5AA461FC09B3DA6632EC63B65015728EFE74156273AB8AC87EA`.
+- Installed executable: `C:/Users/Futol/AppData/Local/Programs/FutolStructure/FutolStructure.exe`.
+- FileVersion, desktop bridge, manifest, and UI badge: `3.16.125-rc.12 / FS-125-RC12`.
+- Playwright smoke passed with isolated profile and zero page errors. Rectangular A1 changed to 300x450 mm / 90 degrees while its centroid stayed at (0.15, 0.15) m; beam alignment kept every column centroid fixed; export auto-locked columns; rotation/span edits were blocked; `.fstr` save/load retained the exact authority snapshot.
+- Evidence: `output/playwright/desktop/desktop-smoke.json`, `installed-column-authority.png`, `installed-workspaces.png`, and `file-open-history.png`.
+- Initial sandboxed packaged launch failed before rendering with a GPU process dependency error. The same package and installed executable passed outside the restricted sandbox. The disposable-profile teardown explicitly bypasses normal unsaved-change close protection only for that test process.
