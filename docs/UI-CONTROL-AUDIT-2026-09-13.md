@@ -23,3 +23,16 @@
 - Replace the static QA badge with validation status for the current model and export target. Baseline validation alone must not imply current-project acceptance.
 
 These follow-ups are proposals, not completed functionality. No engineering geometry or export calculation changes are part of this cleanup.
+
+## RC12 Review, 2026-10-07
+
+The user requested suggestions for a more refined interface. These are proposals only; no runtime UI changes were made in this publication step.
+
+1. Give the drawing more room: collapsible/resizable left inputs and right results, with remembered widths and a deliberate canvas-fit action. Keep the active floor/project visible when panels collapse.
+2. Introduce a contextual member inspector: selection exposes dimensions, orientation, explicit move distance, beam alignment, lock status, and reset controls in one predictable place. Use the existing geometry mutation/undo helpers and never bypass the column authority lock.
+3. Reduce toolbar noise: accessible icon buttons with tooltips for pan, zoom, fit, measure, save, undo, and redo; grouped drawing/export menus; proper snap/ortho toggles; a numeric bubble-distance control; a centered/exterior-flush segmented control. Retain every distinct export and precision function.
+4. Improve drafting hierarchy: clearer text contrast, restrained borders, consistent spacing, stable tool dimensions, and visible selection/hover states. Preserve Paper and Dark CAD canvas choices, drawing legibility, and actual framing geometry; avoid decorative animation and marketing-style cards.
+5. Replace baseline-only QA with current-project readiness: actionable member-linked warnings, per-target export status, visible unsaved changes and column-authority status. Prior fixture acceptance must not imply current-project validation.
+6. Put unavailable analysis/optimization tools behind an explicit advanced/draft entry while retaining persisted data and clear capability boundaries.
+
+Recommended first slice: canvas space, toolbar grouping, and the contextual inspector. Verify desktop/narrow viewports, keyboard access, context-menu placement, numeric entry, undo/redo, project persistence, and unchanged export geometry before shipping a UI candidate.

@@ -44,7 +44,7 @@ python v3/tools/validate-dxf.py output/acceptance/rc12-column-authority/column-a
 3. Rotated faces that cannot share one straight flush beam remain review cases. A straight square-ended beam is not a universal beveled connection; the exterior-flush ledger must retain skew/missed-face warnings. This milestone does not claim perfect construction joints for every arbitrary rotation.
 4. Test orientation/size changes returned from approved solver design through a reviewed new revision. Automatic native model application remains outside this milestone.
 
-No new GitHub publication or production website deployment is included in this local candidate.
+Publication update, 2026-10-07: with user approval, the eight pending commits through `9755ffa` were pushed to `feature/fs-125-shared-analytical-inputs`. `main` and the production website were not changed. Native acceptance gates above remain open.
 
 ## Installed Windows Evidence
 
